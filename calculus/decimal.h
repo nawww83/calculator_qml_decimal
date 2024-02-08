@@ -44,10 +44,7 @@ inline int undigits(char d) {
         return 0;
     }
 }
-// std::map<char, long long> undigits {
-//     {'0', 0}, {'1', 1}, {'2', 2}, {'3', 3}, {'4', 4},
-//     {'5', 5}, {'6', 6}, {'7', 7}, {'8', 8}, {'9', 9}
-// };
+
 constexpr inline char digits[10] {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
 
 inline int num_of_digits(long long x) {

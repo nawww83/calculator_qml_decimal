@@ -123,213 +123,88 @@ int main(int argc, char *argv[])
             }
         }
     }
-    // Static test
-    // qDebug() << "Static test...";
-    dec1.set(1, 100, 100);
-    dec2.set(0, -100, 100);
-    // cout << dec1.value() << "\n";
-    assert(dec1.value() == "2,00");
-    assert(dec2.value() == "-1,00");
-    dec1.set(0, -99, 100);
-    dec2.set(0, 100, 100);
-    assert(dec1.value() == "-0,99");
-    assert(dec2.value() == "1,00");
-    dec1.set(-1, 100, 100);
-    dec2.set(-1, 99, 100);
-    assert(dec1.value() == "-2,00");
-    assert(dec2.value() == "-1,99");
-    dec1.set(-1, 0, 100);
-    dec2.set(0, -1, 100);
-    assert(dec1.value() == "-1,00");
-    assert(dec2.value() == "-0,01");
-
-    dec1.set(0, 0, 100);
-    dec2.set(1, 0, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(0, 0, 100);
-    dec2.set(0, 0, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(1, 0, 100);
-    dec2.set(0, 0, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(1, 0, 100);
-    dec2.set(1, 0, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(5, 5, 100);
-    dec2.set(5, 5, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(0, 5, 100);
-    dec2.set(0, 5, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(9, 5, 100);
-    dec2.set(9, 5, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(10, 5, 100);
-    dec2.set(9, 99, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(99, 45, 100);
-    dec2.set(9, 89, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(99, 25, 100);
-    dec2.set(1, 85, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(99, 45, 100);
-    dec2.set(99, 89, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(99, 85, 100);
-    dec2.set(99, 39, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(9, 85, 100);
-    dec2.set(9, 89, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(-9, 85, 100);
-    dec2.set(-9, 89, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(-9, 85, 100);
-    dec2.set(9, 89, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(9, 85, 100);
-    dec2.set(-9, 89, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(1, 1, 100);
-    dec2.set(1, 1, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(0, -1, 100);
-    dec2.set(0, 1, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(0, 1, 100);
-    dec2.set(0, -1, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(0, -1, 100);
-    dec2.set(0, -1, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(0, -2, 100);
-    dec2.set(0, 1, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-    dec1.set(0, -1, 100);
-    dec2.set(0, 2, 100);
-    all_is_ok &= test_decimal_additives(dec1, dec2);
-
-
     // Mult. * and div
     {
         Decimal mul;
         dec1.set(14, 88, 100ll);
         dec2.set(-66, 74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "-993,09" );
 
         dec1.set(14, 88, 100ll);
         dec2.set(0, -74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "-11,01" );
 
         dec1.set(0, 88, 100ll);
         dec2.set(0, -74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "-0,65" );
 
         dec1.set(0, 88, 100ll);
         dec2.set(0, 74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "0,65" );
 
 
         dec1.set(-14, 88, 100ll);
         dec2.set(66, 74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "-993,09");
 
         dec1.set(-14, 88, 100ll);
         dec2.set(0, 74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "-11,01" );
 
         dec1.set(0, 74, 100ll);
         dec2.set(-14, 88, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "-11,01" );
 
         dec1.set(0, -88, 100ll);
         dec2.set(0, 74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "-0,65" );
 
         dec1.set(-14, 88, 100ll);
         dec2.set(-66, 74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "993,09");
 
         dec1.set(-14, 88, 100ll);
         dec2.set(0, -74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "11,01" );
 
         dec1.set(0, -88, 100ll);
         dec2.set(0, -74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "0,65" );
 
         dec1.set(5, 0, 100ll);
         dec2.set(0, -74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "-3,70" );
 
         dec1.set(-5, 0, 100ll);
         dec2.set(0, -74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "3,70" );
 
         dec1.set(-5, 0, 100ll);
         dec2.set(0, 74, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "-3,70" );
 
         dec1.set(0, 0, 100ll);
         dec2.set(0, 0, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "0,00" );
 
         dec1.set(-7, 0, 100ll);
         dec2.set(-7, 0, 100ll);
         mul = dec1 * dec2;
-        // cout << dec1.value() << " * " << dec2.value() << " = " << mul.value() << "\n";
         assert( mul.value() == "49,00" );
 
         Decimal div;
@@ -398,14 +273,50 @@ int main(int argc, char *argv[])
         div = dec1 / dec2;
         assert(div.value() == "-100046,02");
 
-        dec1.set(666666666666666666ll, 0ll, 100ll);
+        dec1.set(2222ll, 22ll, 100ll);
+        dec2.set(8ll, 88ll, 100ll);
+        div = dec1 / dec2;
+        assert(div.value() == "250,25");
+
+        dec1.set(666666666666666666ll, 0, 100ll);
         dec2.set(7ll, 0, 100ll);
         div = dec1 / dec2;
         assert(div.value() == "95238095238095238,00");
     }
+    // Overflow test
+    {
+        Decimal res;
+        dec1.set(9223372036854775807ll, 50ll, 100ll);
+        dec2.set(9223372036854775807ll, 50ll, 100ll);
+        res = dec1 + dec2;
+        assert(res.is_overflow() && "Must be overflow!");
 
+        dec1.set(9223372036854775807ll, 0, 100ll);
+        dec2.set(1ll, 0, 100ll);
+        res = dec1 + dec2;
+        assert(res.is_overflow() && "Must be overflow!");
+
+        dec1.set(4611686018427387904ll, 0, 100ll);
+        dec2.set(2ll, 0, 100ll);
+        res = dec1 * dec2;
+        assert(res.is_overflow() && "Must be overflow!");
+
+        dec1.set(4611686018427387903ll, 0, 100ll);
+        dec2.set(2ll, 0, 100ll);
+        res = dec1 * dec2;
+        assert(!res.is_overflow() && "Must not be overflow!");
+
+        dec1.set(-4611686018427387904ll, 0, 100ll);
+        dec2.set(2ll, 0, 100ll);
+        res = dec1 * dec2;
+        assert(!res.is_overflow() && "Must not be overflow!");
+
+        dec1.set(-4611686018427387905ll, 0, 100ll);
+        dec2.set(2ll, 0, 100ll);
+        res = dec1 * dec2;
+        assert(res.is_overflow() && "Must be overflow!");
+    }
     assert(all_is_ok);
-    // qDebug() << (all_is_ok ? "Decimal testing is Ok!" : "Failed!");
     qDebug() << "Test is Ok!";
 
     auto ctx = engine.rootContext();

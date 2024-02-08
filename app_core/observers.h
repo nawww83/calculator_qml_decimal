@@ -1,6 +1,5 @@
 #pragma once
 
-#include <QObject>
 #include <QThread>
 #include <QSemaphore>
 #include <QVector>
@@ -10,8 +9,8 @@
 
 namespace ro {
 
-static constexpr int request_waiting = 600;
-static constexpr int result_waiting = 500;
+inline constexpr int request_time = 600;
+inline constexpr int result_time = 700;
 
 class RequestObserver : public QThread
 {
@@ -26,8 +25,8 @@ public:
         _c(c)
     {_finish.store(false);}
     void run() override {
-        while (!_finish.load()) {
-            if (!_used->tryAcquire(1, _wait)) {
+        while (!_finish.load(std::memory_order_acquire)) {
+            if (!_used->tryAcquire(1, _wait_time)) {
                 continue;
             }
             _index = (_index+1) % _tp::buff_size;
@@ -50,7 +49,7 @@ protected:
     QSemaphore* _free;
     Controller* _c;
     std::atomic<bool> _finish;
-    int _wait = request_waiting;
+    int _wait_time = request_time;
 };
 
 
@@ -67,8 +66,8 @@ public:
     {_finish.store(false);}
     void run() override {
         QVector<dec_n::Decimal<>> res(1);
-        while (!_finish.load()) {
-            if (!_used->tryAcquire(1, _wait)) {
+        while (!_finish.load(std::memory_order_acquire)) {
+            if (!_used->tryAcquire(1, _wait_time)) {
                 continue;
             }
             _index = (_index+1) % _tp::buff_size;
@@ -92,7 +91,7 @@ protected:
     QSemaphore* _used;
     QSemaphore* _free;
     std::atomic<bool> _finish;
-    int _wait = result_waiting;
+    int _wait_time = result_time;
 };
 
 } // namespace ro

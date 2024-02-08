@@ -7,7 +7,6 @@ SOURCES += \
         AppCore.cpp \
         controller.cpp \
         main.cpp \
-        worker.cpp \
 
 RESOURCES += qml.qrc
 

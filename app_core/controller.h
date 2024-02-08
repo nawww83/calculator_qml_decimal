@@ -1,10 +1,9 @@
 #pragma once
 
-#include <QObject>
-#include <QThread>
-
 #include "decimal.h"
+#include "qthread.h"
 
+class QThread;
 
 class Controller : public QObject
 {
