@@ -92,16 +92,16 @@ void AppCore::_reset() {
 
 void AppCore::_do(dec_n::Decimal<> val, int op) {
     auto push_request = [this, op]() {
-        _i_req = (_i_req+1) % _tp::buff_size;
+        QVector<dec_n::Decimal<>> v {_reg[1], _reg[0]};
         std::string_view sv1 = _reg[1].value();
         std::string_view sv0 = _reg[0].value();
+        _i_req = (_i_req+1) % _tp::buff_size;
         qDebug().noquote() << green_modifier << " push request:"
                            << description(op) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
                            << "y:" << QString::fromStdString({sv0.data(), sv0.size()}).toUtf8()
                  << "id:" << _i_req
                  << esc_colorization;
         requests_free.acquire();
-        QVector<dec_n::Decimal<>> v {_reg[1], _reg[0]};
         requests[_i_req] = {op, v};
         requests_used.release();
     };

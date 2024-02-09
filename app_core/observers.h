@@ -9,8 +9,8 @@
 
 namespace ro {
 
-inline constexpr int request_time = 600;
-inline constexpr int result_time = 700;
+inline constexpr int request_time = 500;
+inline constexpr int result_time = 300;
 
 class RequestObserver : public QThread
 {
@@ -22,11 +22,11 @@ public:
         _r(r),
         _used(used),
         _free(free),
-        _c(c)
-    {_finish.store(false);}
+        _c(c) {}
     void run() override {
-        while (!_finish.load(std::memory_order_acquire)) {
-            if (!_used->tryAcquire(1, _wait_time)) {
+        _finish = false;
+        while (!_finish) {
+            if (!_used->tryAcquire(1, request_time)) {
                 continue;
             }
             _index = (_index+1) % _tp::buff_size;
@@ -37,7 +37,7 @@ public:
 
 public slots:
     void finish() {
-        _finish.store(true);
+        _finish = true;
     }
 
 signals:
@@ -48,8 +48,7 @@ protected:
     QSemaphore* _used;
     QSemaphore* _free;
     Controller* _c;
-    std::atomic<bool> _finish;
-    int _wait_time = request_time;
+    bool _finish{};
 };
 
 
@@ -62,12 +61,12 @@ public:
                             /*Controller* c*/) :
        _r(r),
        _used(used),
-       _free(free)
-    {_finish.store(false);}
+       _free(free) {}
     void run() override {
         QVector<dec_n::Decimal<>> res(1);
-        while (!_finish.load(std::memory_order_acquire)) {
-            if (!_used->tryAcquire(1, _wait_time)) {
+        _finish = false;
+        while (!_finish) {
+            if (!_used->tryAcquire(1, result_time)) {
                 continue;
             }
             _index = (_index+1) % _tp::buff_size;
@@ -79,7 +78,7 @@ public:
 
 public slots:
     void finish() {
-        _finish.store(true);
+        _finish = true;
     }
 
 signals:
@@ -90,8 +89,7 @@ protected:
     QVector<_tp::Result>& _r;
     QSemaphore* _used;
     QSemaphore* _free;
-    std::atomic<bool> _finish;
-    int _wait_time = result_time;
+    bool _finish{};
 };
 
 } // namespace ro
