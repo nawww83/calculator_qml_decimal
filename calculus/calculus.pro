@@ -3,7 +3,11 @@ CONFIG -= qt
 TEMPLATE = lib
 DEFINES += CALCULUS_LIBRARY
 
+TARGET = calculus
+
 CONFIG += c++17
+
+include(..\config.pri)
 
 QMAKE_CXXFLAGS += -fwrapv
 

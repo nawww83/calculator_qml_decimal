@@ -151,7 +151,15 @@ public:
     }
 };
 
+#ifdef PRECISION_W2
 template <int w=2> // precision
+#endif
+#ifdef PRECISION_W3
+template <int w=3> // precision
+#endif
+#ifdef PRECISION_W4
+template <int w=4> // precision
+#endif
 class Decimal {
     long long x0{}; // integer part
     long long x1{}; // nominator

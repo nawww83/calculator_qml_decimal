@@ -27,6 +27,5 @@ enum Errors {
 using namespace dec_n;
 
 CALCULUS_EXPORT Decimal<> doIt(int op, Decimal<> x, Decimal<> y, int& error);
-CALCULUS_EXPORT void setDelay(int t);
 
 #endif // CALCULUS_H
