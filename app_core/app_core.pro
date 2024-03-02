@@ -3,10 +3,14 @@ QT += quick
 CONFIG += c++17
 CONFIG += console
 
+TARGET = calculator
+
 SOURCES += \
         AppCore.cpp \
         controller.cpp \
         main.cpp \
+
+include(..\config.pri)
 
 RESOURCES += qml.qrc
 
@@ -42,7 +46,7 @@ win32 {
     DESTDIR_WIN = $$OUT_PWD/release/
     PWD_WIN ~= s,/,\\,g
     DESTDIR_WIN ~= s,/,\\,g
-    copyfiles.commands = $$quote(cmd /c xcopy /S /I /Y $${PWD_WIN}\\release\\calculus.dll $${DESTDIR_WIN})
+    copyfiles.commands = $$quote(cmd /c xcopy /S /I /Y $${PWD_WIN}\\release\\calculus*.dll $${DESTDIR_WIN})
 }
 
 QMAKE_EXTRA_TARGETS += copyfiles

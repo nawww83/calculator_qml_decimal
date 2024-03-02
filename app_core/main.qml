@@ -43,7 +43,11 @@ Window {
 
     function thousandSeparator(inp){
         inp = inp.replace(/\s/g, "")
-        return inp.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ")
+        var idx = inp.indexOf(",")
+        if (idx === -1)
+            return inp.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ")
+        else
+            return inp.substring(0, idx).replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ") + inp.substring(idx)
     }
 
     ColumnLayout {
@@ -58,9 +62,7 @@ Window {
             maximumLength: 30
             validator: RegExpValidator {
                 // Remove validator to allow entering text that doesn't match the regex
-                // regExp: /(\d{1,16})([.,]\d{1,2})?$/
-                // regExp: /^[-]?([1-9]\d{0,2}(\s?\d{3})*|0)([.,]\d+[1-9])?$/
-                regExp: /^[-]?([1-9]\d{0,2}(\s?\d{3})*|0)([.,]\d{1,2})?$/  // 2 digits after the comma
+                regExp: /^[-]?([1-9]\d{0,2}(\s?\d{3})*|0)([.,]\d{1,3})?$/  // [.,]\d{1,W} ===>> W digits after the comma
             }
 
             focus: true
@@ -99,6 +101,7 @@ Window {
                 }
             }
             Keys.onReleased: {
+                // first, replace '.' by ','
                 if (event.key === Qt.Key_Period) {
                     if (input.text.indexOf(',') >= 0) {
                         event.accepted = false;
@@ -214,8 +217,7 @@ Window {
             font.pixelSize: 11
             text: "* Нажмите _ для смены знака числа\n" +
                   "* Вводимые операции не имеют приоритета\n" +
-                  "* Нажмите Esc или C для сброса\n" +
-                  "* Поддерживает два знака после запятой, режим floor."
+                  "* Нажмите Esc или C для сброса.\n"
             readOnly: true
         }
 
