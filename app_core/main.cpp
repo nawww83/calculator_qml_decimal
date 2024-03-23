@@ -80,8 +80,6 @@ int main(int argc, char *argv[])
     Decimal dec1;
     Decimal dec2;
 
-    // Full coverage deterministic test
-    // qDebug() << "Full coverage test...";
     for (long long i=-15ll; i<15ll; ++i) {
         for (long long j=-15ll; j<15ll; ++j) {
             if ((i != 0) && (j < 0)) {
@@ -123,7 +121,6 @@ int main(int argc, char *argv[])
             }
         }
     }
-    // Overflow test
     {
         Decimal res;
         dec1.set(9223372036854775807ll, 50ll, 100ll);

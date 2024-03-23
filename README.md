@@ -1,1 +1,1 @@
-The program was compiled using Qt 5.15.
+The program was compiled using Qt 6.6.2.

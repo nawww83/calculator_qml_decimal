@@ -1,17 +1,17 @@
 #pragma once
 
-#include <QVariant>
-
 #include "decimal.h"
+#include <QString>
+#include <QVariant>
 
 Q_DECLARE_METATYPE(dec_n::Decimal<>);
 
 namespace OperationEnums {
 Q_NAMESPACE
 enum Operations {
-    CLEAR_ALL=-2,
-    EQUAL,
-    ADD,
+    CLEAR_ALL = -2, // Служебные операции.
+    EQUAL     = -1,
+    ADD = 0,        // Математические операции.
     SUB,
     MULT,
     DIV,
@@ -23,21 +23,20 @@ Q_ENUM_NS(Operations)
 namespace StateEnums {
 Q_NAMESPACE
 enum States {
-    RESETTED=-1,  // initial state
-    EQUAL_TO_OP, // press an operation after "="
-    EQUALS_LOOP, // press "=" twice or more
-    OP_LOOP,     // press operations twice or more (without "=")
-    OP_TO_EQUAL  // press "=" after some operations
+    RESETTED = -1,  // Начальное состояние "Сброс".
+    EQUAL_TO_OP,    // Введена некоторая операция после "Enter".
+    EQUALS_LOOP,    // Зацикливание операции: "Enter" нажата дважды или больше.
+    OP_LOOP,        // Зацикливание операции: введены две или более операции без нажатия "Enter".
+    OP_TO_EQUAL     // Нажата "Enter" после некоторой операции.
 };
 Q_ENUM_NS(States)
 }
 
 enum Errors {
-    NO_ERRORS,
-    UNKNOW_OP,
-    ZERO_DIVISION,
-    NOT_FINITE
-    //
+    NO_ERRORS = 0,  // Нет ошибок.
+    UNKNOW_OP,      // Неизвестная операция.
+    ZERO_DIVISION,  // Деление на ноль.
+    NOT_FINITE      // Переполнение.
 };
 
 class AppCore : public QObject
@@ -54,35 +53,33 @@ signals:
     void clearTempResult();
 
 public slots:
-    void cppSlot(int op, QString v={});
+    void process(int requested_operation, QString input_value="");
     void handle_results(int, QVector<dec_n::Decimal<> >);
     void handle_results_queue(int, QVector<dec_n::Decimal<> >, int id);
 
 protected:
-    dec_n::Decimal<> _reg[2];
-    dec_n::Decimal<> _prev_value;
-    int _op;
-    int _state;
+    dec_n::Decimal<> mRegister[2];
+    dec_n::Decimal<> mPreviousValue;
+    int mCurrentOperation;
+    int mState;
+    int mErrorCode;
+    int mRequestIdx = 0;
+    int mResultIdx = 0;
 
-    int _error_code;
+    void Reset();
 
-    int _i_req = 0;
-    int _i_res = 0;
-
-    void _reset();
-
-    void _f(int op) {
-        switch (op) {
-        case OperationEnums::ADD: _reg[1] = _reg[1] + _reg[0]; break;
-        case OperationEnums::SUB: _reg[1] = _reg[1] - _reg[0]; break;
-        case OperationEnums::MULT: _reg[1] = _reg[1] * _reg[0]; break;
-        case OperationEnums::NEGATION: _reg[1] = dec_n::Decimal<>{} - _reg[1]; break;
+    void CalculateIt(int operation) {
+        switch (operation) {
+        case OperationEnums::ADD:      mRegister[1] = mRegister[1] + mRegister[0]; break;
+        case OperationEnums::SUB:      mRegister[1] = mRegister[1] - mRegister[0]; break;
+        case OperationEnums::MULT:     mRegister[1] = mRegister[1] * mRegister[0]; break;
+        case OperationEnums::NEGATION: mRegister[1] = dec_n::Decimal<>{} - mRegister[1]; break;
         case OperationEnums::DIV:
-            _reg[1] = _reg[1] / _reg[0];
+            mRegister[1] = mRegister[1] / mRegister[0];
             break;
         }
     }
 
-    void _do(dec_n::Decimal<> val, int op);
+    void DoWork(dec_n::Decimal<> value, int operation);
 };
 

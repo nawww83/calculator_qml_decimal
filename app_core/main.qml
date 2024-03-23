@@ -1,13 +1,10 @@
-import QtQuick 2.15
-import QtQuick.Window 2.15
+import QtQuick
+import QtQuick.Window
+import QtQml
+import QtQuick.Layouts
+import QtQuick.Controls.Basic
 
-import QtQml 2.15
-
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
-
-import operation.enums 1.0
-
+import operation.enums
 
 Window {
     minimumWidth: 330
@@ -60,47 +57,47 @@ Window {
             font.pointSize: 14
             Layout.fillWidth: true
             maximumLength: 30
-            validator: RegExpValidator {
+            validator: RegularExpressionValidator {
                 // Remove validator to allow entering text that doesn't match the regex
-                regExp: /^[-]?([1-9]\d{0,2}(\s?\d{3})*|0)([.,]\d{1,3})?$/  // [.,]\d{1,W} ===>> W digits after the comma
+                regularExpression: /^[-]?([1-9]\d{0,2}(\s?\d{3})*|0)([.,]\d{1,3})?$/  // [.,]\d{1,W} ===>> W digits after the comma
             }
 
             focus: true
             visible: true
 
-            Keys.onPressed: {
+            Keys.onPressed: event => {
                 if (event.key === Qt.Key_Plus) {
-                    AppCore.cppSlot(OperationEnums.ADD, input.text);
+                    AppCore.process(OperationEnums.ADD, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Minus) {
-                    AppCore.cppSlot(OperationEnums.SUB, input.text);
+                    AppCore.process(OperationEnums.SUB, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Asterisk) {
-                    AppCore.cppSlot(OperationEnums.MULT, input.text);
+                    AppCore.process(OperationEnums.MULT, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Slash) {
-                    AppCore.cppSlot(OperationEnums.DIV, input.text);
+                    AppCore.process(OperationEnums.DIV, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Underscore) {
-                    if (input.text != "") {
-                        AppCore.cppSlot(OperationEnums.NEGATION, input.text);
+                    if (input.text !== "") {
+                        AppCore.process(OperationEnums.NEGATION, input.text);
                         event.accepted = true;
                     }
                 }
                 if ((event.key === Qt.Key_Equal) || (event.key === Qt.Key_Return)) {
-                    AppCore.cppSlot(OperationEnums.EQUAL, input.text);
+                    AppCore.process(OperationEnums.EQUAL, input.text);
                     event.accepted = true;
                 }
                 if ((event.key === Qt.Key_Escape) || (event.key === Qt.Key_C)) {
-                    AppCore.cppSlot(OperationEnums.CLEAR_ALL, input.text);
+                    AppCore.process(OperationEnums.CLEAR_ALL, input.text);
                     event.accepted = true;
                 }
             }
-            Keys.onReleased: {
+            Keys.onReleased: event => {
                 // first, replace '.' by ','
                 if (event.key === Qt.Key_Period) {
                     if (input.text.indexOf(',') >= 0) {
@@ -133,66 +130,61 @@ Window {
                 anchors.fill: parent
                 Button {
                     background: Rect{text: "\u002b"}
-//                    hoverEnabled: true
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
                     MouseArea {
                         anchors.fill: parent
                         id: add
-                        onClicked: AppCore.cppSlot(OperationEnums.ADD, input.text)
+                        onClicked: AppCore.process(OperationEnums.ADD, input.text)
                     }
                 }
 
                 Button {
                     background: Rect{text: "\u2212"}
-//                    hoverEnabled: true
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
                     MouseArea {
                         anchors.fill: parent
                         id: sub
-                        onClicked: AppCore.cppSlot(OperationEnums.SUB, input.text)
+                        onClicked: AppCore.process(OperationEnums.SUB, input.text)
                     }
                 }
 
                 Button {
                     background: Rect{text: "\u00d7"}
-//                    hoverEnabled: true
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
                     MouseArea {
                         anchors.fill: parent
                         id: mul
-                        onClicked: AppCore.cppSlot(OperationEnums.MULT, input.text)
+                        onClicked: AppCore.process(OperationEnums.MULT, input.text)
                     }
                 }
 
                 Button {
                     background: Rect{text: "\u00f7"}
-//                    hoverEnabled: true
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
                     MouseArea {
                         anchors.fill: parent
                         id: div
-                        onClicked: AppCore.cppSlot(OperationEnums.DIV, input.text)
+                        onClicked: AppCore.process(OperationEnums.DIV, input.text)
                     }
                 }
 
                 Button {
                     background: Rect{text: "\u003d"}
-//                    hoverEnabled: true
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
                     MouseArea {
                         anchors.fill: parent
                         id: equal
-                        onClicked: AppCore.cppSlot(OperationEnums.EQUAL, input.text)
+                        onClicked: AppCore.process(OperationEnums.EQUAL, input.text)
                     }
                 }
 
@@ -201,12 +193,11 @@ Window {
                     hoverEnabled: false
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    // Tooltip {text: qsTr("Сброс: Esc")}
 
                     MouseArea {
                         anchors.fill: parent
                         id: clear
-                        onClicked: AppCore.cppSlot(OperationEnums.CLEAR_ALL);
+                        onClicked: AppCore.process(OperationEnums.CLEAR_ALL);
                     }
                 }
             }
@@ -214,7 +205,7 @@ Window {
 
         TextArea {
             id: help
-            font.pixelSize: 11
+            font.pixelSize: 12
             text: "* Нажмите _ для смены знака числа\n" +
                   "* Вводимые операции не имеют приоритета\n" +
                   "* Нажмите Esc или C для сброса.\n"

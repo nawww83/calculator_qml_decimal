@@ -5,7 +5,7 @@ DEFINES += CALCULUS_LIBRARY
 
 TARGET = calculus
 
-CONFIG += c++17
+CONFIG += c++20
 
 include(..\config.pri)
 

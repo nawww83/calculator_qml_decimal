@@ -2,7 +2,8 @@
 
 #include <cmath>
 #include <cassert>
-#include <cstring>
+#include <string>  // std::string
+#include <cstring> // memory
 #include <array>
 
 
@@ -74,17 +75,18 @@ inline bool is_add_overflow_ll(long long x, long long y) {
 
 inline bool is_two_complement() {
     unsigned long long w = static_cast<unsigned long long>(-1ll);
-    unsigned char b[8];
+    std::byte b[8];
     std::memcpy(b, &w, 8);
+    const auto ref = std::byte(255);
     bool res = true;
-    res &= (b[0] == 255u);
-    res &= (b[1] == 255u);
-    res &= (b[2] == 255u);
-    res &= (b[3] == 255u);
-    res &= (b[4] == 255u);
-    res &= (b[5] == 255u);
-    res &= (b[6] == 255u);
-    res &= (b[7] == 255u);
+    res &= (b[0] == ref);
+    res &= (b[1] == ref);
+    res &= (b[2] == ref);
+    res &= (b[3] == ref);
+    res &= (b[4] == ref);
+    res &= (b[5] == ref);
+    res &= (b[6] == ref);
+    res &= (b[7] == ref);
     long long wi = static_cast<long long>(w);
     assert(wi == -1ll);
     return res && (wi == -1ll);

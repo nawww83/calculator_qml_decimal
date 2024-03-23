@@ -9,8 +9,8 @@
 
 namespace ro {
 
-inline constexpr int request_time = 500;
-inline constexpr int result_time = 300;
+inline constexpr int REQUEST_TIME = 500;
+inline constexpr int RESULT_TIME = 300;
 
 class RequestObserver : public QThread
 {
@@ -19,36 +19,36 @@ public:
     explicit RequestObserver(QVector<_tp::Request>& r,
                              QSemaphore* used, QSemaphore* free,
                              Controller* c) :
-        _r(r),
-        _used(used),
-        _free(free),
-        _c(c) {}
+        mRequest(r),
+        mUsed(used),
+        mFree(free),
+        mController(c) {}
     void run() override {
-        _finish = false;
-        while (!_finish) {
-            if (!_used->tryAcquire(1, request_time)) {
+        mFinish = false;
+        while (!mFinish) {
+            if (!mUsed->tryAcquire(1, REQUEST_TIME)) {
                 continue;
             }
-            _index = (_index+1) % _tp::buff_size;
-            emit _c->operate(_r[_index].op, _r[_index].xy);
-            _free->release();
+            mIdx = (mIdx+1) % _tp::buff_size;
+            emit mController->operate(mRequest[mIdx].op, mRequest[mIdx].xy);
+            mFree->release();
         }
     }
 
 public slots:
     void finish() {
-        _finish = true;
+        mFinish = true;
     }
 
 signals:
 
 protected:
-    int _index = 0;
-    QVector<_tp::Request>& _r;
-    QSemaphore* _used;
-    QSemaphore* _free;
-    Controller* _c;
-    bool _finish{};
+    int mIdx = 0;
+    QVector<_tp::Request>& mRequest;
+    QSemaphore* mUsed;
+    QSemaphore* mFree;
+    Controller* mController;
+    bool mFinish{};
 };
 
 
@@ -59,37 +59,37 @@ public:
     explicit ResultObserver(QVector<_tp::Result>& r,
                             QSemaphore* used, QSemaphore* free
                             /*Controller* c*/) :
-       _r(r),
-       _used(used),
-       _free(free) {}
+        mResult(r),
+        mUsed(used),
+        mFree(free) {}
     void run() override {
         QVector<dec_n::Decimal<>> res(1);
-        _finish = false;
-        while (!_finish) {
-            if (!_used->tryAcquire(1, result_time)) {
+        mFinish = false;
+        while (!mFinish) {
+            if (!mUsed->tryAcquire(1, RESULT_TIME)) {
                 continue;
             }
-            _index = (_index+1) % _tp::buff_size;
-            res[0] = _r[_index].z;
-            emit handleResults(_r[_index].error, res, _index);
-            _free->release();
+            mIdx = (mIdx + 1) % _tp::buff_size;
+            res[0] = mResult[mIdx].z;
+            emit handleResults(mResult[mIdx].error, res, mIdx);
+            mFree->release();
         }
     }
 
 public slots:
     void finish() {
-        _finish = true;
+        mFinish = true;
     }
 
 signals:
     void handleResults(int, QVector<dec_n::Decimal<>>, int);
 
 protected:
-    int _index = 0;
-    QVector<_tp::Result>& _r;
-    QSemaphore* _used;
-    QSemaphore* _free;
-    bool _finish{};
+    int mIdx = 0;
+    QVector<_tp::Result>& mResult;
+    QSemaphore* mUsed;
+    QSemaphore* mFree;
+    bool mFinish{};
 };
 
 } // namespace ro

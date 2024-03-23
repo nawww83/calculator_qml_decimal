@@ -7,7 +7,7 @@
 namespace c {
 
 enum Ops {
-    ADD=0,
+    ADD = 0,
     SUB,
     MULT,
     DIV,
@@ -15,14 +15,13 @@ enum Ops {
 };
 
 enum Errors {
-    NO_ERRORS,
+    NO_ERRORS = 0,
     UNKNOW_OP,
     ZERO_DIVISION,
     NOT_FINITE
-    //
 };
 
-} //
+}
 
 using namespace dec_n;
 

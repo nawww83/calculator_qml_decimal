@@ -1,7 +1,6 @@
 #include "controller.h"
 #include "worker.h"
 
-
 Controller::Controller(QObject *parent) : QObject(parent)
 {
     auto worker = new Worker;

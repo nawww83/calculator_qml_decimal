@@ -1,6 +1,7 @@
 #include "AppCore.h"
 
 #include <QSemaphore>
+#include <QRegularExpression>
 #include "observers.h"
 
 #include <QDebug>
@@ -27,12 +28,12 @@ ro::RequestObserver reqObs(requests,
 ro::ResultObserver resObs(results,
                           &results_used, &results_free);
 
-auto err_description = [](int err) {
+auto err_description = [](int err) -> QString {
     switch (err) {
-    case Errors::ZERO_DIVISION: return "zero division";
-    case Errors::UNKNOW_OP: return "unknow operation";
-    case Errors::NOT_FINITE: return "overflow";
-    default: return "no errors";
+    case Errors::ZERO_DIVISION: return QString::fromUtf8("Деление на ноль");
+    case Errors::UNKNOW_OP: return QString::fromUtf8("Неизвестная операция");
+    case Errors::NOT_FINITE: return QString::fromUtf8("Переполнение");
+    default: return QString::fromUtf8("Нет ошибок");
     }
 };
 
@@ -46,23 +47,23 @@ auto err_description = [](int err) {
 //       -- input 2nd operand
 //       -- input "="
 // All operations don't have priority! Do it directly, as is
-auto description = [](int op) {
+auto description = [](int op) -> QString {
     switch (op) {
-    case OperationEnums::ADD: return "addition";
-    case OperationEnums::SUB: return "subtraction";
-    case OperationEnums::MULT: return "multiplication";
-    case OperationEnums::DIV: return "division";
-    case OperationEnums::EQUAL: return "equal";
-    case OperationEnums::NEGATION: return "negation";
-    case OperationEnums::CLEAR_ALL: return "clear all";
-    default: return "unknown";
+    case OperationEnums::ADD: return QString::fromUtf8("Сложение");
+    case OperationEnums::SUB: return QString::fromUtf8("Вычитание");
+    case OperationEnums::MULT: return QString::fromUtf8("Умножение");
+    case OperationEnums::DIV: return QString::fromUtf8("Деление");
+    case OperationEnums::EQUAL: return QString::fromUtf8("Равно");
+    case OperationEnums::NEGATION: return QString::fromUtf8("Смена знака");
+    case OperationEnums::CLEAR_ALL: return QString::fromUtf8("Сброс");
+    default: return QString::fromUtf8("Неизвестная операция");
     }
 };
 
 
 AppCore::AppCore(QObject *parent) : QObject(parent)
 {
-    _reset();
+    Reset();
 
     connect(&controller, &Controller::handle_results, this, &AppCore::handle_results);
     connect(&resObs, &ro::ResultObserver::handleResults, this, &AppCore::handle_results_queue);
@@ -83,185 +84,179 @@ AppCore::~AppCore()
     qDebug() << "~AppCore: quit!";
 }
 
-void AppCore::_reset() {
-    _reg[0] = _reg[1] = {};
-    _prev_value = {};
-    _op = OperationEnums::CLEAR_ALL;
-    _state = StateEnums::RESETTED;
+void AppCore::Reset() {
+    mRegister[0] = mRegister[1] = {};
+    mPreviousValue = {};
+    mCurrentOperation = OperationEnums::CLEAR_ALL;
+    mState = StateEnums::RESETTED;
 }
 
-void AppCore::_do(dec_n::Decimal<> val, int op) {
-    auto push_request = [this, op]() {
-        QVector<dec_n::Decimal<>> v {_reg[1], _reg[0]};
-        std::string_view sv1 = _reg[1].value();
-        std::string_view sv0 = _reg[0].value();
-        _i_req = (_i_req+1) % _tp::buff_size;
-        qDebug().noquote() << green_modifier << " push request:"
-                           << description(op) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
+void AppCore::DoWork(dec_n::Decimal<> value, int operation) {
+    // Послать запрос в очередь.
+    auto push_request = [this, operation]() {
+        QVector<dec_n::Decimal<>> v {mRegister[1], mRegister[0]};
+        std::string_view sv1 = mRegister[1].value();
+        std::string_view sv0 = mRegister[0].value();
+        mRequestIdx = (mRequestIdx + 1) % _tp::buff_size;
+        qDebug().noquote() << green_modifier << QString::fromUtf8("Запрос:")
+                           << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
                            << "y:" << QString::fromStdString({sv0.data(), sv0.size()}).toUtf8()
-                 << "id:" << _i_req
+                           << "ID:" << mRequestIdx
                  << esc_colorization;
         requests_free.acquire();
-        requests[_i_req] = {op, v};
+        requests[mRequestIdx] = {operation, v};
         requests_used.release();
     };
-    switch (_state) {
-    case StateEnums::EQUALS_LOOP:
-        if (op == OperationEnums::EQUAL) {
-            if (val.value() == "") {
-                val = {};
-            }
-            _reg[1] = val;
-        } else {
-            _reg[1] = val; // if value was changed by user
+    switch (mState) {
+        case StateEnums::EQUALS_LOOP:
+        mRegister[1] = value;
             push_request();
-        }
-        break;
-    case StateEnums::EQUAL_TO_OP:
-        _reg[1] = val; // if value was changed by minus sign
-        break;
-    case StateEnums::OP_LOOP:
-        if (val.value() == "") {
-            val = {};
-        }
-        _reg[0] = val;
-        push_request();
-        break;
-    case StateEnums::OP_TO_EQUAL: // "=" is pressed
-            _reg[0] = val;
+            break;
+        case StateEnums::EQUAL_TO_OP:
+            mRegister[1] = value;
+            break;
+        case StateEnums::OP_LOOP:
+        case StateEnums::OP_TO_EQUAL:
+            mRegister[0] = value;
             push_request();
-//        }
-        break;
-    default: ;
+            break;
+        default: ;
     }
 }
 
-void AppCore::cppSlot(int op, QString v)
+void AppCore::process(int requested_operation, QString input_value)
 {
-    if (op == OperationEnums::CLEAR_ALL) {
-        qDebug() << "Operation:" << description(op);
-        _reset();
+    // Операция сброса.
+    if (requested_operation == OperationEnums::CLEAR_ALL) {
+        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
+        Reset();
         emit clearTempResult();
         emit clearInputField();
         return;
     }
-    dec_n::Decimal<> val {};
-    v = v.remove(QRegExp("(\\s)"));
-    auto str = v.toStdString();
-    val.set_str(str);
-    //
+    // По введенной строке сконструировать число Decimal.
+    auto construct_decimal = [&input_value]() {
+        static auto re = QRegularExpression{"(\\s)"};
+        input_value.remove(re);
+        auto s = input_value.toStdString();
+        dec_n::Decimal<> val;
+        val.set_str(s);
+        return val;
+    };
+    auto val = construct_decimal();
     if (val.is_overflow()) {
         int err = Errors::NOT_FINITE;
         emit clearInputField();
-        emit showTempResult(QString("%1").arg(err_description(err)), false);
-        _reset();
-        qDebug() << red_modifier <<  "error:" << err_description(err) << esc_colorization;
+        emit showTempResult(err_description(err), false);
+        Reset();
+        qDebug().noquote() << red_modifier << QString::fromUtf8("Ошибка:") << err_description(err) << esc_colorization;
         return;
     }
     //
-    const bool state_is_op = (_state == StateEnums::EQUAL_TO_OP) or (_state == StateEnums::OP_LOOP);
-    const bool state_is_eq = (_state == StateEnums::EQUALS_LOOP) or (_state == StateEnums::OP_TO_EQUAL);
-
-    const bool current_is_math_op = (op >= 0);
-
-    std::string_view sv = val.value();
-    const bool current_val_is_the_same = (sv == _prev_value.value());
-    _prev_value = val;
-
-    const bool is_nan = (sv == "");
-    if ((_state == StateEnums::RESETTED) && (is_nan)) { // no feedback if nothing to do
+    const bool is_not_a_number = (val.value() == "");
+    // Игнорирование запросов при сброшенном состоянии и пустом поле ввода.
+    if ((mState == StateEnums::RESETTED) && is_not_a_number) {
         return;
     }
-    //
-    if (is_nan) {
-        if (op == _op) {
-            qDebug() << red_modifier << "Operation is repeated!" << esc_colorization;
+    // Обработка запроса при пустом поле ввода и существовании математической операции.
+    if (is_not_a_number) {
+        if (requested_operation == mCurrentOperation) {
+            qDebug().noquote() << red_modifier << QString::fromUtf8("Повтор операции.") << esc_colorization;
             return;
         }
-        if ((op == OperationEnums::EQUAL) && (_op >= 0)) { // to save math operation
-            qDebug() << "Operation:" << description(op);
+        // Сохранить текущую математическую операцию при нажатии Enter и пустом поле ввода.
+        if ((requested_operation == OperationEnums::EQUAL) && (mCurrentOperation >= 0)) {
+            qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
             return;
         }
+        // Смена текущей математической операции пользователем.
         {
-            qDebug() << "Operation:" << description(op);
-            _op = op;
+            qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
+            mCurrentOperation = requested_operation;
             return;
         }
     }
-    if (op == OperationEnums::NEGATION) {
-        qDebug() << "Operation:" << description(op);
+    const bool current_val_is_the_same = (val == mPreviousValue);
+    mPreviousValue = val;
+    // Обработка частичных операций.
+    // Операция смены знака.
+    if (requested_operation == OperationEnums::NEGATION) {
+        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
         val = dec_n::Decimal<>{} - val;
         std::string_view sv = val.value();
         emit setInput(QString::fromStdString({sv.data(), sv.size()}));
         return;
     }
-    if ((op == OperationEnums::EQUAL) && (_op < 0) && (!current_val_is_the_same)) {
-        qDebug() << "Operation:" << description(op);
+    // При нажатии Enter и отсутствии математической операции при изменении числа обновить введенное значение форматным.
+    if ((requested_operation == OperationEnums::EQUAL) && (mCurrentOperation < 0) && (!current_val_is_the_same)) {
+        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
         std::string_view sv = val.value();
         emit clearTempResult();
         emit setInput(QString::fromStdString({sv.data(), sv.size()}));
-        _op = op;
+        mCurrentOperation = requested_operation;
         return;
     }
-    if ((op == OperationEnums::EQUAL) && (_op == op) && (current_val_is_the_same)) {
-        qDebug() << red_modifier << "Operation is repeated!" << esc_colorization;
+    // При повторном нажатии Enter и неизменности вводимого числа игнорировать запрос.
+    if ((requested_operation == OperationEnums::EQUAL) && (mCurrentOperation == requested_operation) && (current_val_is_the_same)) {
+        qDebug().noquote() << red_modifier << QString::fromUtf8("Повтор операции.") << esc_colorization;
         return;
     }
-
-    if (current_is_math_op and state_is_op) {
-        if (! is_nan) {
-            if ((op != _op) && (op != OperationEnums::NEGATION)) { // operation is modified
-                qDebug() << "Operation:" << description(op);
-                _state = StateEnums::OP_LOOP;
-                emit clearInputField();
-                std::string_view sv = val.value();
-                emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
-                _do(val, _op); // do old operation, store result to reg[1]
-                _op = op;
-                return;
-            }
+    // Обработка полноценных операций.
+    //
+    const bool current_is_math_operation = (requested_operation >= 0);
+    const bool state_is_operation = (mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP);
+    const bool state_is_the_equal = (mState == StateEnums::EQUALS_LOOP) || (mState == StateEnums::OP_TO_EQUAL);
+    const bool state_is_resetted = (mState == StateEnums::RESETTED);
+    // Запрашиваемая операция математическая и калькулятор в состоянии "После ввода операции".
+    if (current_is_math_operation && state_is_operation) {
+        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
+        mState = StateEnums::OP_LOOP;
+        emit clearInputField();
+        std::string_view sv = val.value();
+        emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
+        // Выполнить операцию.
+        DoWork(val, mCurrentOperation);
+        mCurrentOperation = requested_operation;
+        return;
+    }
+    qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
+    // Запрашиваемая операция "Равно"
+    if (! current_is_math_operation) {
+        if (state_is_operation) {
+            mState = StateEnums::OP_TO_EQUAL;
+        } else {
+            mState = StateEnums::EQUALS_LOOP;
         }
     }
-
-    qDebug() << "Operation:" << description(op);
-
-    if (! current_is_math_op) {
-        if (state_is_op) {
-            _state = StateEnums::OP_TO_EQUAL;
-        } else {
-            _state = StateEnums::EQUALS_LOOP;
+    // Запрашиваемая операция математическая и калькулятор в состоянии "После Enter" или сброшен.
+    if (current_is_math_operation) {
+        if (state_is_the_equal) {
+            mState = StateEnums::EQUAL_TO_OP;
         }
-    } else {
-        if (state_is_eq) {
-            _state = StateEnums::EQUAL_TO_OP;
-        } else {
-            if (_state == StateEnums::RESETTED) {
-                _reg[1] = val;
-                _state = StateEnums::EQUAL_TO_OP;
-            } else {
-                _state = StateEnums::OP_LOOP;
-            }
+        if (state_is_resetted) {
+            mRegister[1] = val;
+            mState = StateEnums::EQUAL_TO_OP;
         }
-        _op = op;
+        mCurrentOperation = requested_operation;
+        // Очистить поле ввода и показать введеное число в поле "Только для чтения" ниже.
         {
             emit clearInputField();
             std::string_view sv = val.value();
             emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
         }
-        // clear it for convenient operand input
     }
-
-    _do(val, _op); // use built-in function or library
+    // Выполнить основную операцию.
+    DoWork(val, mCurrentOperation);
 }
 
 void AppCore::handle_results(int err, QVector<dec_n::Decimal<>> res)
 {
-    _reg[1] = res.first();
+    mRegister[1] = res.first();
 
     auto push_result = [this, err, res]() {
         results_free.acquire();
-        _i_res = (_i_res+1) % _tp::buff_size;
-        results[_i_res] = {err, res.first()};
+        mResultIdx = (mResultIdx + 1) % _tp::buff_size;
+        results[mResultIdx] = {err, res.first()};
         results_used.release();
     };
 
@@ -271,25 +266,32 @@ void AppCore::handle_results(int err, QVector<dec_n::Decimal<>> res)
 void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal<>> res, int id)
 {
     if (err == Errors::NO_ERRORS) {
-        const bool state_is_eq =
-                (_state == StateEnums::EQUALS_LOOP) or
-                (_state == StateEnums::OP_TO_EQUAL);
-        if (state_is_eq) { // display result if "=" was pressed
+        const bool state_is_the_equal =
+            (mState == StateEnums::EQUALS_LOOP) ||
+                                        (mState == StateEnums::OP_TO_EQUAL);
+        // Показать результат в поле ввода, если нажата "Enter".
+        if (state_is_the_equal) {
             std::string_view sv = res[0].value().data();
             emit setInput(QString::fromStdString({sv.data(), sv.size()}));
             emit clearTempResult();
-        } else {
-            std::string_view sv = _reg[1].value();
+        } else
+        // Показать результат в поле "Только для чтения" ниже, если выполняется цепочка операций.
+        {
+            std::string_view sv = mRegister[1].value();
             emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
         }
+        // Отобразить операцию в истории.
         {
             std::string_view sv = res[0].value();
-            qDebug().noquote() << blue_modifier << "pop result: id:" << id << "res:" << QString::fromStdString({sv.data(), sv.size()}) << esc_colorization;
+            qDebug().noquote() << blue_modifier << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:") <<
+                                QString::fromStdString({sv.data(), sv.size()}) << esc_colorization;
         }
-    } else {
+    } else
+    // Отобразить ошибку.
+    {
         emit clearInputField();
-        emit showTempResult(QString("%1").arg(err_description(err)), false);
-        _reset();
-        qDebug() << red_modifier <<  "error:" << err_description(err) << esc_colorization;
+        emit showTempResult(err_description(err), false);
+        Reset();
+        qDebug().noquote() << red_modifier << QString::fromUtf8("Ошибка:") << err_description(err) << esc_colorization;
     }
 }
