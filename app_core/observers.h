@@ -9,33 +9,60 @@
 
 namespace ro {
 
+/**
+ * @brief Сколько максимально ждать захвата семафора "Используется", мс.
+ * В режиме "молчания" определяет частоту опроса запросов.
+ */
 inline constexpr int REQUEST_TIME = 500;
+
+/**
+ * @brief Сколько максимально ждать захвата семафора "Используется", мс.
+ * В режиме "молчания" определяет частоту опроса ответов.
+ */
 inline constexpr int RESULT_TIME = 300;
 
+/**
+ * @brief Класс "Наблюдатель" запросов.
+ */
 class RequestObserver : public QThread
 {
     Q_OBJECT
 public:
-    explicit RequestObserver(QVector<_tp::Request>& r,
+    /**
+     * @brief Конструктор.
+     * @param r Вектор запросов.
+     * @param used Семафор "Используется".
+     * @param free Семафор "Свободно".
+     * @param c Контроллер.
+     */
+    explicit RequestObserver(QVector<tp::Request>& r,
                              QSemaphore* used, QSemaphore* free,
                              Controller* c) :
         mRequest(r),
         mUsed(used),
         mFree(free),
         mController(c) {}
+
+    /**
+     * @brief Рабочая функция потока.
+     */
     void run() override {
         mFinish = false;
         while (!mFinish) {
             if (!mUsed->tryAcquire(1, REQUEST_TIME)) {
                 continue;
             }
-            mIdx = (mIdx+1) % _tp::buff_size;
-            emit mController->operate(mRequest[mIdx].op, mRequest[mIdx].xy);
+            mIdx = (mIdx + 1) % tp::BUFFER_SIZE;
+            emit mController->operate(mRequest[mIdx].mOperation, mRequest[mIdx].mOperands);
             mFree->release();
         }
     }
 
 public slots:
+
+    /**
+     * @brief Останавливает работу потока.
+     */
     void finish() {
         mFinish = true;
     }
@@ -43,25 +70,44 @@ public slots:
 signals:
 
 protected:
+
+    /**
+     * @brief Идентификатор запроса.
+     */
     int mIdx = 0;
-    QVector<_tp::Request>& mRequest;
+    QVector<tp::Request>& mRequest;
     QSemaphore* mUsed;
     QSemaphore* mFree;
     Controller* mController;
+
+    /**
+     * @brief Флаг останова.
+     */
     bool mFinish{};
 };
 
-
+/**
+ * @brief Класс "Наблюдатель" ответов (результатов).
+ */
 class ResultObserver : public QThread
 {
     Q_OBJECT
 public:
-    explicit ResultObserver(QVector<_tp::Result>& r,
-                            QSemaphore* used, QSemaphore* free
-                            /*Controller* c*/) :
+    /**
+     * @brief Конструктор.
+     * @param r Вектор ответов.
+     * @param used Семафор "Используется".
+     * @param free Семафор "Свободно".
+     */
+    explicit ResultObserver(QVector<tp::Result>& r,
+                            QSemaphore* used, QSemaphore* free) :
         mResult(r),
         mUsed(used),
         mFree(free) {}
+
+    /**
+     * @brief Рабочая функция потока.
+     */
     void run() override {
         QVector<dec_n::Decimal<>> res(1);
         mFinish = false;
@@ -69,14 +115,18 @@ public:
             if (!mUsed->tryAcquire(1, RESULT_TIME)) {
                 continue;
             }
-            mIdx = (mIdx + 1) % _tp::buff_size;
-            res[0] = mResult[mIdx].z;
-            emit handleResults(mResult[mIdx].error, res, mIdx);
+            mIdx = (mIdx + 1) % tp::BUFFER_SIZE;
+            res[0] = mResult[mIdx].mResult;
+            emit handleResults(mResult[mIdx].mErrorCode, res, mIdx);
             mFree->release();
         }
     }
 
 public slots:
+
+    /**
+     * @brief Останавливает работу потока.
+     */
     void finish() {
         mFinish = true;
     }
@@ -85,10 +135,18 @@ signals:
     void handleResults(int, QVector<dec_n::Decimal<>>, int);
 
 protected:
+
+    /**
+     * @brief Идентификатор ответа.
+     */
     int mIdx = 0;
-    QVector<_tp::Result>& mResult;
+    QVector<tp::Result>& mResult;
     QSemaphore* mUsed;
     QSemaphore* mFree;
+
+    /**
+     * @brief Флаг останова.
+     */
     bool mFinish{};
 };
 

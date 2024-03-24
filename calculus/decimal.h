@@ -1,10 +1,10 @@
 #pragma once
 
-#include <cmath>
-#include <cassert>
+#include <cmath>   // std::pow
+#include <cassert> // assert
 #include <string>  // std::string
 #include <cstring> // memory
-#include <array>
+#include <array>   // std::array
 
 
 namespace dec_n {
@@ -74,7 +74,7 @@ inline bool is_add_overflow_ll(long long x, long long y) {
 }
 
 inline bool is_two_complement() {
-    unsigned long long w = static_cast<unsigned long long>(-1ll);
+    const unsigned long long w = static_cast<unsigned long long>(-1ll);
     std::byte b[8];
     std::memcpy(b, &w, 8);
     const auto ref = std::byte(255);
@@ -87,10 +87,15 @@ inline bool is_two_complement() {
     res &= (b[5] == ref);
     res &= (b[6] == ref);
     res &= (b[7] == ref);
-    long long wi = static_cast<long long>(w);
+    const long long wi = static_cast<long long>(w);
     assert(wi == -1ll);
     return res && (wi == -1ll);
 }
+
+static constexpr char minus_sign = '-';
+static constexpr char separator = ',';
+static constexpr char alt_separator = '.';
+static constexpr char null = '\0';
 
 class Vector64 {
     static constexpr int _N = 31;
@@ -107,9 +112,9 @@ class Vector64 {
             buffer[i] = *b++;
         }
         for (int i=0; i<(_N-_size); ++i) {
-            buffer[_size + i] = '\0';
+            buffer[_size + i] = null;
         }
-        buffer[_N] = '\0';
+        buffer[_N] = null;
     }
 public:
     Vector64() = default;
@@ -185,31 +190,30 @@ class Decimal {
         assert(len > 0);
         str.resize(len);
         if (sign != 0) {
-            str[0] = '-';
+            str[0] = minus_sign;
         }
         if (r == 0) {
-            str[len - w - 2] = '0';
+            str[len - w - 2] = '0'; // digit 0, not empty char.
         }
         r = (r < 0) ? -r : r;
         for (int i = 0; r != 0 ; i++) {
             str[len - w - 2 - i] = digits[r % 10ll];
             r /= 10ll;
         }
-        str[len - 1 - w] = ','; // separator
+        str[len - 1 - w] = separator;
         for (int i = 0; i < w; i++) {
             str[len - 1 - i] = digits[f % 10ll];
             f /= 10ll;
         }
-        // std::cout << "after tr x0: " << x0 << ", x1: " << x1 << ", fr: " << fraction << "\n";
     }
     void untransform() { // convert fixed w-precision string to (x0, x1, fraction)
         if (str.size() < 1) {
             return;
         }
-        const int sign = (str[0] == '-') ? 1 : 0;
+        const int sign = (str[0] == minus_sign) ? 1 : 0;
         int i = (sign == 0) ? 0 : 1;
         x0 = (long long)undigits(str[i++]);
-        while (((str[i] != ',') && (str[i] != '.')) && (str[i] != '\0')) {
+        while (((str[i] != separator) && (str[i] != alt_separator)) && (str[i] != null)) {
             x0 *= 10ll;
             if (x0 < 0) {
                 x0 = -1;
@@ -270,7 +274,6 @@ public:
         return ((x0 == 0) && (x1 < 0));
     }
     bool is_negative() const {
-        // return (x0 < 0) || ((x0 == 0) && (x1 < 0));
         return is_strong_negative() || is_weak_negative();
     }
     bool is_zero() const {
@@ -314,14 +317,14 @@ public:
         const bool equal_fractions = (fraction == other.fraction);
         // Either all are positives or all are negatives: use abs()
         auto f = (equal_fractions) ? std::abs(x1) + std::abs(other.x1) : std::abs(x1)*other.fraction + std::abs(other.x1)*fraction;
-        const bool differ_signs = (neg1 ^ neg2);
+        const bool have_differ_signs = (neg1 ^ neg2);
         if (neg1 && !neg2) {
             f = (equal_fractions) ? -std::abs(x1) + std::abs(other.x1) : -std::abs(x1)*other.fraction + std::abs(other.x1)*fraction;
         }
         if (!neg1 && neg2) {
             f = (equal_fractions) ? std::abs(x1) - std::abs(other.x1) : std::abs(x1)*other.fraction - std::abs(other.x1)*fraction;
         }
-        if (differ_signs) {
+        if (have_differ_signs) {
             if ((f < 0) && (sum < 0)) {
                 f = -f;
             } else
@@ -405,7 +408,7 @@ public:
             return res;
         }
         if (!neg1 && !neg2) { // both are non-negatives
-            if (equal_fractions) { // checked
+            if (equal_fractions) {
                 prod += (x0*other.x1 + x1*other.x0 + (x1*other.x1)/fraction) / fraction;
                 f = (x0*other.x1 + x1*other.x0 + (x1*other.x1)/fraction) % fraction;
             } else {
@@ -459,7 +462,7 @@ public:
         if (neg1 && !neg2) {
             const int neg1_strong = is_strong_negative();
             const int neg1_weak = is_weak_negative();
-            if (neg1_strong) { // checked
+            if (neg1_strong) {
                 if (equal_fractions) {
                     prod = std::abs(prod) + (std::abs(x0)*other.x1 + other.x0*x1 + (x1*other.x1)/fraction) / (fraction);
                     f = (std::abs(x0)*other.x1 + other.x0*x1 + (x1*other.x1)/fraction) % (fraction);
@@ -472,7 +475,7 @@ public:
                     f = (prod == 0) ? -f : f;
                 }
             }
-            if (neg1_weak) { // checked
+            if (neg1_weak) {
                 if (equal_fractions) {
                     prod = (other.x0*std::abs(x1) + (std::abs(x1)*other.x1)/fraction) / (fraction);
                     f = (other.x0*std::abs(x1) + (std::abs(x1)*other.x1)/fraction) % (fraction);
@@ -489,7 +492,7 @@ public:
         if (!neg1 && neg2) {
             const int neg2_strong = other.is_strong_negative();
             const int neg2_weak = other.is_weak_negative();
-            if (neg2_strong) { // checked
+            if (neg2_strong) {
                 if (equal_fractions) {
                     prod = std::abs(prod) + (x0*other.x1 + std::abs(other.x0)*x1 + (x1*other.x1)/fraction) / (fraction);
                     f = (x0*other.x1 + std::abs(other.x0)*x1 + (x1*other.x1)/fraction) % (fraction);
@@ -502,7 +505,7 @@ public:
                     f = (prod == 0) ? -f : f;
                 }
             }
-            if (neg2_weak) { // checked
+            if (neg2_weak) {
                 if (equal_fractions) {
                     prod = (x0*std::abs(other.x1) + (x1*std::abs(other.x1))/fraction) / (fraction);
                     f = (x0*std::abs(other.x1) + (x1*std::abs(other.x1))/fraction) % (fraction);
@@ -536,10 +539,8 @@ public:
             return res;
         }
         const bool denominator_is_integer = (other.x1 == 0) && (other.x0 != 0);
-        if ((denominator_is_integer) && (equal_fractions)) { // experimental: not tested
+        if ((denominator_is_integer) && (equal_fractions)) {
             auto prod = std::abs(x0) / std::abs(other.x0) + (std::abs(x0) % std::abs(other.x0)) / std::abs(other.x0);
-            // auto f = ((std::abs(x0) % std::abs(other.x0)) * fraction) / std::abs(other.x0) +
-                     // std::abs(x1) / std::abs(other.x0);
             auto f = (std::abs(x1) + (std::abs(x0) % std::abs(other.x0)) * fraction) / std::abs(other.x0);
             if (neg1 ^ neg2) {
                 prod = (prod != 0) ? -prod : prod;
@@ -635,14 +636,12 @@ public:
                 if (equal_fractions) {
                     auto prod = (std::abs(x0)*fraction + x1) / (other.x0*fraction + other.x1);
                     auto f = (std::abs(x0)*fraction + x1) % (other.x0*fraction + other.x1);
-                    // std::cout << " 1f: " << f << ", den: " << other.x0*other.fraction + other.x1 << ", prod: " << prod << "\n";
                     prod = -prod;
                     f = (prod == 0) ? -f : f;
                     res.set(prod, f, other.x0*fraction + other.x1);
                 } else {
                     auto prod = (std::abs(x0)*fraction + x1) / (other.x0*other.fraction + other.x1);
                     auto f = (std::abs(x0)*fraction + x1) % (other.x0*other.fraction + other.x1);
-                    // std::cout << " 2f: " << f << ", den: " << other.x0*other.fraction + other.x1 << ", prod: " << prod << "\n";
                     prod = -prod;
                     f = (prod == 0) ? -f : f;
                     res.set(prod, f, other.x0*other.fraction + other.x1);
@@ -655,14 +654,12 @@ public:
                 if (equal_fractions) {
                     auto prod = std::abs(x1) / (other.x0*fraction + other.x1);
                     auto f = std::abs(x1) % (other.x0*fraction + other.x1);
-                    // std::cout << " 3f: " << f << ", den: " << other.x0*other.fraction + other.x1 << ", prod: " << prod << "\n";
                     prod = -prod;
                     f = (prod == 0) ? -f : f;
                     res.set(prod, f, other.x0*fraction + other.x1);
                 } else {
                     auto prod = std::abs(x1) / (other.x0*other.fraction + other.x1);
                     auto f = std::abs(x1) % (other.x0*other.fraction + other.x1);
-                    // std::cout << " 4f: " << f << ", den: " << other.x0*other.fraction + other.x1 << ", prod: " << prod << "\n";
                     prod = -prod;
                     f = (prod == 0) ? -f : f;
                     res.set(prod, f, other.x0*other.fraction + other.x1);
@@ -679,14 +676,12 @@ public:
                 if (equal_fractions) {
                     auto prod = (x0*fraction + x1) / (std::abs(other.x0)*fraction + other.x1);
                     auto f = (x0*fraction + x1) % (std::abs(other.x0)*fraction + other.x1);
-                    // std::cout << " 5f: " << f << ", den: " << std::abs(other.x0)*other.fraction + other.x1 << ", prod: " << prod << "\n";
                     prod = -prod;
                     f = (prod == 0) ? -f : f;
                     res.set(prod, f, std::abs(other.x0)*fraction + other.x1);
                 } else {
                     auto prod = (x0*fraction + x1) / (std::abs(other.x0)*other.fraction + other.x1);
                     auto f = (x0*fraction + x1) % (std::abs(other.x0)*other.fraction + other.x1);
-                    // std::cout << " 6f: " << f << ", den: " << std::abs(other.x0)*other.fraction + other.x1 << ", prod: " << prod << "\n";
                     prod = -prod;
                     f = (prod == 0) ? -f : f;
                     res.set(prod, f, std::abs(other.x0)*other.fraction + other.x1);
@@ -699,14 +694,12 @@ public:
                 if (equal_fractions) {
                     auto prod = (x0*fraction + x1) / std::abs(other.x1);
                     auto f = (x0*fraction + x1) % std::abs(other.x1);
-                    // std::cout << " 7f: " << f << ", den: " << std::abs(other.x1) << ", prod: " << prod << "\n";
                     prod = -prod;
                     f = (prod == 0) ? -f : f;
                     res.set(prod, f, std::abs(other.x1));
                 } else {
                     auto prod = (x0*fraction + x1) / std::abs(other.x1);
                     auto f = (x0*fraction + x1) % std::abs(other.x1);
-                    // std::cout << " 8f: " << f << ", den: " << std::abs(other.x1) << ", prod: " << prod << "\n";
                     prod = -prod;
                     f = (prod == 0) ? -f : f;
                     res.set(prod, f, std::abs(other.x1));

@@ -6,60 +6,69 @@
 
 #include <QDebug>
 
+/**
+ * @brief Модификаторы строк: зеленый, синий, красный и "отмена раскраски".
+ */
 static constexpr auto green_modifier = "\033[32m";
 static constexpr auto blue_modifier = "\033[34m";
 static constexpr auto red_modifier = "\033[31m";
 static constexpr auto esc_colorization = "\033[0m";
 
-
-QSemaphore requests_free(_tp::buff_size);
+/**
+ * @brief Семафоры запросов и ответов.
+ */
+QSemaphore requests_free(tp::BUFFER_SIZE);
 QSemaphore requests_used(0);
-QSemaphore results_free(_tp::buff_size);
+QSemaphore results_free(tp::BUFFER_SIZE);
 QSemaphore results_used(0);
 
-QVector<_tp::Request> requests(_tp::buff_size);
-QVector<_tp::Result> results(_tp::buff_size);
+/**
+ * @brief Буферы запросов и ответов.
+ */
+QVector<tp::Request> requests(tp::BUFFER_SIZE);
+QVector<tp::Result> results(tp::BUFFER_SIZE);
 
+/**
+ * @brief Контроллер.
+ */
 Controller controller;
 
+/**
+ * @brief Наблюдатели очередей запросов и ответов.
+ */
 ro::RequestObserver reqObs(requests,
                            &requests_used, &requests_free,
                            &controller);
 ro::ResultObserver resObs(results,
                           &results_used, &results_free);
 
-auto err_description = [](int err) -> QString {
-    switch (err) {
-    case Errors::ZERO_DIVISION: return QString::fromUtf8("Деление на ноль");
-    case Errors::UNKNOW_OP: return QString::fromUtf8("Неизвестная операция");
-    case Errors::NOT_FINITE: return QString::fromUtf8("Переполнение");
-    default: return QString::fromUtf8("Нет ошибок");
+/**
+ * @brief Возвращает описание ошибки по коду ошибки.
+ */
+static constexpr auto err_description = [](int error_code) -> QString {
+    switch (error_code) {
+        case Errors::ZERO_DIVISION: return QString::fromUtf8("Деление на ноль");
+        case Errors::UNKNOW_OP:     return QString::fromUtf8("Неизвестная операция");
+        case Errors::NOT_FINITE:    return QString::fromUtf8("Переполнение");
+        default:                    return QString::fromUtf8("Нет ошибок");
     }
 };
 
-// State machine:
-// input 1st operand, input operation, input 2nd operand:
-//   - input "="
-//       -- input operation
-//       -- input 1st operand
-//   - input operation
-//      the operation the same OR the operation is another one
-//       -- input 2nd operand
-//       -- input "="
-// All operations don't have priority! Do it directly, as is
-auto description = [](int op) -> QString {
-    switch (op) {
-    case OperationEnums::ADD: return QString::fromUtf8("Сложение");
-    case OperationEnums::SUB: return QString::fromUtf8("Вычитание");
-    case OperationEnums::MULT: return QString::fromUtf8("Умножение");
-    case OperationEnums::DIV: return QString::fromUtf8("Деление");
-    case OperationEnums::EQUAL: return QString::fromUtf8("Равно");
-    case OperationEnums::NEGATION: return QString::fromUtf8("Смена знака");
-    case OperationEnums::CLEAR_ALL: return QString::fromUtf8("Сброс");
-    default: return QString::fromUtf8("Неизвестная операция");
+/**
+ * @brief Возвращает описание операции по ее коду.
+ */
+static constexpr auto description = [](int operation) -> QString {
+    switch (operation) {
+        case OperationEnums::ADD:       return QString::fromUtf8("Сложение");
+        case OperationEnums::SUB:       return QString::fromUtf8("Вычитание");
+        case OperationEnums::MULT:      return QString::fromUtf8("Умножение");
+        case OperationEnums::DIV:       return QString::fromUtf8("Деление");
+        case OperationEnums::EQUAL:     return QString::fromUtf8("Равно");
+        case OperationEnums::NEGATION:  return QString::fromUtf8("Смена знака");
+        case OperationEnums::CLEAR_ALL: return QString::fromUtf8("Сброс");
+        default:                        return QString::fromUtf8("Неизвестная операция");
     }
 };
-
 
 AppCore::AppCore(QObject *parent) : QObject(parent)
 {
@@ -70,6 +79,7 @@ AppCore::AppCore(QObject *parent) : QObject(parent)
 
     resObs.start();
     reqObs.start();
+
     qDebug() << "Welcome!";
 }
 
@@ -97,7 +107,7 @@ void AppCore::DoWork(dec_n::Decimal<> value, int operation) {
         QVector<dec_n::Decimal<>> v {mRegister[1], mRegister[0]};
         std::string_view sv1 = mRegister[1].value();
         std::string_view sv0 = mRegister[0].value();
-        mRequestIdx = (mRequestIdx + 1) % _tp::buff_size;
+        mRequestIdx = (mRequestIdx + 1) % tp::BUFFER_SIZE;
         qDebug().noquote() << green_modifier << QString::fromUtf8("Запрос:")
                            << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
                            << "y:" << QString::fromStdString({sv0.data(), sv0.size()}).toUtf8()
@@ -251,11 +261,12 @@ void AppCore::process(int requested_operation, QString input_value)
 
 void AppCore::handle_results(int err, QVector<dec_n::Decimal<>> res)
 {
+    // Поместить результат в регистр для дальнейших операций (цепочка операций).
     mRegister[1] = res.first();
 
     auto push_result = [this, err, res]() {
         results_free.acquire();
-        mResultIdx = (mResultIdx + 1) % _tp::buff_size;
+        mResultIdx = (mResultIdx + 1) % tp::BUFFER_SIZE;
         results[mResultIdx] = {err, res.first()};
         results_used.release();
     };

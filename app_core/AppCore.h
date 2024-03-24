@@ -39,47 +39,116 @@ enum Errors {
     NOT_FINITE      // Переполнение.
 };
 
+/**
+ * @brief Основной класс приложения (бизнес-логика).
+ * Связывается с пространством QML для отображения GUI.
+ * Связывается с "Наблюдателями" для формирования/обработки потока
+ * запросов/ответов в/от библиотечной функции.
+ */
 class AppCore : public QObject
 {
     Q_OBJECT
 public:
+    /**
+     * @brief Конструктор.
+     * @param parent Родительский объект.
+     */
     explicit AppCore(QObject *parent = nullptr);
     ~AppCore();
 
 signals:
+
+    /**
+     * @brief Очистить поле ввода.
+     */
     void clearInputField();
+
+    /**
+     * @brief Установить результат вычисления в поле ввода.
+     * @param val Строковое представление числа-результата.
+     */
     void setInput(QString val);
+
+    /**
+     * @brief Показать результат во вспомогательном поле только для чтения.
+     * @param val Строковое представление результата.
+     * @param is_number Результат: число или нет.
+     */
     void showTempResult(QString val, bool is_number);
+
+    /**
+     * @brief Очистить вспомогательное поле.
+     */
     void clearTempResult();
 
 public slots:
+
+    /**
+     * @brief Обработать операцию в соответствии с бизнес-логикой калькулятора.
+     * Вызывается из пространства QML.
+     * @param requested_operation Запрашиваемая операция (кнопка калькулятора).
+     * @param input_value Введенное число в строковом представлении (если имеется).
+     */
     void process(int requested_operation, QString input_value="");
-    void handle_results(int, QVector<dec_n::Decimal<> >);
-    void handle_results_queue(int, QVector<dec_n::Decimal<> >, int id);
+
+    /**
+     * @brief Обработать пришедший из контроллера результат и положить в очередь.
+     */
+    void handle_results(int, QVector< dec_n::Decimal<> >);
+
+    /**
+     * @brief Обработать находящийся в очереди результат: отдать в GUI.
+     * @param id Идентификатор запроса/ответа в очереди.
+     */
+    void handle_results_queue(int, QVector< dec_n::Decimal<> >, int id);
 
 protected:
+
+    /**
+     * @brief Регистр для хранения вводимых пользователем чисел.
+     */
     dec_n::Decimal<> mRegister[2];
+
+    /**
+     * @brief Предыдущее введенное значение числа.
+     */
     dec_n::Decimal<> mPreviousValue;
+
+    /**
+     * @brief Текущая запрашиваемая операция.
+     */
     int mCurrentOperation;
+
+    /**
+     * @brief Текущее состояние калькулятора.
+     */
     int mState;
+
+    /**
+     * @brief Текущий код ошибки.
+     */
     int mErrorCode;
+
+    /**
+     * @brief Текущий индекс запроса.
+     */
     int mRequestIdx = 0;
+
+    /**
+     * @brief Текущий индекс ответа (результата).
+     */
     int mResultIdx = 0;
 
+    /**
+     * @brief Сброс калькулятора.
+     */
     void Reset();
 
-    void CalculateIt(int operation) {
-        switch (operation) {
-        case OperationEnums::ADD:      mRegister[1] = mRegister[1] + mRegister[0]; break;
-        case OperationEnums::SUB:      mRegister[1] = mRegister[1] - mRegister[0]; break;
-        case OperationEnums::MULT:     mRegister[1] = mRegister[1] * mRegister[0]; break;
-        case OperationEnums::NEGATION: mRegister[1] = dec_n::Decimal<>{} - mRegister[1]; break;
-        case OperationEnums::DIV:
-            mRegister[1] = mRegister[1] / mRegister[0];
-            break;
-        }
-    }
-
+    /**
+     * @brief Обработать введенную операцию.
+     * @param value Введенное число.
+     * @param operation Введенная операция.
+     */
     void DoWork(dec_n::Decimal<> value, int operation);
 };
 

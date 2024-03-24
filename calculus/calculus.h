@@ -23,8 +23,6 @@ enum Errors {
 
 }
 
-using namespace dec_n;
-
-CALCULUS_EXPORT Decimal<> doIt(int op, Decimal<> x, Decimal<> y, int& error);
+CALCULUS_EXPORT dec_n::Decimal<> doIt(int operation, dec_n::Decimal<> x, dec_n::Decimal<> y, int& error);
 
 #endif // CALCULUS_H

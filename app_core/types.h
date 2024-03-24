@@ -1,21 +1,44 @@
 #pragma once
 
 #include "decimal.h"
-#include "qvector.h"
+#include <QVector>
 
-namespace _tp {
 
-constexpr inline int buff_size = 256;
+namespace tp {
 
+/**
+ * @brief Размер очередей запросов/ответов.
+ */
+constexpr inline int BUFFER_SIZE = 256;
+
+/**
+ * @brief Запрос.
+ */
 struct Request {
-    int op;
-    QVector<dec_n::Decimal<>> xy;
+    /**
+     * @brief Код операции.
+     */
+    int mOperation;
+    /**
+     * @brief Операнды.
+     * Обернуты в Qt вектор из-за обеспечения безопасной передачи из потока в поток.
+     */
+    QVector<dec_n::Decimal<>> mOperands;
 };
 
-
+/**
+ * @brief Ответ (результат запроса).
+ */
 struct Result {
-    int error;
-    dec_n::Decimal<> z;
+    /**
+     * @brief Код ошибки.
+     */
+    int mErrorCode;
+    /**
+     * @brief Результат операции.
+     * Обернут в Qt вектор из-за обеспечения безопасной передачи из потока в поток.
+     */
+    dec_n::Decimal<> mResult;
 };
 
 }
