@@ -303,7 +303,7 @@ public:
         untransform();
         transform();
     }
-    Decimal operator+(const Decimal& other) {
+    Decimal operator+(const Decimal& other) const {
         Decimal res{};
         const int neg1 = is_negative();
         const int neg2 = other.is_negative();
@@ -348,12 +348,18 @@ public:
         res.set(sum, f, (equal_fractions) ? fraction : other.fraction*fraction);
         return res;
     }
-    Decimal operator-(const Decimal& other) {
+    Decimal& operator+=(const Decimal& other) {
+        return *this + other;
+    }
+    Decimal operator-(const Decimal& other) const {
         Decimal res{};
         res.set(-other.x0, (other.x0 != 0) ? other.x1 : -other.x1, other.fraction);
         return res + *this;
     }
-    Decimal operator*(const Decimal& other) {
+    Decimal& operator-=(const Decimal& other) {
+        return *this - other;
+    }
+    Decimal operator*(const Decimal& other) const {
         Decimal res{};
         const bool neg1 = is_negative();
         const bool neg2 = other.is_negative();
@@ -522,7 +528,10 @@ public:
         res.set(prod, f, (equal_fractions) ? fraction : other.fraction*fraction);
         return res;
     }
-    Decimal operator/(const Decimal& other) {
+    Decimal& operator*=(const Decimal& other) {
+        return *this * other;
+    }
+    Decimal operator/(const Decimal& other) const {
         Decimal res{};
         const bool neg1 = is_negative();
         const bool neg2 = other.is_negative();
@@ -710,6 +719,9 @@ public:
             }
         }
         return res;
+    }
+    Decimal& operator/=(const Decimal& other) {
+        return *this / other;
     }
 };
 
