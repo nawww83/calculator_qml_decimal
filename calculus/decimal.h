@@ -54,23 +54,24 @@ inline int num_of_digits(long long x) {
         x /= 10;
         i++;
     }
-    return (i != 0) ? i : 1;
+    return i != 0 ? i : 1;
 }
 
 inline bool is_mult_overflow_ll(long long x, long long y) {
-    if ((x != 0) && (y != 0)) {
+    if (x != 0 && y != 0) {
         const long long z = (unsigned long long)(x)*(unsigned long long)(y);
-        long long r1 = z / y;
-        long long r2 = z / x;
-        return (r1 != x) || (r2 != y);
+        long long try_x = z / y;
+        long long try_y = z / x;
+        return try_x != x || try_y != y;
     }
     return false;
 }
 
 inline bool is_add_overflow_ll(long long x, long long y) {
-    constexpr int N = sizeof(unsigned long long) * CHAR_BIT;
+    constexpr int bit_size = sizeof(unsigned long long) * CHAR_BIT;
     unsigned long long z = (unsigned long long)(x) + (unsigned long long)(y);
-    return ((x < 0) && (y < 0) && (z <= ((1ull << (N-1))-1))) || (( (x > 0) && (y > 0) && (z > ((1ull << (N-1))-1))));
+    const auto max_value = (1ull << (bit_size - 1)) - 1;
+    return ((x < 0) && (y < 0) && (z <= max_value)) || ((x > 0) && (y > 0) && (z > max_value));
 }
 
 inline bool is_two_complement() {
@@ -92,249 +93,261 @@ inline bool is_two_complement() {
     return res && (wi == -1ll);
 }
 
-static constexpr char minus_sign = '-';
-static constexpr char separator = ',';
-static constexpr char alt_separator = '.';
-static constexpr char null = '\0';
+namespace chars {
+    static const char minus_sign = '-';
+    static const char separator = ',';
+    static const char alternative_separator = '.';
+    static const char null = '\0';
+    static const char zero = '0';
+}
 
 class Vector64 {
-    static constexpr int _N = 31;
-    int _size{};
-    std::array<char, _N+1> buffer {}; // N+1 to be safe with the buffer
-    int cast_size(int sz) const {
-        return (sz > _N) ? _N : ((sz < 1) ? 0 : sz);
+    static constexpr int MAX_SIZE = 31;
+    int mRealSize = 0;
+    std::array<char, MAX_SIZE + 1> mBuffer{};
+    int BoundSize(int size) const {
+        return (size > MAX_SIZE) ? MAX_SIZE : ((size < 1) ? 0 : size);
     }
-    void fill_data(const char* b, int sz) {
-        assert(sz >= 0);
-        assert(sz <= _N);
-        _size = std::min(_N, sz);
-        for (int i=0; i<_size; ++i) {
-            buffer[i] = *b++;
+    void FillData(const char* input, int size) {
+        assert(size >= 0);
+        assert(size <= MAX_SIZE);
+        mRealSize = std::min(MAX_SIZE, size);
+        for (int i=0; i<mRealSize; ++i) {
+            mBuffer[i] = *input++;
         }
-        for (int i=0; i<(_N-_size); ++i) {
-            buffer[_size + i] = null;
+        for (int i=0; i<MAX_SIZE - mRealSize; ++i) {
+            mBuffer[mRealSize + i] = chars::null;
         }
-        buffer[_N] = null;
+        mBuffer[MAX_SIZE] = chars::null;
     }
 public:
     Vector64() = default;
     Vector64(const std::string& str) {
-        fill_data(str.data(), str.size());
+        FillData(str.data(), str.size());
     }
     Vector64(std::string&& str) = delete;
     Vector64(const Vector64& other) {
-        fill_data(other.buffer.data(), other.size());
+        FillData(other.mBuffer.data(), other.RealSize());
     }
     Vector64(Vector64&& other) = delete;
     Vector64& operator=(const std::string& str) {
-        fill_data(str.data(), str.size());
+        FillData(str.data(), str.size());
         return *this;
     }
     Vector64& operator=(const Vector64& other) {
-        fill_data(other.buffer.data(), other.size());
+        FillData(other.mBuffer.data(), other.RealSize());
         return *this;
     }
     char& operator[](int i) {
         assert(i >= 0);
-        assert(i < _N);
-        return buffer[i];
+        assert(i < MAX_SIZE);
+        return mBuffer[i];
     }
     char operator[](int i) const {
         assert(i >= 0);
-        assert(i < _N);
-        return buffer[i];
+        assert(i < MAX_SIZE);
+        return mBuffer[i];
     }
-    int size() const {
-        return _size;
+    int RealSize() const {
+        return mRealSize;
     }
-    static int N() {
-        return _N;
+    static int MaxSize() {
+        return MAX_SIZE;
     }
-    void resize(int new_size) {
-        _size = cast_size(new_size);
+    void Resize(int new_size) {
+        mRealSize = BoundSize(new_size);
     }
-    auto string_view() const {
-        return std::string_view(buffer.data(), _size);
+    auto GetStringView() const {
+        return std::string_view(mBuffer.data(), mRealSize);
     }
 };
 
 #ifdef PRECISION_W2
-template <int w=2> // precision
+template <int width=2> // precision
 #endif
 #ifdef PRECISION_W3
-template <int w=3> // precision
+template <int width=3> // precision
 #endif
 #ifdef PRECISION_W4
-template <int w=4> // precision
+template <int width=4> // precision
 #endif
 class Decimal {
-    long long x0{}; // integer part
-    long long x1{}; // nominator
-    long long fraction{1}; // denominator
-    Vector64 str{};
-    void transform() { // transform any (x0, x1, fraction) to a string with fixed precision 'w' digits
-        if (is_overflow()) {
-            str = "";
+    long long mInteger = 0;
+    long long mNominator = 0;
+    long long mDenominator = std::pow(10ll, width);
+    Vector64 mStringRepresentation{};
+    void TransformToString() {
+        if (IsOverflowed()) {
+            mStringRepresentation = "";
             return;
         }
-        long long r = x0;
-        const int sign = is_negative();
-        if (std::abs(x1) >= fraction) {
-            r = (sign == 0) ? r + x1 / fraction : r - x1 / fraction;
-            x1 = (x1 >= 0) ? x1 % fraction : -((-x1) % fraction);
+        long long r = mInteger;
+        const int sign = IsNegative();
+        if (std::abs(mNominator) >= mDenominator) {
+            r = sign == 0 ? r + mNominator / mDenominator : r - mNominator / mDenominator;
+            mNominator = (mNominator >= 0) ? mNominator % mDenominator : -((-mNominator) % mDenominator);
         }
-        // fraction part for print
-        long long f = (std::pow(10ll, w) * (x1 < 0 ? -x1 : x1)) / fraction;
-        const int len = (num_of_digits(r) + 1 + w) + ((sign == 0) ? 0 : 1); // sign, digits, separator, fraction
-        assert(len <= Vector64::N());
-        assert(len > 0);
-        str.resize(len);
+        long long fraction = (std::pow(10ll, width) * (mNominator < 0 ? -mNominator : mNominator)) / mDenominator;
+        const int required_length = (num_of_digits(r) + 1 + width) + (sign == 0 ? 0 : 1); // Целая часть, разделитель, дробная часть (precision), знак.
+        assert(required_length <= Vector64::MaxSize());
+        assert(required_length > 0);
+        mStringRepresentation.Resize(required_length);
         if (sign != 0) {
-            str[0] = minus_sign;
+            mStringRepresentation[0] = chars::minus_sign;
         }
         if (r == 0) {
-            str[len - w - 2] = '0'; // digit 0, not empty char.
+            mStringRepresentation[required_length - width - 2] = chars::zero;
         }
         r = (r < 0) ? -r : r;
         for (int i = 0; r != 0 ; i++) {
-            str[len - w - 2 - i] = digits[r % 10ll];
+            mStringRepresentation[required_length - width - 2 - i] = digits[r % 10ll];
             r /= 10ll;
         }
-        str[len - 1 - w] = separator;
-        for (int i = 0; i < w; i++) {
-            str[len - 1 - i] = digits[f % 10ll];
-            f /= 10ll;
+        mStringRepresentation[required_length - 1 - width] = chars::separator;
+        for (int i = 0; i < width; i++) {
+            mStringRepresentation[required_length - 1 - i] = digits[fraction % 10ll];
+            fraction /= 10ll;
         }
     }
-    void untransform() { // convert fixed w-precision string to (x0, x1, fraction)
-        if (str.size() < 1) {
+    void TransformToDecimal() {
+        if (mStringRepresentation.RealSize() < 1) {
             return;
         }
-        const int sign = (str[0] == minus_sign) ? 1 : 0;
-        int i = (sign == 0) ? 0 : 1;
-        x0 = (long long)undigits(str[i++]);
-        while (((str[i] != separator) && (str[i] != alt_separator)) && (str[i] != null)) {
-            x0 *= 10ll;
-            if (x0 < 0) {
-                x0 = -1;
-                x1 = -1;
-                fraction = std::pow(10ll, w);
+        const int sign = (mStringRepresentation[0] == chars::minus_sign) ? 1 : 0;
+        int idx = (sign == 0) ? 0 : 1;
+        char digit = mStringRepresentation[idx];
+        mInteger = (long long)undigits(digit);
+        idx++;
+        digit = mStringRepresentation[idx];
+        while (((digit != chars::separator) && (digit != chars::alternative_separator)) && (digit != chars::null)) {
+            mInteger *= 10ll;
+            if (mInteger < 0) {
+                mInteger = -1;
+                mNominator = -1;
+                mDenominator = std::pow(10ll, width);
                 return;
             }
-            x0 += (long long)undigits(str[i++]);
+            mInteger += (long long)undigits(digit);
+            idx++;
+            digit = mStringRepresentation[idx];
         }
-        x0 = (sign == 0) ? x0 : -x0;
-        i++;
-        fraction = std::pow(10ll, w);
-        x1 = (long long)undigits(str[i++]);
-        const int len = str.size();
-        int j = 1;
-        while (i < len) {
-            if (j >= w) { // too many of digits after the comma
+        mInteger = (sign == 0) ? mInteger : -mInteger;
+        idx++;
+        digit = mStringRepresentation[idx];
+        mDenominator = std::pow(10ll, width);
+        mNominator = (long long)undigits(digit);
+        idx++;
+        digit = mStringRepresentation[idx];
+        const int len = mStringRepresentation.RealSize();
+        int idx_width = 1;
+        while (idx < len) {
+            if (idx_width >= width) { // Слишком много цифр после запятой.
                 break;
             }
-            x1 *= 10ll;
-            x1 += (long long)undigits(str[i++]);
-            j++;
+            mNominator *= 10ll;
+            mNominator += (long long)undigits(digit);
+            idx++;
+            digit = mStringRepresentation[idx];
+            idx_width++;
         }
-        while (j < w) { // example: 4,5 => 4,50 if w = 2
-            x1 *= 10ll;
-            x1 += 0ll;
-            j++;
+        while (idx_width < width) { // Например 4,5 => 4,50 при width = 2.
+            mNominator *= 10ll;
+            mNominator += 0ll;
+            idx_width++;
         }
-        if ((x0 == 0) && (sign != 0)) {
-            x1 = -x1;
+        if (mInteger == 0 && sign != 0) {
+            mNominator = -mNominator;
         }
     }
 public:
     Decimal() = default;
-    void set(long long x, long long y, long long f) {
-        x0 = x;
-        x1 = y;
-        fraction = f;
-        if ((f <= 0) || ((x < 0) && (y < 0))) {
+    void SetDecimal(long long x, long long y, long long f) {
+        mInteger = x;
+        mNominator = y;
+        mDenominator = f;
+        if ((f <= 0) || (x < 0 && y < 0)) {
             return;
         }
-        assert(((y >= 0) && (x != 0)) || (x == 0));
+        assert((y >= 0 && x != 0) || (x == 0));
         assert(f > 0);
-        // do forward-back transformation to get fixed denominator (fraction) with w digits
-        transform();
-        untransform();
+        // Сделать прямое-обратное преобразования для формирования знаменателя из width цифр.
+        TransformToString();
+        TransformToDecimal();
     }
-    bool is_an_integer() const {
-        return (x1 == 0);
+    bool IsInteger() const {
+        return mNominator == 0;
     }
-    bool is_overflow() const {
-        return ((fraction <= 0) || ((x0 < 0) && (x1 < 0)));
+    bool IsOverflowed() const {
+        return (mDenominator <= 0) || (mInteger < 0 && mNominator < 0);
     }
-    bool is_strong_negative() const {
-        return (x0 < 0);
+    bool IsStrongNegative() const {
+        return mInteger < 0;
     }
-    bool is_weak_negative() const {
-        return ((x0 == 0) && (x1 < 0));
+    bool IsWeakNegative() const {
+        return mInteger == 0 && mNominator < 0;
     }
-    bool is_negative() const {
-        return is_strong_negative() || is_weak_negative();
+    bool IsNegative() const {
+        return IsStrongNegative() || IsWeakNegative();
     }
-    bool is_zero() const {
-        return (x0 == 0) && (x1 == 0);
+    bool IsZero() const {
+        return mInteger == 0 && mNominator == 0;
     }
-    auto value() const {
-        return str.string_view();
+    auto ValueAsStringView() const {
+        return mStringRepresentation.GetStringView();
     }
-    double value_as_double() const {
-        auto res = (x0 != 0) ? double(x0) + ((x0 < 0) ? -1. : 1.)*double(x1)/double(fraction) : double(x1)/double(fraction);
-        return res;
+    double ValueAsDouble() const {
+        const double the_sign = mInteger < 0 ? -1. : 1.;
+        const double value = double(mNominator) / double(mDenominator);
+        return (mInteger != 0) ? double(mInteger) + the_sign * value : value;
     }
-    auto integer_part() const {
-        return x0;
+    auto IntegerPart() const {
+        return mInteger;
     }
-    auto nominator() const {
-        return x1;
+    auto Nominator() const {
+        return mNominator;
     }
-    auto denominator() const {
-        return fraction;
+    auto Denominator() const {
+        return mDenominator;
     }
-    void set_str(std::string& s) {
-        str = Vector64(s);
+    void SetStringRepresentation(std::string& s) {
         if (s.size() < 1) {
             return;
         }
-        untransform();
-        transform();
+        mStringRepresentation = Vector64(s);
+        TransformToDecimal();
+        TransformToString();
     }
     Decimal operator+(const Decimal& other) const {
-        Decimal res{};
-        const int neg1 = is_negative();
-        const int neg2 = other.is_negative();
-        bool is_overflow1 = is_add_overflow_ll(x0, other.x0);
-        bool is_overflow2 = is_add_overflow_ll(x1, other.x1);
+        Decimal result{};
+        const int neg1 = IsNegative();
+        const int neg2 = other.IsNegative();
+        bool is_overflow1 = is_add_overflow_ll(mInteger, other.mInteger);
+        bool is_overflow2 = is_add_overflow_ll(mNominator, other.mNominator);
         if (is_overflow1 || is_overflow2) {
-            res.set(-1, -1, fraction);
-            return res;
+            result.SetDecimal(-1, -1, mDenominator);
+            return result;
         }
-        auto sum = x0 + other.x0;
-        const bool equal_fractions = (fraction == other.fraction);
+        auto sum = mInteger + other.mInteger;
+        const bool equal_fractions = (mDenominator == other.mDenominator);
         assert(equal_fractions);
-        // Either all are positives or all are negatives: use abs()
-        auto f = std::abs(x1) + std::abs(other.x1);
-        const bool have_differ_signs = (neg1 ^ neg2);
+        auto f = std::abs(mNominator) + std::abs(other.mNominator);
+        const bool have_differ_signs = neg1 ^ neg2;
         if (neg1 && !neg2) {
-            f = -std::abs(x1) + std::abs(other.x1);
+            f = -std::abs(mNominator) + std::abs(other.mNominator);
         }
         if (!neg1 && neg2) {
-            f = std::abs(x1) - std::abs(other.x1);
+            f = std::abs(mNominator) - std::abs(other.mNominator);
         }
         if (have_differ_signs) {
-            if ((f < 0) && (sum < 0)) {
+            if (f < 0 && sum < 0) {
                 f = -f;
             } else
-                if ((f < 0) && (sum > 0)) {
-                    f += fraction;
+                if (f < 0 && sum > 0) {
+                    f += mDenominator;
                     sum -= 1;
                 } else
-                    if ((f > 0) && (sum < 0)) {
-                        f -= fraction;
+                    if (f > 0 && sum < 0) {
+                        f -= mDenominator;
                         sum += 1;
                         if (sum != 0) {
                             f = std::abs(f);
@@ -346,241 +359,247 @@ public:
                 f = -f;
             }
         }
-        res.set(sum, f, fraction);
-        return res;
+        result.SetDecimal(sum, f, mDenominator);
+        return result;
     }
     Decimal& operator+=(const Decimal& other) {
         return *this + other;
     }
     Decimal operator-(const Decimal& other) const {
         Decimal res{};
-        res.set(-other.x0, (other.x0 != 0) ? other.x1 : -other.x1, other.fraction);
+        res.SetDecimal(-other.mInteger, (other.mInteger != 0) ? other.mNominator : -other.mNominator, other.mDenominator);
         return res + *this;
     }
     Decimal& operator-=(const Decimal& other) {
         return *this - other;
     }
     Decimal operator*(const Decimal& other) const {
-        Decimal res{};
-        const bool neg1 = is_negative();
-        const bool neg2 = other.is_negative();
-        bool overflow1 = is_mult_overflow_ll(x0, other.x1);
-        bool overflow2 = is_mult_overflow_ll(other.x0, x1) ;
-        bool overflow3 = is_mult_overflow_ll(x0, x1);
-        bool overflow4 = is_mult_overflow_ll(other.x0, other.x1);
-        bool overflow5 = is_mult_overflow_ll(x1, other.x1);
-        bool overflow6 = is_mult_overflow_ll(x0, other.x0);
-        const bool equal_fractions = (fraction == other.fraction);
+        Decimal result{};
+        const bool neg1 = IsNegative();
+        const bool neg2 = other.IsNegative();
+        const bool overflow1 = is_mult_overflow_ll(mInteger, other.mNominator);
+        const bool overflow2 = is_mult_overflow_ll(other.mInteger, mNominator) ;
+        const bool overflow3 = is_mult_overflow_ll(mInteger, mNominator);
+        const bool overflow4 = is_mult_overflow_ll(other.mInteger, other.mNominator);
+        const bool overflow5 = is_mult_overflow_ll(mNominator, other.mNominator);
+        const bool overflow6 = is_mult_overflow_ll(mInteger, other.mInteger);
+        const bool equal_fractions = (mDenominator == other.mDenominator);
         assert(equal_fractions);
-        const bool all_integers = ((x1 == 0) && (other.x1 == 0));
+        const bool all_integers = (mNominator == 0 && other.mNominator == 0);
         if (overflow6) {
-            res.set(-1, -1, fraction);
-            return res;
+            result.SetDecimal(-1, -1, mDenominator);
+            return result;
         }
-        auto prod = x0*other.x0;
-        auto f = prod*0;
+        auto integer_part = mInteger * other.mInteger;
+        auto fraction_part = integer_part * 0;
         if (all_integers) {
-            res.set(prod, f, fraction);
-            return res;
+            result.SetDecimal(integer_part, fraction_part, mDenominator);
+            return result;
         }
-        const bool left_integer = ((x1 == 0) && (other.x1 != 0));
+        const bool left_integer = ((mNominator == 0) && (other.mNominator != 0));
         if (left_integer) {
             if (overflow1) {
-                res.set(-1, -1, fraction);
-                return res;
+                result.SetDecimal(-1, -1, mDenominator);
+                return result;
             }
-            prod += ((neg1 ^ neg2) ? -1ll : 1ll) * (std::abs(x0)*std::abs(other.x1)) / fraction;
-            f = (std::abs(x0)*std::abs(other.x1)) % fraction;
+            integer_part += ((neg1 ^ neg2) ? -1ll : 1ll) * (std::abs(mInteger) * std::abs(other.mNominator)) / mDenominator;
+            fraction_part = (std::abs(mInteger) * std::abs(other.mNominator)) % mDenominator;
             if (neg1 ^ neg2) {
-                f = (prod == 0) ? -f : f;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
             }
-            res.set(prod, f, fraction);
-            return res;
+            result.SetDecimal(integer_part, fraction_part, mDenominator);
+            return result;
         }
-        const bool right_integer = ((x1 != 0) && (other.x1 == 0));
+        const bool right_integer = ((mNominator != 0) && (other.mNominator == 0));
         if (right_integer) {
             if (overflow2) {
-                res.set(-1, -1, fraction);
-                return res;
+                result.SetDecimal(-1, -1, mDenominator);
+                return result;
             }
-            prod += ((neg1 ^ neg2) ? -1ll : 1ll) * (std::abs(x1)*std::abs(other.x0)) / fraction;
-            f = (std::abs(x1)*std::abs(other.x0)) % fraction;
+            integer_part += ((neg1 ^ neg2) ? -1ll : 1ll) * (std::abs(mNominator)*std::abs(other.mInteger)) / mDenominator;
+            fraction_part = (std::abs(mNominator) * std::abs(other.mInteger)) % mDenominator;
             if (neg1 ^ neg2) {
-                f = (prod == 0) ? -f : f;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
             }
-            res.set(prod, f, fraction);
-            return res;
+            result.SetDecimal(integer_part, fraction_part, mDenominator);
+            return result;
         }
         if (overflow1 || overflow2 || overflow3 || overflow4 || overflow5 || overflow6) {
-            res.set(-1, -1, fraction);
-            return res;
+            result.SetDecimal(-1, -1, mDenominator);
+            return result;
         }
-        if (!neg1 && !neg2) { // both are non-negatives
-            prod += (x0*other.x1 + x1*other.x0 + (x1*other.x1)/fraction) / fraction;
-            f = (x0*other.x1 + x1*other.x0 + (x1*other.x1)/fraction) % fraction;
+        if (!neg1 && !neg2) {
+            integer_part += (mInteger*other.mNominator + mNominator*other.mInteger + (mNominator*other.mNominator)/mDenominator) / mDenominator;
+            fraction_part = (mInteger*other.mNominator + mNominator*other.mInteger + (mNominator*other.mNominator)/mDenominator) % mDenominator;
         }
-        if (neg1 && neg2) { // both negative
-            const int neg1_strong = is_strong_negative();
-            const int neg2_strong = other.is_strong_negative();
-            const int neg1_weak = is_weak_negative();
-            const int neg2_weak = other.is_weak_negative();
+        if (neg1 && neg2) {
+            const int neg1_strong = IsStrongNegative();
+            const int neg2_strong = other.IsStrongNegative();
+            const int neg1_weak = IsWeakNegative();
+            const int neg2_weak = other.IsWeakNegative();
             if (neg1_strong && neg2_strong) {
-                prod += (std::abs(x0)*other.x1 + std::abs(other.x0)*x1 + (x1*other.x1)/fraction) / (fraction);
-                f = (std::abs(x0)*other.x1 + std::abs(other.x0)*x1 + (x1*other.x1)/fraction) % (fraction);
+                integer_part += (std::abs(mInteger)*other.mNominator + std::abs(other.mInteger)*mNominator + \
+                                                    (mNominator*other.mNominator)/mDenominator) / mDenominator;
+                fraction_part = (std::abs(mInteger)*other.mNominator + std::abs(other.mInteger)*mNominator + \
+                                                    (mNominator*other.mNominator)/mDenominator) % mDenominator;
 
             }
             if (neg1_weak && neg2_strong) {
-                prod += (std::abs(other.x0)*std::abs(x1) + (std::abs(x1)*other.x1)/fraction) / (fraction);
-                f = (std::abs(other.x0)*std::abs(x1) + (std::abs(x1)*other.x1)/fraction) % (fraction);
+                integer_part += (std::abs(other.mInteger)*std::abs(mNominator) + (std::abs(mNominator)*other.mNominator)/mDenominator) / mDenominator;
+                fraction_part = (std::abs(other.mInteger)*std::abs(mNominator) + (std::abs(mNominator)*other.mNominator)/mDenominator) % mDenominator;
             }
             if (neg1_strong && neg2_weak) {
-                prod += (std::abs(x0)*std::abs(other.x1) + (x1*std::abs(other.x1))/fraction) / (fraction);
-                f = (std::abs(x0)*std::abs(other.x1) + (x1*std::abs(other.x1))/fraction) % (fraction);
+                integer_part += (std::abs(mInteger)*std::abs(other.mNominator) + (mNominator*std::abs(other.mNominator))/mDenominator) / mDenominator;
+                fraction_part = (std::abs(mInteger)*std::abs(other.mNominator) + (mNominator*std::abs(other.mNominator))/mDenominator) % mDenominator;
             }
             if (neg1_weak && neg2_weak) {
-                prod += ((std::abs(x1)*std::abs(other.x1))/fraction) / (fraction);
-                f = ((std::abs(x1)*std::abs(other.x1))/fraction) % (fraction);
+                integer_part += ((std::abs(mNominator)*std::abs(other.mNominator))/mDenominator) / mDenominator;
+                fraction_part = ((std::abs(mNominator)*std::abs(other.mNominator))/mDenominator) % mDenominator;
             }
         }
-        // one positive, other - negative
         if (neg1 && !neg2) {
-            const int neg1_strong = is_strong_negative();
-            const int neg1_weak = is_weak_negative();
+            const int neg1_strong = IsStrongNegative();
+            const int neg1_weak = IsWeakNegative();
             if (neg1_strong) {
-                prod = std::abs(prod) + (std::abs(x0)*other.x1 + other.x0*x1 + (x1*other.x1)/fraction) / (fraction);
-                f = (std::abs(x0)*other.x1 + other.x0*x1 + (x1*other.x1)/fraction) % (fraction);
-                prod = -prod;
-                f = (prod == 0) ? -f : f;
+                integer_part = std::abs(integer_part) + (std::abs(mInteger)*other.mNominator + other.mInteger*mNominator + \
+                                                                            (mNominator*other.mNominator)/mDenominator) / mDenominator;
+                fraction_part = (std::abs(mInteger)*other.mNominator + other.mInteger*mNominator + \
+                                                                            (mNominator*other.mNominator)/mDenominator) % mDenominator;
+                integer_part = -integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
             }
             if (neg1_weak) {
-                prod = (other.x0*std::abs(x1) + (std::abs(x1)*other.x1)/fraction) / (fraction);
-                f = (other.x0*std::abs(x1) + (std::abs(x1)*other.x1)/fraction) % (fraction);
-                prod = -prod;
-                f = (prod == 0) ? -f : f;
+                integer_part = (other.mInteger*std::abs(mNominator) + (std::abs(mNominator)*other.mNominator)/mDenominator) / mDenominator;
+                fraction_part = (other.mInteger*std::abs(mNominator) + (std::abs(mNominator)*other.mNominator)/mDenominator) % mDenominator;
+                integer_part = -integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
             }
         }
         if (!neg1 && neg2) {
-            const int neg2_strong = other.is_strong_negative();
-            const int neg2_weak = other.is_weak_negative();
+            const int neg2_strong = other.IsStrongNegative();
+            const int neg2_weak = other.IsWeakNegative();
             if (neg2_strong) {
-                prod = std::abs(prod) + (x0*other.x1 + std::abs(other.x0)*x1 + (x1*other.x1)/fraction) / (fraction);
-                f = (x0*other.x1 + std::abs(other.x0)*x1 + (x1*other.x1)/fraction) % (fraction);
-                prod = -prod;
-                f = (prod == 0) ? -f : f;
+                integer_part = std::abs(integer_part) + (mInteger*other.mNominator + std::abs(other.mInteger)*mNominator + \
+                                                                (mNominator*other.mNominator)/mDenominator) / mDenominator;
+                fraction_part = (mInteger*other.mNominator + std::abs(other.mInteger)*mNominator + \
+                                                                (mNominator*other.mNominator)/mDenominator) % mDenominator;
+                integer_part = -integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
             }
             if (neg2_weak) {
-                prod = (x0*std::abs(other.x1) + (x1*std::abs(other.x1))/fraction) / (fraction);
-                f = (x0*std::abs(other.x1) + (x1*std::abs(other.x1))/fraction) % (fraction);
-                prod = -prod;
-                f = (prod == 0) ? -f : f;
+                integer_part = (mInteger*std::abs(other.mNominator) + (mNominator*std::abs(other.mNominator))/mDenominator) / mDenominator;
+                fraction_part = (mInteger*std::abs(other.mNominator) + (mNominator*std::abs(other.mNominator))/mDenominator) % mDenominator;
+                integer_part = -integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
             }
         }
-        res.set(prod, f, fraction);
-        return res;
+        result.SetDecimal(integer_part, fraction_part, mDenominator);
+        return result;
     }
     Decimal& operator*=(const Decimal& other) {
         return *this * other;
     }
     Decimal operator/(const Decimal& other) const {
-        Decimal res{};
-        const bool neg1 = is_negative();
-        const bool neg2 = other.is_negative();
-        const bool equal_fractions = (fraction == other.fraction);
+        Decimal result{};
+        const bool neg1 = IsNegative();
+        const bool neg2 = other.IsNegative();
+        const bool equal_fractions = (mDenominator == other.mDenominator);
         assert(equal_fractions);
-        const bool all_integers = ((x1 == 0) && (other.x1 == 0));
+        const bool all_integers = (mNominator == 0) && (other.mNominator == 0);
         if (all_integers) {
-            auto prod = std::abs(x0) / std::abs(other.x0);
-            auto f = std::abs(x0) % std::abs(other.x0);
+            auto integer_part = std::abs(mInteger) / std::abs(other.mInteger);
+            auto fraction_part = std::abs(mInteger) % std::abs(other.mInteger);
             if (neg1 ^ neg2) {
-                prod = (prod != 0) ? -prod : prod;
-                f = (prod == 0) ? -f : f;
+                integer_part = integer_part != 0 ? -integer_part : integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
             }
-            res.set(prod, f, std::abs(other.x0));
-            return res;
+            result.SetDecimal(integer_part, fraction_part, std::abs(other.mInteger));
+            return result;
         }
-        const bool denominator_is_integer = (other.x1 == 0) && (other.x0 != 0);
+        const bool denominator_is_integer = (other.mNominator == 0) && (other.mInteger != 0);
         if (denominator_is_integer) {
-            auto prod = std::abs(x0) / std::abs(other.x0) + (std::abs(x0) % std::abs(other.x0)) / std::abs(other.x0);
-            auto f = (std::abs(x1) + (std::abs(x0) % std::abs(other.x0)) * fraction) / std::abs(other.x0);
+            auto integer_part = std::abs(mInteger) / std::abs(other.mInteger) + \
+                                        (std::abs(mInteger) % std::abs(other.mInteger)) / std::abs(other.mInteger);
+            auto fraction_part = (std::abs(mNominator) + (std::abs(mInteger) % std::abs(other.mInteger)) * mDenominator) / std::abs(other.mInteger);
             if (neg1 ^ neg2) {
-                prod = (prod != 0) ? -prod : prod;
-                f = (prod == 0) ? -f : f;
+                integer_part = integer_part != 0 ? -integer_part : integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
             }
-            res.set(prod, f, fraction);
-            return res;
+            result.SetDecimal(integer_part, fraction_part, mDenominator);
+            return result;
         }
-        if ( is_mult_overflow_ll(x0, fraction) ) {
-            res.set(-1, -1, fraction);
-            return res;
+        if ( is_mult_overflow_ll(mInteger, mDenominator) ) {
+            result.SetDecimal(-1, -1, mDenominator);
+            return result;
         }
         if (!neg1 && !neg2) {
-            auto prod = (x0*fraction + x1) / (other.x0*fraction + other.x1);
-            auto f = (x0*fraction + x1) % (other.x0*fraction + other.x1);
-            res.set(prod, f, other.x0*fraction + other.x1);
+            auto integer_part = (mInteger*mDenominator + mNominator) / (other.mInteger*mDenominator + other.mNominator);
+            auto fraction_part = (mInteger*mDenominator + mNominator) % (other.mInteger*mDenominator + other.mNominator);
+            result.SetDecimal(integer_part, fraction_part, other.mInteger*mDenominator + other.mNominator);
         }
         if (neg1 && neg2) {
-            const int neg1_strong = is_strong_negative();
-            const int neg2_strong = other.is_strong_negative();
-            const int neg1_weak = is_weak_negative();
-            const int neg2_weak = other.is_weak_negative();
+            const int neg1_strong = IsStrongNegative();
+            const int neg2_strong = other.IsStrongNegative();
+            const int neg1_weak = IsWeakNegative();
+            const int neg2_weak = other.IsWeakNegative();
             if (neg1_strong && neg2_strong) {
-                auto prod = (std::abs(x0)*fraction + x1) / (std::abs(other.x0)*fraction + other.x1);
-                auto f = (std::abs(x0)*fraction + x1) % (std::abs(other.x0)*fraction + other.x1);
-                res.set(prod, f, std::abs(other.x0)*fraction + other.x1);
+                auto integer_part = (std::abs(mInteger)*mDenominator + mNominator) / (std::abs(other.mInteger)*mDenominator + other.mNominator);
+                auto fraction_part = (std::abs(mInteger)*mDenominator + mNominator) % (std::abs(other.mInteger)*mDenominator + other.mNominator);
+                result.SetDecimal(integer_part, fraction_part, std::abs(other.mInteger)*mDenominator + other.mNominator);
             }
             if (neg1_weak && neg2_weak) {
-                auto prod = x1 / other.x1;
-                auto f = std::abs(x1) % std::abs(other.x1);
-                res.set(prod, f, std::abs(other.x1));
+                auto integer_part = mNominator / other.mNominator;
+                auto fraction_part = std::abs(mNominator) % std::abs(other.mNominator);
+                result.SetDecimal(integer_part, fraction_part, std::abs(other.mNominator));
             }
             if (neg1_strong && neg2_weak) {
-                auto prod = (std::abs(x0)*fraction + x1) / std::abs(other.x1);
-                auto f = (std::abs(x0)*fraction + x1) % std::abs(other.x1);
-                res.set(prod, f, std::abs(other.x1));
+                auto integer_part = (std::abs(mInteger)*mDenominator + mNominator) / std::abs(other.mNominator);
+                auto fraction_part = (std::abs(mInteger)*mDenominator + mNominator) % std::abs(other.mNominator);
+                result.SetDecimal(integer_part, fraction_part, std::abs(other.mNominator));
             }
             if (neg1_weak && neg2_strong) {
-                auto prod = std::abs(x1) / (std::abs(other.x0)*fraction + other.x1);
-                auto f = std::abs(x1) % (std::abs(other.x0)*fraction + other.x1);
-                res.set(prod, f, std::abs(other.x0)*fraction + other.x1);
+                auto integer_part = std::abs(mNominator) / (std::abs(other.mInteger)*mDenominator + other.mNominator);
+                auto fraction_part = std::abs(mNominator) % (std::abs(other.mInteger)*mDenominator + other.mNominator);
+                result.SetDecimal(integer_part, fraction_part, std::abs(other.mInteger)*mDenominator + other.mNominator);
             }
         }
         if (neg1 && !neg2) {
-            const int neg1_strong = is_strong_negative();
-            const int neg1_weak = is_weak_negative();
+            const int neg1_strong = IsStrongNegative();
+            const int neg1_weak = IsWeakNegative();
             if (neg1_strong) {
-                auto prod = (std::abs(x0)*fraction + x1) / (other.x0*fraction + other.x1);
-                auto f = (std::abs(x0)*fraction + x1) % (other.x0*fraction + other.x1);
-                prod = -prod;
-                f = (prod == 0) ? -f : f;
-                res.set(prod, f, other.x0*fraction + other.x1);
+                auto integer_part = (std::abs(mInteger)*mDenominator + mNominator) / (other.mInteger*mDenominator + other.mNominator);
+                auto fraction_part = (std::abs(mInteger)*mDenominator + mNominator) % (other.mInteger*mDenominator + other.mNominator);
+                integer_part = -integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
+                result.SetDecimal(integer_part, fraction_part, other.mInteger*mDenominator + other.mNominator);
             }
             if (neg1_weak) {
-                auto prod = std::abs(x1) / (other.x0*fraction + other.x1);
-                auto f = std::abs(x1) % (other.x0*fraction + other.x1);
-                prod = -prod;
-                f = (prod == 0) ? -f : f;
-                res.set(prod, f, other.x0*fraction + other.x1);
+                auto integer_part = std::abs(mNominator) / (other.mInteger*mDenominator + other.mNominator);
+                auto fraction_part = std::abs(mNominator) % (other.mInteger*mDenominator + other.mNominator);
+                integer_part = -integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
+                result.SetDecimal(integer_part, fraction_part, other.mInteger*mDenominator + other.mNominator);
             }
         }
         if (!neg1 && neg2) {
-            const int neg2_strong = other.is_strong_negative();
-            const int neg2_weak = other.is_weak_negative();
+            const int neg2_strong = other.IsStrongNegative();
+            const int neg2_weak = other.IsWeakNegative();
             if (neg2_strong) {
-                auto prod = (x0*fraction + x1) / (std::abs(other.x0)*fraction + other.x1);
-                auto f = (x0*fraction + x1) % (std::abs(other.x0)*fraction + other.x1);
-                prod = -prod;
-                f = (prod == 0) ? -f : f;
-                res.set(prod, f, std::abs(other.x0)*fraction + other.x1);
+                auto integer_part = (mInteger*mDenominator + mNominator) / (std::abs(other.mInteger)*mDenominator + other.mNominator);
+                auto fraction_part = (mInteger*mDenominator + mNominator) % (std::abs(other.mInteger)*mDenominator + other.mNominator);
+                integer_part = -integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
+                result.SetDecimal(integer_part, fraction_part, std::abs(other.mInteger)*mDenominator + other.mNominator);
             }
             if (neg2_weak) {
-                auto prod = (x0*fraction + x1) / std::abs(other.x1);
-                auto f = (x0*fraction + x1) % std::abs(other.x1);
-                prod = -prod;
-                f = (prod == 0) ? -f : f;
-                res.set(prod, f, std::abs(other.x1));
+                auto integer_part = (mInteger*mDenominator + mNominator) / std::abs(other.mNominator);
+                auto fraction_part = (mInteger*mDenominator + mNominator) % std::abs(other.mNominator);
+                integer_part = -integer_part;
+                fraction_part = integer_part == 0 ? -fraction_part : fraction_part;
+                result.SetDecimal(integer_part, fraction_part, std::abs(other.mNominator));
             }
         }
-        return res;
+        return result;
     }
     Decimal& operator/=(const Decimal& other) {
         return *this / other;
@@ -588,7 +607,7 @@ public:
 };
 
 bool inline operator==(const Decimal<>& lhs, const Decimal<>& rhs) {
-    return lhs.value() == rhs.value();
+    return lhs.ValueAsStringView() == rhs.ValueAsStringView();
 }
 
 }

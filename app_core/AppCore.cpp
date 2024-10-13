@@ -105,8 +105,8 @@ void AppCore::DoWork(dec_n::Decimal<> value, int operation) {
     // Послать запрос в очередь.
     auto push_request = [this, operation]() {
         QVector<dec_n::Decimal<>> v {mRegister[1], mRegister[0]};
-        std::string_view sv1 = mRegister[1].value();
-        std::string_view sv0 = mRegister[0].value();
+        std::string_view sv1 = mRegister[1].ValueAsStringView();
+        std::string_view sv0 = mRegister[0].ValueAsStringView();
         mRequestIdx = (mRequestIdx + 1) % tp::BUFFER_SIZE;
         qDebug().noquote() << green_modifier << QString::fromUtf8("Запрос:")
                            << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
@@ -150,11 +150,11 @@ void AppCore::process(int requested_operation, QString input_value)
         input_value.remove(re);
         auto s = input_value.toStdString();
         dec_n::Decimal<> val;
-        val.set_str(s);
+        val.SetStringRepresentation(s);
         return val;
     };
     auto val = construct_decimal();
-    if (val.is_overflow()) {
+    if (val.IsOverflowed()) {
         int err = Errors::NOT_FINITE;
         emit clearInputField();
         emit showTempResult(err_description(err), false);
@@ -163,7 +163,7 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
     //
-    const bool is_not_a_number = (val.value() == "");
+    const bool is_not_a_number = (val.ValueAsStringView() == "");
     // Игнорирование запросов при сброшенном состоянии и пустом поле ввода.
     if ((mState == StateEnums::RESETTED) && is_not_a_number) {
         return;
@@ -193,14 +193,14 @@ void AppCore::process(int requested_operation, QString input_value)
     if (requested_operation == OperationEnums::NEGATION) {
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
         val = dec_n::Decimal<>{} - val;
-        std::string_view sv = val.value();
+        std::string_view sv = val.ValueAsStringView();
         emit setInput(QString::fromStdString({sv.data(), sv.size()}));
         return;
     }
     // При нажатии Enter и отсутствии математической операции при изменении числа обновить введенное значение форматным.
     if ((requested_operation == OperationEnums::EQUAL) && (mCurrentOperation < 0) && (!current_val_is_the_same)) {
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-        std::string_view sv = val.value();
+        std::string_view sv = val.ValueAsStringView();
         emit clearTempResult();
         emit setInput(QString::fromStdString({sv.data(), sv.size()}));
         mCurrentOperation = requested_operation;
@@ -222,7 +222,7 @@ void AppCore::process(int requested_operation, QString input_value)
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
         mState = StateEnums::OP_LOOP;
         emit clearInputField();
-        std::string_view sv = val.value();
+        std::string_view sv = val.ValueAsStringView();
         emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
         // Выполнить операцию.
         DoWork(val, mCurrentOperation);
@@ -251,7 +251,7 @@ void AppCore::process(int requested_operation, QString input_value)
         // Очистить поле ввода и показать введеное число в поле "Только для чтения" ниже.
         {
             emit clearInputField();
-            std::string_view sv = val.value();
+            std::string_view sv = val.ValueAsStringView();
             emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
         }
     }
@@ -282,18 +282,18 @@ void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal<>> res, int i
                                         (mState == StateEnums::OP_TO_EQUAL);
         // Показать результат в поле ввода, если нажата "Enter".
         if (state_is_the_equal) {
-            std::string_view sv = res[0].value().data();
+            std::string_view sv = res[0].ValueAsStringView().data();
             emit setInput(QString::fromStdString({sv.data(), sv.size()}));
             emit clearTempResult();
         } else
         // Показать результат в поле "Только для чтения" ниже, если выполняется цепочка операций.
         {
-            std::string_view sv = mRegister[1].value();
+            std::string_view sv = mRegister[1].ValueAsStringView();
             emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
         }
         // Отобразить операцию в истории.
         {
-            std::string_view sv = res[0].value();
+            std::string_view sv = res[0].ValueAsStringView();
             qDebug().noquote() << blue_modifier << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:") <<
                                 QString::fromStdString({sv.data(), sv.size()}) << esc_colorization;
         }
