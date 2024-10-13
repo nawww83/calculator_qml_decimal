@@ -9,10 +9,12 @@
 /**
  * @brief Модификаторы строк: зеленый, синий, красный и "отмена раскраски".
  */
-static constexpr auto green_modifier = "\033[32m";
-static constexpr auto blue_modifier = "\033[34m";
-static constexpr auto red_modifier = "\033[31m";
-static constexpr auto esc_colorization = "\033[0m";
+namespace modifiers {
+    static const auto green = "\033[32m";
+    static const auto blue = "\033[34m";
+    static const auto red = "\033[31m";
+    static const auto esc_colorization = "\033[0m";
+}
 
 /**
  * @brief Семафоры запросов и ответов.
@@ -95,8 +97,9 @@ AppCore::~AppCore()
 }
 
 void AppCore::Reset() {
-    mRegister[0] = mRegister[1] = {};
-    mPreviousValue = {};
+    mRegister[0] = dec_n::Decimal<>{};
+    mRegister[1] = dec_n::Decimal<>{};
+    mPreviousValue = dec_n::Decimal<>{};
     mCurrentOperation = OperationEnums::CLEAR_ALL;
     mState = StateEnums::RESETTED;
 }
@@ -108,11 +111,11 @@ void AppCore::DoWork(dec_n::Decimal<> value, int operation) {
         std::string_view sv1 = mRegister[1].ValueAsStringView();
         std::string_view sv0 = mRegister[0].ValueAsStringView();
         mRequestIdx = (mRequestIdx + 1) % tp::BUFFER_SIZE;
-        qDebug().noquote() << green_modifier << QString::fromUtf8("Запрос:")
+        qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
                            << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
                            << "y:" << QString::fromStdString({sv0.data(), sv0.size()}).toUtf8()
                            << "ID:" << mRequestIdx
-                 << esc_colorization;
+                 << modifiers::esc_colorization;
         requests_free.acquire();
         requests[mRequestIdx] = {operation, v};
         requests_used.release();
@@ -159,7 +162,7 @@ void AppCore::process(int requested_operation, QString input_value)
         emit clearInputField();
         emit showTempResult(err_description(err), false);
         Reset();
-        qDebug().noquote() << red_modifier << QString::fromUtf8("Ошибка:") << err_description(err) << esc_colorization;
+        qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
         return;
     }
     //
@@ -171,7 +174,7 @@ void AppCore::process(int requested_operation, QString input_value)
     // Обработка запроса при пустом поле ввода и существовании математической операции.
     if (is_not_a_number) {
         if (requested_operation == mCurrentOperation) {
-            qDebug().noquote() << red_modifier << QString::fromUtf8("Повтор операции.") << esc_colorization;
+            qDebug().noquote() << modifiers::red << QString::fromUtf8("Повтор операции.") << modifiers::esc_colorization;
             return;
         }
         // Сохранить текущую математическую операцию при нажатии Enter и пустом поле ввода.
@@ -208,7 +211,7 @@ void AppCore::process(int requested_operation, QString input_value)
     }
     // При повторном нажатии Enter и неизменности вводимого числа игнорировать запрос.
     if ((requested_operation == OperationEnums::EQUAL) && (mCurrentOperation == requested_operation) && (current_val_is_the_same)) {
-        qDebug().noquote() << red_modifier << QString::fromUtf8("Повтор операции.") << esc_colorization;
+        qDebug().noquote() << modifiers::red << QString::fromUtf8("Повтор операции.") << modifiers::esc_colorization;
         return;
     }
     // Обработка полноценных операций.
@@ -294,8 +297,8 @@ void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal<>> res, int i
         // Отобразить операцию в истории.
         {
             std::string_view sv = res[0].ValueAsStringView();
-            qDebug().noquote() << blue_modifier << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:") <<
-                                QString::fromStdString({sv.data(), sv.size()}) << esc_colorization;
+            qDebug().noquote() << modifiers::blue << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:") <<
+                                QString::fromStdString({sv.data(), sv.size()}) << modifiers::esc_colorization;
         }
     } else
     // Отобразить ошибку.
@@ -303,6 +306,6 @@ void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal<>> res, int i
         emit clearInputField();
         emit showTempResult(err_description(err), false);
         Reset();
-        qDebug().noquote() << red_modifier << QString::fromUtf8("Ошибка:") << err_description(err) << esc_colorization;
+        qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
     }
 }

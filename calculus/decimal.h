@@ -103,60 +103,76 @@ namespace chars {
 
 class Vector64 {
     static constexpr int MAX_SIZE = 31;
+
     int mRealSize = 0;
+
     std::array<char, MAX_SIZE + 1> mBuffer{};
+
     int BoundSize(int size) const {
         return (size > MAX_SIZE) ? MAX_SIZE : ((size < 1) ? 0 : size);
     }
+
     void FillData(const char* input, int size) {
         assert(size >= 0);
         assert(size <= MAX_SIZE);
         mRealSize = std::min(MAX_SIZE, size);
-        for (int i=0; i<mRealSize; ++i) {
+        for (int i = 0; i < mRealSize; ++i) {
             mBuffer[i] = *input++;
         }
-        for (int i=0; i<MAX_SIZE - mRealSize; ++i) {
+        for (int i = 0; i < MAX_SIZE - mRealSize; ++i) {
             mBuffer[mRealSize + i] = chars::null;
         }
         mBuffer[MAX_SIZE] = chars::null;
     }
 public:
-    Vector64() = default;
+    explicit Vector64() = default;
+
     Vector64(const std::string& str) {
         FillData(str.data(), str.size());
     }
+
     Vector64(std::string&& str) = delete;
+
     Vector64(const Vector64& other) {
         FillData(other.mBuffer.data(), other.RealSize());
     }
+
     Vector64(Vector64&& other) = delete;
+
     Vector64& operator=(const std::string& str) {
         FillData(str.data(), str.size());
         return *this;
     }
+
     Vector64& operator=(const Vector64& other) {
         FillData(other.mBuffer.data(), other.RealSize());
         return *this;
     }
+
     char& operator[](int i) {
         assert(i >= 0);
         assert(i < MAX_SIZE);
         return mBuffer[i];
     }
+
     char operator[](int i) const {
         assert(i >= 0);
         assert(i < MAX_SIZE);
         return mBuffer[i];
     }
+
     int RealSize() const {
         return mRealSize;
     }
+
     static int MaxSize() {
         return MAX_SIZE;
     }
+
     void Resize(int new_size) {
         mRealSize = BoundSize(new_size);
     }
+
     auto GetStringView() const {
         return std::string_view(mBuffer.data(), mRealSize);
     }
@@ -173,9 +189,13 @@ template <int width=4> // precision
 #endif
 class Decimal {
     long long mInteger = 0;
+
     long long mNominator = 0;
+
     long long mDenominator = std::pow(10ll, width);
+
     Vector64 mStringRepresentation{};
+
     void TransformToString() {
         if (IsOverflowed()) {
             mStringRepresentation = "";
@@ -209,6 +229,7 @@ class Decimal {
             fraction /= 10ll;
         }
     }
+
     void TransformToDecimal() {
         if (mStringRepresentation.RealSize() < 1) {
             return;
@@ -260,7 +281,8 @@ class Decimal {
         }
     }
 public:
-    Decimal() = default;
+    explicit Decimal() = default;
+
     void SetDecimal(long long x, long long y, long long f) {
         mInteger = x;
         mNominator = y;
@@ -274,41 +296,53 @@ public:
         TransformToString();
         TransformToDecimal();
     }
+
     bool IsInteger() const {
         return mNominator == 0;
     }
+
     bool IsOverflowed() const {
         return (mDenominator <= 0) || (mInteger < 0 && mNominator < 0);
     }
+
     bool IsStrongNegative() const {
         return mInteger < 0;
     }
+
     bool IsWeakNegative() const {
         return mInteger == 0 && mNominator < 0;
     }
+
     bool IsNegative() const {
         return IsStrongNegative() || IsWeakNegative();
     }
+
     bool IsZero() const {
         return mInteger == 0 && mNominator == 0;
     }
+
     auto ValueAsStringView() const {
         return mStringRepresentation.GetStringView();
     }
+
     double ValueAsDouble() const {
         const double the_sign = mInteger < 0 ? -1. : 1.;
         const double value = double(mNominator) / double(mDenominator);
         return (mInteger != 0) ? double(mInteger) + the_sign * value : value;
     }
+
     auto IntegerPart() const {
         return mInteger;
     }
+
     auto Nominator() const {
         return mNominator;
     }
+
     auto Denominator() const {
         return mDenominator;
     }
+
     void SetStringRepresentation(std::string& s) {
         if (s.size() < 1) {
             return;
@@ -317,6 +351,7 @@ public:
         TransformToDecimal();
         TransformToString();
     }
+
     Decimal operator+(const Decimal& other) const {
         Decimal result{};
         const int neg1 = IsNegative();
@@ -362,17 +397,21 @@ public:
         result.SetDecimal(sum, f, mDenominator);
         return result;
     }
+
     Decimal& operator+=(const Decimal& other) {
         return *this + other;
     }
+
     Decimal operator-(const Decimal& other) const {
         Decimal res{};
         res.SetDecimal(-other.mInteger, (other.mInteger != 0) ? other.mNominator : -other.mNominator, other.mDenominator);
         return res + *this;
     }
+
     Decimal& operator-=(const Decimal& other) {
         return *this - other;
     }
+
     Decimal operator*(const Decimal& other) const {
         Decimal result{};
         const bool neg1 = IsNegative();
@@ -496,9 +535,11 @@ public:
         result.SetDecimal(integer_part, fraction_part, mDenominator);
         return result;
     }
+
     Decimal& operator*=(const Decimal& other) {
         return *this * other;
     }
+
     Decimal operator/(const Decimal& other) const {
         Decimal result{};
         const bool neg1 = IsNegative();
@@ -601,6 +642,7 @@ public:
         }
         return result;
     }
+
     Decimal& operator/=(const Decimal& other) {
         return *this / other;
     }
