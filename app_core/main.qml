@@ -59,7 +59,8 @@ Window {
             maximumLength: 30
             validator: RegularExpressionValidator {
                 // Remove validator to allow entering text that doesn't match the regex
-                regularExpression: /^[-]?([1-9]\d{0,2}(\s?\d{3})*|0)([.,]\d{1,3})?$/  // [.,]\d{1,W} ===>> W digits after the comma
+                regularExpression: /^[-]?([1-9]\d{0,2}(\s?\d{0,3})*|0)([.,]\d{1,3})?$/
+                // [.,]\d{1,W} ===>> W digits after the comma
             }
 
             focus: true
