@@ -58,9 +58,8 @@ Window {
             Layout.fillWidth: true
             maximumLength: 30
             validator: RegularExpressionValidator {
-                // Remove validator to allow entering text that doesn't match the regex
                 regularExpression: /^[-]?([1-9]\d{0,2}(\s?\d{0,3})*|0)([.,]\d{1,3})?$/
-                // [.,]\d{1,W} ===>> W digits after the comma
+                // [.,]\d{1,w} ===>> w - требуемое количество цифр после запятой.
             }
 
             focus: true
@@ -99,7 +98,9 @@ Window {
                 }
             }
             Keys.onReleased: event => {
-                // first, replace '.' by ','
+                var previous_pos = cursorPosition
+                var previous_length = length
+                // Сначала заменить '.' на ',' если есть.
                 if (event.key === Qt.Key_Period) {
                     if (input.text.indexOf(',') >= 0) {
                         event.accepted = false;
@@ -110,6 +111,11 @@ Window {
                     }
                 }
                 input.text = thousandSeparator(input.text)
+                // Коррекция позиции курсора.
+                if (cursorPosition === length && previous_pos !== previous_length) {
+                    var shift = previous_length - length
+                    cursorPosition = previous_pos - shift
+                }
             }
         }
 
