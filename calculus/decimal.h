@@ -194,10 +194,10 @@ class Decimal {
 
     long long mDenominator = std::pow(10ll, width);
 
-    Vector64 mStringRepresentation{};
+    Vector64 mStringRepresentation;
 
     void TransformToString() {
-        if (IsOverflowed()) {
+        if (IsOverflowed() || IsNotANumber()) {
             mStringRepresentation = "";
             return;
         }
@@ -218,7 +218,7 @@ class Decimal {
         if (r == 0) {
             mStringRepresentation[required_length - width - 2] = chars::zero;
         }
-        r = (r < 0) ? -r : r;
+        r = r < 0 ? -r : r;
         for (int i = 0; r != 0 ; i++) {
             mStringRepresentation[required_length - width - 2 - i] = digits[r % 10ll];
             r /= 10ll;
@@ -232,6 +232,9 @@ class Decimal {
 
     void TransformToDecimal() {
         if (mStringRepresentation.RealSize() < 1) {
+            mInteger = 0;
+            mNominator = 0;
+            mDenominator = 0;
             return;
         }
         const int sign = (mStringRepresentation[0] == chars::minus_sign) ? 1 : 0;
@@ -252,7 +255,7 @@ class Decimal {
             idx++;
             digit = mStringRepresentation[idx];
         }
-        mInteger = (sign == 0) ? mInteger : -mInteger;
+        mInteger = sign == 0 ? mInteger : -mInteger;
         idx++;
         digit = mStringRepresentation[idx];
         mDenominator = std::pow(10ll, width);
@@ -281,7 +284,9 @@ class Decimal {
         }
     }
 public:
-    explicit Decimal() = default;
+    explicit Decimal() {
+        TransformToString();
+    }
 
     void SetDecimal(long long x, long long y, long long f) {
         mInteger = x;
@@ -302,7 +307,11 @@ public:
     }
 
     bool IsOverflowed() const {
-        return (mDenominator <= 0) || (mInteger < 0 && mNominator < 0);
+        return mInteger < 0 && mNominator < 0;
+    }
+
+    bool IsNotANumber() const {
+        return mDenominator == 0 && mInteger == 0 && mNominator == 0;
     }
 
     bool IsStrongNegative() const {
@@ -344,9 +353,6 @@ public:
     }
 
     void SetStringRepresentation(std::string& s) {
-        if (s.size() < 1) {
-            return;
-        }
         mStringRepresentation = Vector64(s);
         TransformToDecimal();
         TransformToString();

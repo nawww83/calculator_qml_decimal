@@ -166,7 +166,7 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
     //
-    const bool is_not_a_number = (val.ValueAsStringView() == "");
+    const bool is_not_a_number = val.IsNotANumber();
     // Игнорирование запросов при сброшенном состоянии и пустом поле ввода.
     if ((mState == StateEnums::RESETTED) && is_not_a_number) {
         return;
