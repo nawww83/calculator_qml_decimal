@@ -219,6 +219,13 @@ class Decimal {
             mStringRepresentation[required_length - width - 2] = chars::zero;
         }
         r = r < 0 ? -r : r;
+        if (r == std::numeric_limits<long long>::min()) {
+            mInteger = -1;
+            mNominator = -1;
+            mDenominator = std::pow(10ll, width);
+            mStringRepresentation = "";
+            return;
+        }
         for (int i = 0; r != 0 ; i++) {
             mStringRepresentation[required_length - width - 2 - i] = digits[r % 10ll];
             r /= 10ll;
@@ -244,8 +251,14 @@ class Decimal {
         idx++;
         digit = mStringRepresentation[idx];
         while (((digit != chars::separator) && (digit != chars::alternative_separator)) && (digit != chars::null)) {
+            if (mInteger > std::numeric_limits<long long>::max() / 10ll) {
+                mInteger = -1;
+                mNominator = -1;
+                mDenominator = std::pow(10ll, width);
+                return;
+            }
             mInteger *= 10ll;
-            if (mInteger < 0) {
+            if (((long long)undigits(digit) > 0) && mInteger > std::numeric_limits<long long>::max() - (long long)undigits(digit))  {
                 mInteger = -1;
                 mNominator = -1;
                 mDenominator = std::pow(10ll, width);
@@ -256,6 +269,12 @@ class Decimal {
             digit = mStringRepresentation[idx];
         }
         mInteger = sign == 0 ? mInteger : -mInteger;
+        if (mInteger == std::numeric_limits<long long>::min()) {
+            mInteger = -1;
+            mNominator = -1;
+            mDenominator = std::pow(10ll, width);
+            return;
+        }
         idx++;
         digit = mStringRepresentation[idx];
         mDenominator = std::pow(10ll, width);
@@ -307,7 +326,7 @@ public:
     }
 
     bool IsOverflowed() const {
-        return mInteger < 0 && mNominator < 0;
+        return mDenominator < 0 || (mInteger < 0 && mNominator < 0);
     }
 
     bool IsNotANumber() const {

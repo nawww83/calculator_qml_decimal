@@ -11,7 +11,7 @@
  */
 namespace modifiers {
     static const auto green = "\033[32m";
-    static const auto blue = "\033[34m";
+    static const auto bright_blue = "\033[94m";
     static const auto red = "\033[31m";
     static const auto esc_colorization = "\033[0m";
 }
@@ -297,7 +297,7 @@ void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal<>> res, int i
         // Отобразить операцию в истории.
         {
             std::string_view sv = res[0].ValueAsStringView();
-            qDebug().noquote() << modifiers::blue << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:") <<
+            qDebug().noquote() << modifiers::bright_blue << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:") <<
                                 QString::fromStdString({sv.data(), sv.size()}) << modifiers::esc_colorization;
         }
     } else

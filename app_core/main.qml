@@ -92,7 +92,7 @@ Window {
                     AppCore.process(OperationEnums.EQUAL, input.text);
                     event.accepted = true;
                 }
-                if ((event.key === Qt.Key_Escape) || (event.key === Qt.Key_C)) {
+                if (event.key === Qt.Key_Escape) {
                     AppCore.process(OperationEnums.CLEAR_ALL, input.text);
                     event.accepted = true;
                 }
@@ -215,7 +215,7 @@ Window {
             font.pixelSize: 12
             text: "* Нажмите _ для смены знака числа\n" +
                   "* Вводимые операции не имеют приоритета\n" +
-                  "* Нажмите Esc или C для сброса.\n"
+                  "* Нажмите Esc для сброса.\n"
             readOnly: true
         }
 

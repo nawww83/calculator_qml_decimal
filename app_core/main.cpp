@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
         dec1.SetDecimal(-4611686018427387904ll, 0, 100ll);
         dec2.SetDecimal(2ll, 0, 100ll);
         res = dec1 * dec2;
-        assert(!res.IsOverflowed() && "Must not be overflow!");
+        assert(res.IsOverflowed() && "Must be overflow!");
 
         dec1.SetDecimal(-4611686018427387905ll, 0, 100ll);
         dec2.SetDecimal(2ll, 0, 100ll);
