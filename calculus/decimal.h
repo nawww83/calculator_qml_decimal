@@ -2,14 +2,16 @@
 
 #include <cmath>   // std::pow
 #include <cassert> // assert
-#include <string>  // std::string
-#include <cstring> // memory
 #include <array>   // std::array
+#include <cstring> // std::memcpy
+#include <string>  // std::string
+#include <climits> // CHAR_BIT
+#include <algorithm> // std::clamp
 
 
 namespace dec_n {
 
-inline int undigits(char d) {
+constexpr int undigits(char d) {
     switch (d) {
     case '0':
         return 0;
@@ -46,17 +48,28 @@ inline int undigits(char d) {
     }
 }
 
-constexpr inline char digits[10] {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+constexpr char DIGITS[10] {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
 
+/**
+ * @brief Количество цифр числа.
+ * @param x Число.
+ * @return Количество цифр, минимум 1.
+ */
 inline int num_of_digits(long long x) {
     int i = 0;
     while (x) {
         x /= 10;
         i++;
     }
-    return i != 0 ? i : 1;
+    return i + (i == 0);
 }
 
+/**
+ * @brief Есть ли переполнение при умножении двух чисел.
+ * @param x Первый аргумент.
+ * @param y Второй аргумент.
+ * @return Да/нет.
+ */
 inline bool is_mult_overflow_ll(long long x, long long y) {
     if (x != 0 && y != 0) {
         const long long z = (unsigned long long)(x)*(unsigned long long)(y);
@@ -67,30 +80,35 @@ inline bool is_mult_overflow_ll(long long x, long long y) {
     return false;
 }
 
+/**
+ * @brief Есть ли переполнение при сложении двух чисел.
+ * @param x Первый аргумент.
+ * @param y Второй аргумент.
+ * @return Да/нет.
+ */
 inline bool is_add_overflow_ll(long long x, long long y) {
     constexpr int bit_size = sizeof(unsigned long long) * CHAR_BIT;
     unsigned long long z = (unsigned long long)(x) + (unsigned long long)(y);
     const auto max_value = (1ull << (bit_size - 1)) - 1;
-    return ((x < 0) && (y < 0) && (z <= max_value)) || ((x > 0) && (y > 0) && (z > max_value));
+    return (x < 0 && y < 0 && z <= max_value) || (x > 0 && y > 0 && z > max_value);
 }
 
+/**
+ * @brief Работает ли платформа с дополнительным кодом.
+ * @return Да/нет.
+ */
 inline bool is_two_complement() {
     const unsigned long long w = static_cast<unsigned long long>(-1ll);
     std::byte b[8];
-    std::memcpy(b, &w, 8);
+    std::memcpy(b, &w, sizeof(b));
     const auto ref = std::byte(255);
-    bool res = true;
-    res &= (b[0] == ref);
-    res &= (b[1] == ref);
-    res &= (b[2] == ref);
-    res &= (b[3] == ref);
-    res &= (b[4] == ref);
-    res &= (b[5] == ref);
-    res &= (b[6] == ref);
-    res &= (b[7] == ref);
+    bool all_is_0xff = true;
+    for (int i=0; i<(int)sizeof(b); ++i) {
+        all_is_0xff &= b[i] == ref;
+    }
     const long long wi = static_cast<long long>(w);
     assert(wi == -1ll);
-    return res && (wi == -1ll);
+    return all_is_0xff && wi == -1ll;
 }
 
 namespace chars {
@@ -101,21 +119,39 @@ namespace chars {
     static const char zero = '0';
 }
 
+/**
+ * @brief Класс для хранения строкового представления Decimal числа,
+ * основанного на 64-битных целой и дробной частей.
+ */
 class Vector64 {
-    static constexpr int MAX_SIZE = 31;
-
-    int mRealSize = 0;
+    /**
+     * @brief Наибольшее количество хранимых символов.
+     */
+    static constexpr int MAX_SIZE = 56;
 
     std::array<char, MAX_SIZE + 1> mBuffer{};
 
+    /**
+     * @brief Значимый размер буфера.
+     */
+    int mRealSize = 0;
+
+    /**
+     * @brief Вернуть размер, ограниченный отрезком [0, MAX_SIZE].
+     * @param size Размер.
+     * @return Ограниченный отрезком размер.
+     */
     int BoundSize(int size) const {
-        return (size > MAX_SIZE) ? MAX_SIZE : ((size < 1) ? 0 : size);
+        return std::clamp(size, 0, MAX_SIZE);
     }
 
+    /**
+     * @brief Заполнить входными данными внутренний буфер.
+     * @param input Указатель на начало строкового представления числа.
+     * @param size Длина строкового представления числа.
+     */
     void FillData(const char* input, int size) {
-        assert(size >= 0);
-        assert(size <= MAX_SIZE);
-        mRealSize = std::min(MAX_SIZE, size);
+        mRealSize = BoundSize(size);
         for (int i = 0; i < mRealSize; ++i) {
             mBuffer[i] = *input++;
         }
@@ -125,15 +161,26 @@ class Vector64 {
         mBuffer[MAX_SIZE] = chars::null;
     }
 public:
+    /**
+     * @brief Конструктор по умолчанию.
+     */
     explicit Vector64() = default;
 
-    Vector64(const std::string& str) {
+    /**
+     * @brief Конструктор.
+     * @param str
+     */
+    Vector64(const std::string& str) noexcept {
         FillData(str.data(), str.size());
     }
 
     Vector64(std::string&& str) = delete;
 
-    Vector64(const Vector64& other) {
+    /**
+     * @brief Конструктор копирования.
+     * @param other
+     */
+    Vector64(const Vector64& other) noexcept {
         FillData(other.mBuffer.data(), other.RealSize());
     }
 
@@ -149,13 +196,13 @@ public:
         return *this;
     }
 
-    char& operator[](int i) {
+    char& operator[](int i) noexcept {
         assert(i >= 0);
         assert(i < MAX_SIZE);
         return mBuffer[i];
     }
 
-    char operator[](int i) const {
+    char operator[](int i) const noexcept {
         assert(i >= 0);
         assert(i < MAX_SIZE);
         return mBuffer[i];
@@ -173,7 +220,10 @@ public:
         mRealSize = BoundSize(new_size);
     }
 
-    auto GetStringView() const {
+    /**
+     * @brief Получить строковое представления числа.
+     */
+    auto GetStringView() const noexcept {
         return std::string_view(mBuffer.data(), mRealSize);
     }
 };
@@ -188,14 +238,29 @@ template <int width=3> // precision
 template <int width=4> // precision
 #endif
 class Decimal {
+    /**
+     * @brief Целое представление числа.
+     */
     long long mInteger = 0;
 
+    /**
+     * @brief Числитель дробной части числа.
+     */
     long long mNominator = 0;
 
+    /**
+     * @brief Знаменатель дробной части числа.
+     */
     long long mDenominator = std::pow(10ll, width);
 
+    /**
+     * @brief Строковое представление числа.
+     */
     Vector64 mStringRepresentation;
 
+    /**
+     * @brief Преобразовать компоненты Decimal в строковое представление числа.
+     */
     void TransformToString() {
         if (IsOverflowed() || IsNotANumber()) {
             mStringRepresentation = "";
@@ -227,16 +292,19 @@ class Decimal {
             return;
         }
         for (int i = 0; r != 0 ; i++) {
-            mStringRepresentation[required_length - width - 2 - i] = digits[r % 10ll];
+            mStringRepresentation[required_length - width - 2 - i] = DIGITS[r % 10ll];
             r /= 10ll;
         }
         mStringRepresentation[required_length - 1 - width] = chars::separator;
         for (int i = 0; i < width; i++) {
-            mStringRepresentation[required_length - 1 - i] = digits[fraction % 10ll];
+            mStringRepresentation[required_length - 1 - i] = DIGITS[fraction % 10ll];
             fraction /= 10ll;
         }
     }
 
+    /**
+     * @brief Преобразовать строковое представление числа в компоненты Decimal.
+     */
     void TransformToDecimal() {
         if (mStringRepresentation.RealSize() < 1) {
             mInteger = 0;
@@ -244,61 +312,67 @@ class Decimal {
             mDenominator = 0;
             return;
         }
-        const int sign = (mStringRepresentation[0] == chars::minus_sign) ? 1 : 0;
-        int idx = (sign == 0) ? 0 : 1;
-        char digit = mStringRepresentation[idx];
-        mInteger = (long long)undigits(digit);
-        idx++;
-        digit = mStringRepresentation[idx];
-        while (((digit != chars::separator) && (digit != chars::alternative_separator)) && (digit != chars::null)) {
-            if (mInteger > std::numeric_limits<long long>::max() / 10ll) {
+        const int the_sign = mStringRepresentation[0] == chars::minus_sign ? 1 : 0;
+        int current_index = the_sign == 0 ? 0 : 1;
+        char digit = mStringRepresentation[current_index];
+        mInteger = (long long)undigits(digit); // В случае некорректного символа возвращается ноль.
+        current_index++;
+        digit = mStringRepresentation[current_index];
+        auto hasMultOverflow = [](long long x, long long y) -> bool {
+            return x > std::numeric_limits<long long>::max() / y;
+        };
+        auto hasAddOverflow = [](long long x, long long y) -> bool {
+            return x > 0 && y > std::numeric_limits<long long>::max() - x;
+        };
+        while ((digit != chars::separator && digit != chars::alternative_separator) && digit != chars::null) {
+            if (hasMultOverflow(mInteger, 10ll)) {
                 mInteger = -1;
                 mNominator = -1;
                 mDenominator = std::pow(10ll, width);
                 return;
             }
             mInteger *= 10ll;
-            if (((long long)undigits(digit) > 0) && mInteger > std::numeric_limits<long long>::max() - (long long)undigits(digit))  {
+            if (hasAddOverflow(undigits(digit), mInteger)) {
                 mInteger = -1;
                 mNominator = -1;
                 mDenominator = std::pow(10ll, width);
                 return;
             }
             mInteger += (long long)undigits(digit);
-            idx++;
-            digit = mStringRepresentation[idx];
+            current_index++;
+            digit = mStringRepresentation[current_index];
         }
-        mInteger = sign == 0 ? mInteger : -mInteger;
         if (mInteger == std::numeric_limits<long long>::min()) {
             mInteger = -1;
             mNominator = -1;
             mDenominator = std::pow(10ll, width);
             return;
         }
-        idx++;
-        digit = mStringRepresentation[idx];
+        mInteger = the_sign == 0 ? mInteger : -mInteger;
+        current_index++;
+        digit = mStringRepresentation[current_index];
         mDenominator = std::pow(10ll, width);
         mNominator = (long long)undigits(digit);
-        idx++;
-        digit = mStringRepresentation[idx];
-        const int len = mStringRepresentation.RealSize();
+        current_index++;
+        digit = mStringRepresentation[current_index];
+        const int length = mStringRepresentation.RealSize();
         int idx_width = 1;
-        while (idx < len) {
+        while (current_index < length) {
             if (idx_width >= width) { // Слишком много цифр после запятой.
                 break;
             }
             mNominator *= 10ll;
             mNominator += (long long)undigits(digit);
-            idx++;
-            digit = mStringRepresentation[idx];
+            current_index++;
+            digit = mStringRepresentation[current_index];
             idx_width++;
         }
-        while (idx_width < width) { // Например 4,5 => 4,50 при width = 2.
+        while (idx_width < width) { // Добавление нулей. Например 4,5 => 4,50 при width = 2.
             mNominator *= 10ll;
             mNominator += 0ll;
             idx_width++;
         }
-        if (mInteger == 0 && sign != 0) {
+        if (mInteger == 0 && the_sign != 0) { // Если целая часть равна нулю, то знак храним в числителе.
             mNominator = -mNominator;
         }
     }
@@ -307,44 +381,75 @@ public:
         TransformToString();
     }
 
-    void SetDecimal(long long x, long long y, long long f) {
-        mInteger = x;
-        mNominator = y;
-        mDenominator = f;
-        if ((f <= 0) || (x < 0 && y < 0)) {
-            return;
-        }
-        assert((y >= 0 && x != 0) || (x == 0));
-        assert(f > 0);
-        // Сделать прямое-обратное преобразования для формирования знаменателя из width цифр.
+    /**
+     * @brief Установить Decimal число покомпонентно.
+     * @param integer Целая часть
+     * @param nominator Числитель дробной части.
+     * @param denominator Знаменатель дробной части.
+     */
+    void SetDecimal(long long integer, long long nominator, long long denominator) {
+        mInteger = integer;
+        mNominator = nominator;
+        mDenominator = denominator;
+        // Сделать прямое-обратное преобразования для формирования знаменателя 10^width.
         TransformToString();
         TransformToDecimal();
     }
 
+    /**
+     * @brief Число целое.
+     * @return Да/нет.
+     */
     bool IsInteger() const {
         return mNominator == 0;
     }
 
+    /**
+     * @brief Произошло переполнение при выполнении операции.
+     * @return Да/нет.
+     */
     bool IsOverflowed() const {
-        return mDenominator < 0 || (mInteger < 0 && mNominator < 0);
+        return mDenominator <= 0 || (mInteger < 0 && mNominator < 0);
     }
 
+    /**
+     * @brief Не число.
+     * @return Да/нет.
+     */
     bool IsNotANumber() const {
         return mDenominator == 0 && mInteger == 0 && mNominator == 0;
     }
 
+    /**
+     * @brief Число отрицательное в узком (сильном) смысле.
+     * Здесь число по модулю не меньше единицы и знак хранится в целой части.
+     * @return Да/нет.
+     */
     bool IsStrongNegative() const {
         return mInteger < 0;
     }
 
+    /**
+     * @brief Число отрицательное в широком (слабом) смысле.
+     * Здесь число по модулю меньше единице и знак хранится в числителе.
+     * @return Да/нет.
+     */
     bool IsWeakNegative() const {
         return mInteger == 0 && mNominator < 0;
     }
 
+    /**
+     * @brief Число отрицательное.
+     * @return Да/нет.
+     */
     bool IsNegative() const {
         return IsStrongNegative() || IsWeakNegative();
     }
 
+    /**
+     * @brief Число есть ноль.
+     * @return Да/нет.
+     */
     bool IsZero() const {
         return mInteger == 0 && mNominator == 0;
     }
@@ -353,10 +458,14 @@ public:
         return mStringRepresentation.GetStringView();
     }
 
+    /**
+     * @brief Вернуть представление числа в виде double.
+     * @return
+     */
     double ValueAsDouble() const {
         const double the_sign = mInteger < 0 ? -1. : 1.;
         const double value = double(mNominator) / double(mDenominator);
-        return (mInteger != 0) ? double(mInteger) + the_sign * value : value;
+        return mInteger != 0 ? double(mInteger) + the_sign * value : value;
     }
 
     auto IntegerPart() const {
@@ -371,6 +480,10 @@ public:
         return mDenominator;
     }
 
+    /**
+     * @brief Установить строковое представление числа.
+     * @param s Строковое представление числа.
+     */
     void SetStringRepresentation(std::string& s) {
         mStringRepresentation = Vector64(s);
         TransformToDecimal();
@@ -673,6 +786,12 @@ public:
     }
 };
 
+/**
+ * @brief Оператор сравнения чисел Decimal. Ориентируется на строковое представление чисел.
+ * @param lhs Первое число.
+ * @param rhs Второе число.
+ * @return Равны/неравны.
+ */
 bool inline operator==(const Decimal<>& lhs, const Decimal<>& rhs) {
     return lhs.ValueAsStringView() == rhs.ValueAsStringView();
 }
