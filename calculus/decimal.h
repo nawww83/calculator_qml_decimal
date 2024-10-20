@@ -262,7 +262,11 @@ class Decimal {
      * @brief Преобразовать компоненты Decimal в строковое представление числа.
      */
     void TransformToString() {
-        if (IsOverflowed() || IsNotANumber()) {
+        if (IsOverflowed()) {
+            mStringRepresentation = "inf";
+            return;
+        }
+        if (IsNotANumber()) {
             mStringRepresentation = "";
             return;
         }
@@ -310,6 +314,12 @@ class Decimal {
             mInteger = 0;
             mNominator = 0;
             mDenominator = 0;
+            return;
+        }
+        if (mStringRepresentation.GetStringView().starts_with("inf")) {
+            mInteger = -1;
+            mNominator = -1;
+            mDenominator = std::pow(10ll, width);
             return;
         }
         const int the_sign = mStringRepresentation[0] == chars::minus_sign ? 1 : 0;
@@ -409,7 +419,7 @@ public:
      * @return Да/нет.
      */
     bool IsOverflowed() const {
-        return mDenominator <= 0 || (mInteger < 0 && mNominator < 0);
+        return (mDenominator == 0 && mNominator != 0) || (mInteger < 0 && mNominator < 0) || (mDenominator < 0);
     }
 
     /**

@@ -1,6 +1,7 @@
 import QtQuick 2.0
 
 Rectangle {
+    id: rect
     color: "transparent"
     property alias text: label.text
     border {color: "red"; width: 1}

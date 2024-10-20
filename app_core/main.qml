@@ -135,6 +135,7 @@ Window {
             }
             RowLayout {
                 anchors.fill: parent
+
                 Button {
                     background: Rect{text: "\u002b"}
                     Layout.fillWidth: true
