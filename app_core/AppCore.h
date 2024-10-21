@@ -77,9 +77,20 @@ signals:
     void showTempResult(QString val, bool is_number);
 
     /**
-     * @brief Очистить вспомогательное поле.
+     * @brief Показать текущую операцию во вспомогательном поле.
+     * @param operation Строковое представление операции.
+     */
+    void showCurrentOperation(QString operation);
+
+    /**
+     * @brief Очистить вспомогательное поле результата.
      */
     void clearTempResult();
+
+    /**
+     * @brief Очистить вспомогательное поле текущей операции.
+     */
+    void clearCurrentOperation();
 
 public slots:
 

@@ -218,6 +218,7 @@ public:
 
     void Resize(int new_size) {
         mRealSize = BoundSize(new_size);
+        mBuffer[mRealSize] = chars::null;
     }
 
     /**
@@ -292,7 +293,7 @@ class Decimal {
             mInteger = -1;
             mNominator = -1;
             mDenominator = std::pow(10ll, width);
-            mStringRepresentation = "";
+            mStringRepresentation = "inf";
             return;
         }
         for (int i = 0; r != 0 ; i++) {

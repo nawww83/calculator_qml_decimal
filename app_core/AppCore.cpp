@@ -144,6 +144,7 @@ void AppCore::process(int requested_operation, QString input_value)
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
         Reset();
         emit clearTempResult();
+        emit clearCurrentOperation();
         emit clearInputField();
         return;
     }
@@ -160,6 +161,7 @@ void AppCore::process(int requested_operation, QString input_value)
     if (val.IsOverflowed()) {
         int err = Errors::NOT_FINITE;
         emit clearInputField();
+        emit clearCurrentOperation();
         emit showTempResult(err_description(err), false);
         Reset();
         qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
@@ -170,6 +172,9 @@ void AppCore::process(int requested_operation, QString input_value)
     // Игнорирование запросов при сброшенном состоянии и пустом поле ввода.
     if ((mState == StateEnums::RESETTED) && is_not_a_number) {
         return;
+    }
+    if (requested_operation != OperationEnums::NEGATION && requested_operation != OperationEnums::EQUAL) {
+        emit showCurrentOperation(description(requested_operation));
     }
     // Обработка запроса при пустом поле ввода и существовании математической операции.
     if (is_not_a_number) {
@@ -304,6 +309,7 @@ void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal<>> res, int i
     // Отобразить ошибку.
     {
         emit clearInputField();
+        emit clearCurrentOperation();
         emit showTempResult(err_description(err), false);
         Reset();
         qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;

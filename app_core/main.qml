@@ -7,8 +7,13 @@ import QtQuick.Controls.Basic
 import operation.enums
 
 Window {
-    minimumWidth: 330
-    minimumHeight: 180
+    width: 380
+    height: 200
+    maximumHeight: height
+    maximumWidth: width
+    minimumHeight: height
+    minimumWidth: width
+
     visible: true
     title: qsTr("Decimal калькулятор 64-bit")
 
@@ -33,8 +38,17 @@ Window {
             }
         }
 
+        function onShowCurrentOperation(operation) {
+            current_operation.color = "black";
+            current_operation.text = operation
+        }
+
         function onClearTempResult() {
             temp_result.text = ""
+        }
+
+        function onClearCurrentOperation() {
+            current_operation.text = ""
         }
     }
 
@@ -125,6 +139,12 @@ Window {
             font.pixelSize: 12
         }
 
+        Label {
+            id: current_operation
+            text: ""
+            font.pixelSize: 12
+        }
+
         Pane {
             Layout.fillWidth: true
             implicitHeight: 55
@@ -137,7 +157,9 @@ Window {
                 anchors.fill: parent
 
                 Button {
-                    background: Rect{text: "\u002b"}
+                    text: "\u002b"
+                    font.pixelSize: 28
+                    bottomPadding: 10
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -149,7 +171,9 @@ Window {
                 }
 
                 Button {
-                    background: Rect{text: "\u2212"}
+                    text: "\u2212"
+                    font.pixelSize: 28
+                    bottomPadding: 10
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -161,7 +185,9 @@ Window {
                 }
 
                 Button {
-                    background: Rect{text: "\u00d7"}
+                    text: "\u00d7"
+                    bottomPadding: 10
+                    font.pixelSize: 28
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -173,7 +199,9 @@ Window {
                 }
 
                 Button {
-                    background: Rect{text: "\u00f7"}
+                    text: "\u00f7"
+                    bottomPadding: 10
+                    font.pixelSize: 28
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -185,7 +213,9 @@ Window {
                 }
 
                 Button {
-                    background: Rect{text: "\u003d"}
+                    text: "\u003d"
+                    bottomPadding: 10
+                    font.pixelSize: 28
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -197,7 +227,9 @@ Window {
                 }
 
                 Button {
-                    background: Rect{text: "C"}
+                    text: "C"
+                    bottomPadding: 10
+                    font.pixelSize: 24
                     hoverEnabled: false
                     Layout.fillWidth: true
                     Layout.fillHeight: true
