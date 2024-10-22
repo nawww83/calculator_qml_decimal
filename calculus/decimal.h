@@ -72,7 +72,7 @@ inline int num_of_digits(long long x) {
  */
 inline bool is_mult_overflow_ll(long long x, long long y) {
     if (x != 0 && y != 0) {
-        const long long z = (unsigned long long)(x)*(unsigned long long)(y);
+        const long long z = (unsigned long long)(x) * (unsigned long long)(y);
         long long try_x = z / y;
         long long try_y = z / x;
         return try_x != x || try_y != y;
@@ -87,9 +87,9 @@ inline bool is_mult_overflow_ll(long long x, long long y) {
  * @return Да/нет.
  */
 inline bool is_add_overflow_ll(long long x, long long y) {
-    constexpr int bit_size = sizeof(unsigned long long) * CHAR_BIT;
+    constexpr int bit_width = sizeof(unsigned long long) * CHAR_BIT;
     unsigned long long z = (unsigned long long)(x) + (unsigned long long)(y);
-    const auto max_value = (1ull << (bit_size - 1)) - 1;
+    const auto max_value = (1ull << (bit_width - 1)) - 1;
     return (x < 0 && y < 0 && z <= max_value) || (x > 0 && y > 0 && z > max_value);
 }
 
@@ -129,6 +129,9 @@ class Vector64 {
      */
     static constexpr int MAX_SIZE = 56;
 
+    /**
+     * @brief Буфер символов строкового представления числа.
+     */
     std::array<char, MAX_SIZE + 1> mBuffer{};
 
     /**
@@ -137,8 +140,8 @@ class Vector64 {
     int mRealSize = 0;
 
     /**
-     * @brief Вернуть размер, ограниченный отрезком [0, MAX_SIZE].
-     * @param size Размер.
+     * @brief Приводит размер к отрезку [0, MAX_SIZE].
+     * @param size Входной размер.
      * @return Ограниченный отрезком размер.
      */
     int BoundSize(int size) const {
@@ -240,7 +243,7 @@ template <int width=4> // precision
 #endif
 class Decimal {
     /**
-     * @brief Целое представление числа.
+     * @brief Целая часть числа.
      */
     long long mInteger = 0;
 
@@ -465,7 +468,7 @@ public:
      * @return Да/нет.
      */
     bool IsZero() const {
-        return mInteger == 0 && mNominator == 0;
+        return mInteger == 0 && mNominator == 0 && mDenominator != 0;
     }
 
     auto ValueAsStringView() const {
@@ -496,14 +499,19 @@ public:
 
     /**
      * @brief Установить строковое представление числа.
-     * @param s Строковое представление числа.
+     * @param str Строковое представление числа.
      */
-    void SetStringRepresentation(const std::string& s) {
-        mStringRepresentation = Vector64(s);
+    void SetStringRepresentation(const std::string& str) {
+        mStringRepresentation = str;
         TransformToDecimal();
         TransformToString();
     }
 
+    /**
+     * @brief Оператор сложения двух чисел.
+     * @param other Второй операнд.
+     * @return Результат сложения двух чисел.
+     */
     Decimal operator+(const Decimal& other) const {
         Decimal result{};
         const int neg1 = IsNegative();
@@ -564,6 +572,11 @@ public:
         return *this - other;
     }
 
+    /**
+     * @brief Оператор умножения двух чисел.
+     * @param other Второй операнд.
+     * @return Результат умножения двух чисел.
+     */
     Decimal operator*(const Decimal& other) const {
         Decimal result{};
         const bool neg1 = IsNegative();
@@ -692,6 +705,11 @@ public:
         return *this * other;
     }
 
+    /**
+     * @brief Оператор деления двух чисел.
+     * @param other Делитель.
+     * @return Результат деления двух чисел, this / other, с точностью width.
+     */
     Decimal operator/(const Decimal& other) const {
         Decimal result{};
         const bool neg1 = IsNegative();
@@ -801,10 +819,10 @@ public:
 };
 
 /**
- * @brief Оператор сравнения чисел Decimal. Ориентируется на строковое представление чисел.
+ * @brief Оператор сравнения чисел Decimal по их строковому представлению.
  * @param lhs Первое число.
  * @param rhs Второе число.
- * @return Равны/неравны.
+ * @return Равны/Не равны.
  */
 bool inline operator==(const Decimal<>& lhs, const Decimal<>& rhs) {
     return lhs.ValueAsStringView() == rhs.ValueAsStringView();
