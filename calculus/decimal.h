@@ -340,6 +340,7 @@ class Decimal {
                 mInteger = -1;
                 mNominator = -1;
                 mDenominator = std::pow(10ll, width);
+                mStringRepresentation = "inf";
                 return;
             }
             mInteger *= 10ll;
@@ -347,6 +348,7 @@ class Decimal {
                 mInteger = -1;
                 mNominator = -1;
                 mDenominator = std::pow(10ll, width);
+                mStringRepresentation = "inf";
                 return;
             }
             mInteger += (long long)undigits(digit);
@@ -357,6 +359,7 @@ class Decimal {
             mInteger = -1;
             mNominator = -1;
             mDenominator = std::pow(10ll, width);
+            mStringRepresentation = "inf";
             return;
         }
         mInteger = the_sign == 0 ? mInteger : -mInteger;
@@ -495,7 +498,7 @@ public:
      * @brief Установить строковое представление числа.
      * @param s Строковое представление числа.
      */
-    void SetStringRepresentation(std::string& s) {
+    void SetStringRepresentation(const std::string& s) {
         mStringRepresentation = Vector64(s);
         TransformToDecimal();
         TransformToString();

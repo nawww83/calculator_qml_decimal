@@ -152,6 +152,18 @@ int main(int argc, char *argv[])
         dec2.SetDecimal(2ll, 0, 100ll);
         res = dec1 * dec2;
         assert(res.IsOverflowed() && "Must be overflow!");
+
+        dec1.SetDecimal(0, 0, 0);
+        assert(dec1.IsNotANumber() && "Must be NAN!");
+
+        dec2.SetDecimal(-1, -1, 1);
+        assert(dec2.IsOverflowed() && "Must be overflow!");
+
+        dec1.SetStringRepresentation("");
+        assert(dec1.IsNotANumber() && "Must be NAN!");
+
+        dec2.SetStringRepresentation("inf");
+        assert(dec2.IsOverflowed() && "Must be overflow!");
     }
     assert(all_is_ok);
     qDebug() << "Test is Ok!";

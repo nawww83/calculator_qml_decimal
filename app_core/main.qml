@@ -7,8 +7,8 @@ import QtQuick.Controls.Basic
 import operation.enums
 
 Window {
-    width: 380
-    height: 200
+    width: 400
+    height: 220
     maximumHeight: height
     maximumWidth: width
     minimumHeight: height
@@ -39,8 +39,7 @@ Window {
         }
 
         function onShowCurrentOperation(operation) {
-            current_operation.color = "black";
-            current_operation.text = operation
+            current_operation.text = " " + operation
         }
 
         function onClearTempResult() {
@@ -147,96 +146,137 @@ Window {
 
         Pane {
             Layout.fillWidth: true
-            implicitHeight: 55
+            implicitHeight: 65
             background: Rectangle {
                 color: "transparent"
                 border.color: "green"
-                radius: 2
+                radius: 3
             }
             RowLayout {
                 anchors.fill: parent
 
                 Button {
+                    id: add
                     text: "\u002b"
                     font.pixelSize: 28
                     bottomPadding: 10
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: add.down ? "#ff0000" : (add.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
                     MouseArea {
                         anchors.fill: parent
-                        id: add
                         onClicked: AppCore.process(OperationEnums.ADD, input.text)
                     }
                 }
 
                 Button {
+                    id: sub
                     text: "\u2212"
                     font.pixelSize: 28
                     bottomPadding: 10
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: sub.down ? "#ff0000" : (sub.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
                     MouseArea {
                         anchors.fill: parent
-                        id: sub
                         onClicked: AppCore.process(OperationEnums.SUB, input.text)
                     }
                 }
 
                 Button {
+                    id: mul
                     text: "\u00d7"
                     bottomPadding: 10
                     font.pixelSize: 28
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: mul.down ? "#ff0000" : (mul.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
                     MouseArea {
                         anchors.fill: parent
-                        id: mul
                         onClicked: AppCore.process(OperationEnums.MULT, input.text)
                     }
                 }
 
                 Button {
+                    id: div
                     text: "\u00f7"
                     bottomPadding: 10
                     font.pixelSize: 28
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: div.down ? "#ff0000" : (div.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
                     MouseArea {
                         anchors.fill: parent
-                        id: div
                         onClicked: AppCore.process(OperationEnums.DIV, input.text)
                     }
                 }
 
                 Button {
+                    id: equal
                     text: "\u003d"
                     bottomPadding: 10
                     font.pixelSize: 28
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: equal.down ? "#ff0000" : (equal.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
                     MouseArea {
                         anchors.fill: parent
-                        id: equal
                         onClicked: AppCore.process(OperationEnums.EQUAL, input.text)
                     }
                 }
 
                 Button {
+                    id: clear
                     text: "C"
                     bottomPadding: 10
                     font.pixelSize: 24
-                    hoverEnabled: false
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: clear.down ? "#ff0000" : (clear.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
                     MouseArea {
                         anchors.fill: parent
-                        id: clear
                         onClicked: AppCore.process(OperationEnums.CLEAR_ALL);
                     }
                 }
@@ -245,10 +285,10 @@ Window {
 
         TextArea {
             id: help
-            font.pixelSize: 12
+            font.pixelSize: 13
             text: "* Нажмите _ для смены знака числа\n" +
                   "* Вводимые операции не имеют приоритета\n" +
-                  "* Нажмите Esc для сброса.\n"
+                  "* Нажмите Esc для сброса."
             readOnly: true
         }
 

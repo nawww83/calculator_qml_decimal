@@ -152,9 +152,9 @@ void AppCore::process(int requested_operation, QString input_value)
     auto construct_decimal = [&input_value]() {
         static auto re = QRegularExpression{"(\\s)"};
         input_value.remove(re);
-        auto s = input_value.toStdString();
+        const auto str = input_value.toStdString();
         dec_n::Decimal<> val;
-        val.SetStringRepresentation(s);
+        val.SetStringRepresentation(str);
         return val;
     };
     auto val = construct_decimal();
