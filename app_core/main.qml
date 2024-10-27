@@ -4,7 +4,7 @@ import QtQml
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
 
-import operation.enums
+import operation.enums 1.0 as Operations
 
 import "global_vars.js" as Global
 
@@ -125,33 +125,33 @@ Window {
                     ctrlPressed = true
                 }
                 if (event.key === Qt.Key_Plus) {
-                    AppCore.process(OperationEnums.ADD, input.text);
+                    AppCore.process(Operations.OperationEnums.ADD, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Minus) {
-                    AppCore.process(OperationEnums.SUB, input.text);
+                    AppCore.process(Operations.OperationEnums.SUB, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Asterisk) {
-                    AppCore.process(OperationEnums.MULT, input.text);
+                    AppCore.process(Operations.OperationEnums.MULT, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Slash) {
-                    AppCore.process(OperationEnums.DIV, input.text);
+                    AppCore.process(Operations.OperationEnums.DIV, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Underscore) {
                     if (input.text !== "") {
-                        AppCore.process(OperationEnums.NEGATION, input.text);
+                        AppCore.process(Operations.OperationEnums.NEGATION, input.text);
                         event.accepted = true;
                     }
                 }
                 if ((event.key === Qt.Key_Equal) || (event.key === Qt.Key_Return)) {
-                    AppCore.process(OperationEnums.EQUAL, input.text);
+                    AppCore.process(Operations.OperationEnums.EQUAL, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Escape) {
-                    AppCore.process(OperationEnums.CLEAR_ALL, input.text);
+                    AppCore.process(Operations.OperationEnums.CLEAR_ALL, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_S && ctrlPressed) {
@@ -225,7 +225,7 @@ Window {
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: AppCore.process(OperationEnums.ADD, input.text)
+                        onClicked: AppCore.process(Operations.OperationEnums.ADD, input.text)
                     }
                 }
 
@@ -246,7 +246,7 @@ Window {
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: AppCore.process(OperationEnums.SUB, input.text)
+                        onClicked: AppCore.process(Operations.OperationEnums.SUB, input.text)
                     }
                 }
 
@@ -267,7 +267,7 @@ Window {
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: AppCore.process(OperationEnums.MULT, input.text)
+                        onClicked: AppCore.process(Operations.OperationEnums.MULT, input.text)
                     }
                 }
 
@@ -288,7 +288,7 @@ Window {
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: AppCore.process(OperationEnums.DIV, input.text)
+                        onClicked: AppCore.process(Operations.OperationEnums.DIV, input.text)
                     }
                 }
 
@@ -309,7 +309,7 @@ Window {
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: AppCore.process(OperationEnums.EQUAL, input.text)
+                        onClicked: AppCore.process(Operations.OperationEnums.EQUAL, input.text)
                     }
                 }
 
@@ -330,7 +330,7 @@ Window {
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: AppCore.process(OperationEnums.CLEAR_ALL);
+                        onClicked: AppCore.process(Operations.OperationEnums.CLEAR_ALL);
                     }
                 }
             }
@@ -340,7 +340,10 @@ Window {
             id: help
             font.pixelSize: 13
             textFormat: Text.RichText
-            text: "Смена знака числа: underscore <b>&#95;</b><br>Cброс: <b>Esc</b><br>Смена количества знаков после запятой: <b>Ctrl+S</b><br>Вводимые операции не имеют приоритета."
+            text: "Смена знака числа: underscore <b>&#95;</b><br>
+                    Cброс: <b>Esc</b><br>
+                    Смена количества знаков после запятой: <b>Ctrl+S</b><br>
+                    Вводимые операции не имеют приоритета."
             readOnly: true
         }
 

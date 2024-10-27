@@ -18,10 +18,10 @@ OTHER_FILES += qml/*.qml \
         qml/*.js
 
 # Additional import path used to resolve QML modules in Qt Creator's code model
-QML_IMPORT_PATH = ImportFltData
+QML_IMPORT_PATH += $$PWD
 
 # Additional import path used to resolve QML modules just for Qt Quick Designer
-QML_DESIGNER_IMPORT_PATH = operation.enums
+QML_DESIGNER_IMPORT_PATH = $$PWD
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

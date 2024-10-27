@@ -258,9 +258,10 @@ class Decimal {
 
     /**
      * @brief Измененный знаменатель. В процессе операций иногда требуется изменить знаменатель.
-     * Если значение минус единица, то знаменатель не изменился.
+     * Если значение -1, то знаменатель не изменился.
+     * Значение по умолчанию равно нулю для отработки NaN.
      */
-    long long mChangedDenominator = -1;
+    long long mChangedDenominator = 0;
 
     /**
      * @brief Строковое представление числа.
@@ -335,6 +336,8 @@ class Decimal {
             mNominator = -1;
             return;
         }
+        mNominator = 0;
+        mChangedDenominator = global.mDenominator;
         const int the_sign = mStringRepresentation[0] == chars::minus_sign ? 1 : 0;
         int current_index = the_sign == 0 ? 0 : 1;
         char digit = mStringRepresentation[current_index];
@@ -372,9 +375,12 @@ class Decimal {
             return;
         }
         mInteger = the_sign == 0 ? mInteger : -mInteger;
+        if (digit == chars::null) {
+            return;
+        }
         current_index++;
         digit = mStringRepresentation[current_index];
-        mNominator = (long long)undigits(digit);
+        mNominator += (long long)undigits(digit);
         current_index++;
         digit = mStringRepresentation[current_index];
         const int length = mStringRepresentation.RealSize();
@@ -418,6 +424,13 @@ public:
 
     static auto GetWidth() {
         return global.mWidth;
+    }
+
+    /**
+     * @brief Установить ноль.
+     */
+    void SetZero() {
+        SetDecimal(0, 0, global.mDenominator);
     }
 
     /**

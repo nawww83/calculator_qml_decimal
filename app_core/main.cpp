@@ -13,7 +13,7 @@ bool test_decimal_additives(Decimal dec1, Decimal dec2) {
     auto dec5 = dec2 - dec1;
 
     Decimal zero;
-    zero.SetDecimal(0, 0, 1);
+    zero.SetZero();
     bool is_ok = true;
     is_ok &= ((dec4 + dec5) == zero);
     is_ok &= ((dec5 + dec4) == zero);
@@ -24,6 +24,7 @@ bool test_decimal_additives(Decimal dec1, Decimal dec2) {
     is_ok &= ((dec1 + dec5) == dec2);
     is_ok &= ((dec5 + dec1) == dec2);
     is_ok &= ((dec3 + dec4 + dec5) == (dec1 + dec2));
+    assert(is_ok && "Additives test: failed!");
     return is_ok;
 }
 
@@ -36,7 +37,7 @@ bool test_decimal_multiplicatives(Decimal dec1, Decimal dec2) {
     auto dec4 = dec2 * dec1;
 
     Decimal sum;
-    sum.SetDecimal(0, 0, 1);
+    sum.SetZero();
     if (dec2.IntegerPart() >= 0) {
         for (long long x=0; x<std::abs(dec2.IntegerPart()); ++x) {
             sum = sum + dec1;
@@ -46,7 +47,8 @@ bool test_decimal_multiplicatives(Decimal dec1, Decimal dec2) {
             sum = sum - dec1;
         }
     }
-    bool is_ok = ((sum == dec3) && (sum == dec4) && (dec3 == dec4));
+    const bool is_ok = sum == dec3 && sum == dec4 && dec3 == dec4;
+    assert(is_ok && "Multiplicative test: failed!");
     return is_ok;
 }
 
