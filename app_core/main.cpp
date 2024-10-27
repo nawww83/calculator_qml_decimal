@@ -6,13 +6,13 @@
 
 using namespace dec_n;
 
-bool test_decimal_additives(Decimal<> dec1, Decimal<> dec2) {
+bool test_decimal_additives(Decimal dec1, Decimal dec2) {
     using namespace std;
     auto dec3 = dec1 + dec2;
     auto dec4 = dec1 - dec2;
     auto dec5 = dec2 - dec1;
 
-    Decimal<> zero;
+    Decimal zero;
     zero.SetDecimal(0, 0, 1);
     bool is_ok = true;
     is_ok &= ((dec4 + dec5) == zero);
@@ -27,7 +27,7 @@ bool test_decimal_additives(Decimal<> dec1, Decimal<> dec2) {
     return is_ok;
 }
 
-bool test_decimal_multiplicatives(Decimal<> dec1, Decimal<> dec2) {
+bool test_decimal_multiplicatives(Decimal dec1, Decimal dec2) {
     using namespace std;
 
     assert(dec2.IsInteger() && "Dec2 must be an integer!");
@@ -35,7 +35,7 @@ bool test_decimal_multiplicatives(Decimal<> dec1, Decimal<> dec2) {
     auto dec3 = dec1 * dec2;
     auto dec4 = dec2 * dec1;
 
-    Decimal<> sum;
+    Decimal sum;
     sum.SetDecimal(0, 0, 1);
     if (dec2.IntegerPart() >= 0) {
         for (long long x=0; x<std::abs(dec2.IntegerPart()); ++x) {
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 
     QGuiApplication app(argc, argv);
 
-    qRegisterMetaType<QVector<dec_n::Decimal<>>>("QVector<dec_n::Decimal<>>");
+    qRegisterMetaType<QVector<dec_n::Decimal>>("QVector<dec_n::Decimal>");
 
     qmlRegisterUncreatableMetaObject(OperationEnums::staticMetaObject,
                                      "operation.enums",
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     if (! dec_n::is_two_complement()) {
         return 0;
     }
-    //
+
     qDebug() << "Testing...";
     bool all_is_ok = true;
     Decimal dec1;

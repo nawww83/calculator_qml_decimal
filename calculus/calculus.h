@@ -31,6 +31,13 @@ enum Errors {
  * @param error_code Код ошибки.
  * @return  Реузльтат операции.
  */
-CALCULUS_EXPORT dec_n::Decimal<> doIt(int operation, dec_n::Decimal<> x, dec_n::Decimal<> y, int& error);
+CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error);
+
+/**
+ * @brief Изменить количество знаков после запятой у Decimal. Несмотря на статическую переменную,
+ * это требуется, потому что это код библиотеки (dll, so), который отличается от кода основного приложения.
+ * @param width Количество знаков после запятой.
+ */
+CALCULUS_EXPORT void changeDecimalWidth(int width);
 
 #endif // CALCULUS_H

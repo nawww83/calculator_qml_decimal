@@ -14,11 +14,14 @@ include(..\config.pri)
 
 RESOURCES += qml.qrc
 
+OTHER_FILES += qml/*.qml \
+        qml/*.js
+
 # Additional import path used to resolve QML modules in Qt Creator's code model
 QML_IMPORT_PATH = ImportFltData
 
 # Additional import path used to resolve QML modules just for Qt Quick Designer
-QML_DESIGNER_IMPORT_PATH =
+QML_DESIGNER_IMPORT_PATH = operation.enums
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

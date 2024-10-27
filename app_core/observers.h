@@ -109,7 +109,7 @@ public:
      * @brief Рабочая функция потока.
      */
     void run() override {
-        QVector<dec_n::Decimal<>> res(1);
+        QVector<dec_n::Decimal> res(1);
         mFinish = false;
         while (!mFinish) {
             if (!mUsed->tryAcquire(1, RESULT_TIME)) {
@@ -132,7 +132,7 @@ public slots:
     }
 
 signals:
-    void handleResults(int, QVector<dec_n::Decimal<>>, int);
+    void handleResults(int, QVector<dec_n::Decimal>, int);
 
 protected:
 

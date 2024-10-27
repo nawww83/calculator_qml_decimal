@@ -1,9 +1,9 @@
 #include "calculus.h"
 
-CALCULUS_EXPORT dec_n::Decimal<> doIt(int operation, dec_n::Decimal<> x, dec_n::Decimal<> y, int& error_code)
+CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error_code)
 {
     error_code = c::NO_ERRORS;
-    dec_n::Decimal<> result {};
+    dec_n::Decimal result {};
     const bool x_is_neg = x.IsNegative();
     const bool y_is_neg = y.IsNegative();
     const bool both_have_the_same_sign = x_is_neg == y_is_neg;
@@ -34,7 +34,7 @@ CALCULUS_EXPORT dec_n::Decimal<> doIt(int operation, dec_n::Decimal<> x, dec_n::
             return result;
         }
         break;
-    case c::NEG: result = dec_n::Decimal<>{} - x;
+    case c::NEG: result = dec_n::Decimal{} - x;
         return result;
     case c::DIV:
         if (!y.IsZero()) {
@@ -55,5 +55,10 @@ CALCULUS_EXPORT dec_n::Decimal<> doIt(int operation, dec_n::Decimal<> x, dec_n::
         break;
     default: error_code = c::UNKNOW_OP;
     }
-    return dec_n::Decimal<> {};
+    return dec_n::Decimal{};
+}
+
+void changeDecimalWidth(int width)
+{
+    dec_n::Decimal::SetWidth(width);
 }

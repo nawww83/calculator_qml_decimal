@@ -6,9 +6,11 @@ import QtQuick.Controls.Basic
 
 import operation.enums
 
+import "global_vars.js" as Global
+
 Window {
-    width: 400
-    height: 220
+    width: 440
+    height: 235
     maximumHeight: height
     maximumWidth: width
     minimumHeight: height
@@ -16,6 +18,19 @@ Window {
 
     visible: true
     title: qsTr("Decimal калькулятор 64-bit")
+
+    function regex_1() {
+        var pattern = "^[-]?([1-9]\\d{0,2}(\\s?\\d{0,3})*|0)([.,]\\d{0,w_original})?$"
+        if (Global.decimalWidth < 1) {
+            pattern = "^[-]?([1-9]\\d{0,2}(\\s?\\d{0,3})*|0)?$"
+        } else {
+            pattern = pattern.replace("w_original", Global.decimalWidth)
+        }
+        return pattern
+        // Global.decimalWidth - требуемое количество цифр после запятой.
+    }
+
+    property var decimalRegEx: RegExp(regex_1());
 
     Connections {
         target: AppCore
@@ -49,6 +64,11 @@ Window {
         function onClearCurrentOperation() {
             current_operation.text = ""
         }
+
+        function onChangeDecimalWidth(width) {
+            Global.decimalWidth = width
+            decimalRegEx = RegExp(regex_1());
+        }
     }
 
     function thousandSeparator(inp){
@@ -60,6 +80,29 @@ Window {
             return inp.substring(0, idx).replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ") + inp.substring(idx)
     }
 
+    Dialog {
+        id: dialog
+        title: qsTr("Настройки")
+        font.pointSize: 12
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        width: parent.width * 1.
+
+        ColumnLayout {
+            anchors.fill: parent
+            TextField {
+                id: newDecimalWidthInput
+                font.pointSize: 13
+                Layout.fillWidth: true
+                placeholderText: qsTr("Количество знаков после запятой")
+                validator: RegularExpressionValidator { regularExpression: /(\d)/ }
+                Keys.onReturnPressed: dialog.accept()
+            }
+        }
+
+        onAccepted: { AppCore.change_decimal_width(newDecimalWidthInput.text) }
+        onOpened: newDecimalWidthInput.focus = true
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 3
@@ -67,18 +110,20 @@ Window {
         TextField {
             id: input
             text: ""
-            font.pointSize: 14
+            font.pointSize: 16
             Layout.fillWidth: true
-            maximumLength: 30
-            validator: RegularExpressionValidator {
-                regularExpression: /^[-]?([1-9]\d{0,2}(\s?\d{0,3})*|0)([.,]\d{1,3})?$/
-                // [.,]\d{1,w} ===>> w - требуемое количество цифр после запятой.
-            }
+            maximumLength: 32
+            validator: RegularExpressionValidator { regularExpression: decimalRegEx }
 
             focus: true
             visible: true
 
+            property bool ctrlPressed: false
+
             Keys.onPressed: event => {
+                if (event.key === Qt.Key_Control) {
+                    ctrlPressed = true
+                }
                 if (event.key === Qt.Key_Plus) {
                     AppCore.process(OperationEnums.ADD, input.text);
                     event.accepted = true;
@@ -109,6 +154,11 @@ Window {
                     AppCore.process(OperationEnums.CLEAR_ALL, input.text);
                     event.accepted = true;
                 }
+                if (event.key === Qt.Key_S && ctrlPressed) {
+                    ctrlPressed = false
+                    dialog.open()
+                    event.accepted = true;
+                }
             }
             Keys.onReleased: event => {
                 var previous_pos = cursorPosition
@@ -122,6 +172,9 @@ Window {
                         input.text = input.text.replace(/\./g, ",");
                         event.accepted = true;
                     }
+                }
+                if (event.key === Qt.Key_Control) {
+                    ctrlPressed = false
                 }
                 input.text = thousandSeparator(input.text)
                 // Коррекция позиции курсора.
@@ -286,9 +339,8 @@ Window {
         TextArea {
             id: help
             font.pixelSize: 13
-            text: "* Нажмите _ для смены знака числа\n" +
-                  "* Вводимые операции не имеют приоритета\n" +
-                  "* Нажмите Esc для сброса."
+            textFormat: Text.RichText
+            text: "Смена знака числа: underscore <b>&#95;</b><br>Cброс: <b>Esc</b><br>Смена количества знаков после запятой: <b>Ctrl+S</b><br>Вводимые операции не имеют приоритета."
             readOnly: true
         }
 

@@ -1,6 +1,6 @@
 <RCC>
     <qresource prefix="/">
         <file>main.qml</file>
-        <file>Tooltip.qml</file>
+        <file>global_vars.js</file>
     </qresource>
 </RCC>

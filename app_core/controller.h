@@ -31,10 +31,16 @@ signals:
     /**
      * @brief Сигнализирует "Работнику" о запросе на выполнение.
      */
-    void operate(int, QVector<dec_n::Decimal<>>);
+    void operate(int, QVector<dec_n::Decimal>);
+
     /**
      * @brief Сигнализирует "Наблюдателю" приложения о готовности результата.
      */
-    void handle_results(int, QVector<dec_n::Decimal<>>);
+    void handle_results(int, QVector<dec_n::Decimal>);
+
+    /**
+     * @brief Сигнал синхронизации количества знаков после запятой для Decimal в пространстве библиотеки.
+     */
+    void sync_decimal_width(int);
 };
 

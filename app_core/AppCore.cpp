@@ -97,17 +97,17 @@ AppCore::~AppCore()
 }
 
 void AppCore::Reset() {
-    mRegister[0] = dec_n::Decimal<>{};
-    mRegister[1] = dec_n::Decimal<>{};
-    mPreviousValue = dec_n::Decimal<>{};
+    mRegister[0] = dec_n::Decimal{};
+    mRegister[1] = dec_n::Decimal{};
+    mPreviousValue = dec_n::Decimal{};
     mCurrentOperation = OperationEnums::CLEAR_ALL;
     mState = StateEnums::RESETTED;
 }
 
-void AppCore::DoWork(dec_n::Decimal<> value, int operation) {
+void AppCore::DoWork(dec_n::Decimal value, int operation) {
     // Послать запрос в очередь.
     auto push_request = [this, operation]() {
-        QVector<dec_n::Decimal<>> v {mRegister[1], mRegister[0]};
+        QVector<dec_n::Decimal> v {mRegister[1], mRegister[0]};
         std::string_view sv1 = mRegister[1].ValueAsStringView();
         std::string_view sv0 = mRegister[0].ValueAsStringView();
         mRequestIdx = (mRequestIdx + 1) % tp::BUFFER_SIZE;
@@ -153,7 +153,7 @@ void AppCore::process(int requested_operation, QString input_value)
         static auto re = QRegularExpression{"(\\s)"};
         input_value.remove(re);
         const auto str = input_value.toStdString();
-        dec_n::Decimal<> val;
+        dec_n::Decimal val;
         val.SetStringRepresentation(str);
         return val;
     };
@@ -200,7 +200,7 @@ void AppCore::process(int requested_operation, QString input_value)
     // Операция смены знака.
     if (requested_operation == OperationEnums::NEGATION) {
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-        val = dec_n::Decimal<>{} - val;
+        val = dec_n::Decimal{} - val;
         std::string_view sv = val.ValueAsStringView();
         emit setInput(QString::fromStdString({sv.data(), sv.size()}));
         return;
@@ -267,7 +267,7 @@ void AppCore::process(int requested_operation, QString input_value)
     DoWork(val, mCurrentOperation);
 }
 
-void AppCore::handle_results(int err, QVector<dec_n::Decimal<>> res)
+void AppCore::handle_results(int err, QVector<dec_n::Decimal> res)
 {
     // Поместить результат в регистр для дальнейших операций (цепочка операций).
     mRegister[1] = res.first();
@@ -282,7 +282,7 @@ void AppCore::handle_results(int err, QVector<dec_n::Decimal<>> res)
     push_result();
 }
 
-void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal<>> res, int id)
+void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal> res, int id)
 {
     if (err == Errors::NO_ERRORS) {
         const bool state_is_the_equal =
@@ -313,5 +313,19 @@ void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal<>> res, int i
         emit showTempResult(err_description(err), false);
         Reset();
         qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
+    }
+}
+
+void AppCore::change_decimal_width(int width)
+{
+    const bool is_changed = dec_n::Decimal::SetWidth(width);
+    emit controller.sync_decimal_width(width);
+    if (is_changed) {
+        Reset();
+        emit clearTempResult();
+        emit clearCurrentOperation();
+        emit clearInputField();
+        emit changeDecimalWidth(width);
+        qDebug().noquote() << modifiers::red << QString::fromUtf8("Изменено количество знаков после запятой: ") << width << modifiers::esc_colorization;
     }
 }

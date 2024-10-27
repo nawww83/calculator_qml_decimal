@@ -11,7 +11,7 @@ class Worker : public QObject
 {
     Q_OBJECT
 private:
-    QVector<dec_n::Decimal<>> v {dec_n::Decimal<>()};
+    QVector<dec_n::Decimal> v {dec_n::Decimal()};
 public:
     /**
      * @brief Конструктор.
@@ -25,15 +25,24 @@ public slots:
      * @param operation Код операции.
      * @param operands Операнды.
      */
-    void do_work(int operation, QVector<dec_n::Decimal<>> operands) {
+    void do_work(int operation, QVector<dec_n::Decimal> operands) {
         int error_code;
+        // Операнды копируются.
         v[0] = doIt(operation, operands[0], operands[1], error_code);
         emit results_ready(error_code, v);
+    }
+
+    /**
+     * @brief Синхронизировать количество знаков после запятой в Decimal в пространстве библиотеки.
+     * @param width Количество знаков после запятой.
+     */
+    void sync_decimal_width(int width) {
+        changeDecimalWidth(width);
     }
 signals:
     /**
      * @brief Уведомляет контроллер о готовности результата.
      */
-    void results_ready(int, QVector<dec_n::Decimal<>>);
+    void results_ready(int, QVector<dec_n::Decimal>);
 };
 

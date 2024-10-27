@@ -4,7 +4,7 @@
 #include <QString>
 #include <QVariant>
 
-Q_DECLARE_METATYPE(dec_n::Decimal<>);
+Q_DECLARE_METATYPE(dec_n::Decimal);
 
 namespace OperationEnums {
 Q_NAMESPACE
@@ -92,6 +92,12 @@ signals:
      */
     void clearCurrentOperation();
 
+    /**
+     * @brief Установить количество знаков после запятой на валидатор формы.
+     * @param width Количество знаков после запятой.
+     */
+    void changeDecimalWidth(int width);
+
 public slots:
 
     /**
@@ -105,25 +111,31 @@ public slots:
     /**
      * @brief Обработать пришедший из контроллера результат и положить в очередь.
      */
-    void handle_results(int, QVector< dec_n::Decimal<> >);
+    void handle_results(int, QVector< dec_n::Decimal >);
 
     /**
      * @brief Обработать находящийся в очереди результат: отдать в GUI.
      * @param id Идентификатор запроса/ответа в очереди.
      */
-    void handle_results_queue(int, QVector< dec_n::Decimal<> >, int id);
+    void handle_results_queue(int, QVector< dec_n::Decimal >, int id);
+
+    /**
+     * @brief Запрос на изменение количества знаков после запятой у чисел Decimal.
+     * @param width Количество знаков после запятой.
+     */
+    void change_decimal_width(int width);
 
 protected:
 
     /**
      * @brief Регистр для хранения вводимых пользователем чисел.
      */
-    dec_n::Decimal<> mRegister[2];
+    dec_n::Decimal mRegister[2];
 
     /**
      * @brief Предыдущее введенное значение числа.
      */
-    dec_n::Decimal<> mPreviousValue;
+    dec_n::Decimal mPreviousValue;
 
     /**
      * @brief Текущая запрашиваемая операция.
@@ -160,6 +172,6 @@ protected:
      * @param value Введенное число.
      * @param operation Введенная операция.
      */
-    void DoWork(dec_n::Decimal<> value, int operation);
+    void DoWork(dec_n::Decimal value, int operation);
 };
 
