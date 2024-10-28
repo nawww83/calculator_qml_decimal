@@ -350,25 +350,22 @@ class Decimal {
         auto hasAddOverflow = [](long long x, long long y) -> bool {
             return x > 0 && y > std::numeric_limits<long long>::max() - x;
         };
+        bool is_overflow = false;
         while ((digit != chars::separator && digit != chars::alternative_separator) && digit != chars::null) {
             if (hasMultOverflow(mInteger, 10ll)) {
-                mInteger = -1;
-                mNominator = -1;
-                mStringRepresentation = "inf";
-                return;
+                is_overflow = true;
+                break;
             }
             mInteger *= 10ll;
             if (hasAddOverflow(undigits(digit), mInteger)) {
-                mInteger = -1;
-                mNominator = -1;
-                mStringRepresentation = "inf";
-                return;
+                is_overflow = true;
+                break;
             }
             mInteger += (long long)undigits(digit);
             current_index++;
             digit = mStringRepresentation[current_index];
         }
-        if (mInteger == std::numeric_limits<long long>::min()) {
+        if (is_overflow || mInteger == std::numeric_limits<long long>::min()) {
             mInteger = -1;
             mNominator = -1;
             mStringRepresentation = "inf";
@@ -434,6 +431,20 @@ public:
     }
 
     /**
+     * @brief Установить NaN.
+     */
+    void SetNotANumber() {
+        SetDecimal(0, 0, 0);
+    }
+
+    /**
+     * @brief Установить Inf.
+     */
+    void SetInfinity() {
+        SetDecimal(-1, -1);
+    }
+
+    /**
      * @brief Установить Decimal число покомпонентно.
      * @param integer Целая часть
      * @param nominator Числитель дробной части.
@@ -453,7 +464,7 @@ public:
      * @return Да/нет.
      */
     bool IsInteger() const {
-        return mNominator == 0;
+        return mNominator == 0 && mChangedDenominator > 0;
     }
 
     /**
@@ -478,7 +489,7 @@ public:
      * @return Да/нет.
      */
     bool IsStrongNegative() const {
-        return mInteger < 0;
+        return mInteger < 0 && mNominator >= 0 && mChangedDenominator > 0;
     }
 
     /**
@@ -487,7 +498,7 @@ public:
      * @return Да/нет.
      */
     bool IsWeakNegative() const {
-        return mInteger == 0 && mNominator < 0;
+        return mInteger == 0 && mNominator < 0 && mChangedDenominator > 0;
     }
 
     /**
@@ -554,7 +565,7 @@ public:
         bool is_overflow1 = is_add_overflow_ll(mInteger, other.mInteger);
         bool is_overflow2 = is_add_overflow_ll(mNominator, other.mNominator);
         if (is_overflow1 || is_overflow2) {
-            result.SetDecimal(-1, -1);
+            result.SetInfinity();
             return result;
         }
         auto sum = mInteger + other.mInteger;
@@ -614,7 +625,7 @@ public:
         const bool overflow6 = is_mult_overflow_ll(mInteger, other.mInteger);
         const bool all_integers = (mNominator == 0 && other.mNominator == 0);
         if (overflow6) {
-            result.SetDecimal(-1, -1);
+            result.SetInfinity();
             return result;
         }
         auto integer_part = mInteger * other.mInteger;
@@ -623,10 +634,10 @@ public:
             result.SetDecimal(integer_part, fraction_part);
             return result;
         }
-        const bool left_integer = ((mNominator == 0) && (other.mNominator != 0));
+        const bool left_integer = mNominator == 0 && other.mNominator != 0;
         if (left_integer) {
             if (overflow1) {
-                result.SetDecimal(-1, -1);
+                result.SetInfinity();
                 return result;
             }
             integer_part += ((neg1 ^ neg2) ? -1ll : 1ll) * (std::abs(mInteger) * std::abs(other.mNominator)) / global.mDenominator;
@@ -637,10 +648,10 @@ public:
             result.SetDecimal(integer_part, fraction_part);
             return result;
         }
-        const bool right_integer = ((mNominator != 0) && (other.mNominator == 0));
+        const bool right_integer = mNominator != 0 && other.mNominator == 0;
         if (right_integer) {
             if (overflow2) {
-                result.SetDecimal(-1, -1);
+                result.SetInfinity();
                 return result;
             }
             integer_part += ((neg1 ^ neg2) ? -1ll : 1ll) * (std::abs(mNominator)*std::abs(other.mInteger)) / global.mDenominator;
@@ -652,7 +663,7 @@ public:
             return result;
         }
         if (overflow1 || overflow2 || overflow3 || overflow4 || overflow5 || overflow6) {
-            result.SetDecimal(-1, -1);
+            result.SetInfinity();
             return result;
         }
         if (!neg1 && !neg2) {
@@ -731,9 +742,17 @@ public:
      */
     Decimal operator/(const Decimal& other) const {
         Decimal result{};
+        if (other.IsZero() && !this->IsZero()) {
+            result.SetInfinity();
+            return result;
+        }
+        if (other.IsZero() && this->IsZero()) {
+            result.SetNotANumber();
+            return result;
+        }
         const bool neg1 = IsNegative();
         const bool neg2 = other.IsNegative();
-        const bool all_integers = (mNominator == 0) && (other.mNominator == 0);
+        const bool all_integers = mNominator == 0 && other.mNominator == 0;
         if (all_integers) {
             auto integer_part = std::abs(mInteger) / std::abs(other.mInteger);
             auto fraction_part = std::abs(mInteger) % std::abs(other.mInteger);
@@ -757,7 +776,7 @@ public:
             return result;
         }
         if ( is_mult_overflow_ll(mInteger, global.mDenominator) ) {
-            result.SetDecimal(-1, -1);
+            result.SetInfinity();
             return result;
         }
         if (!neg1 && !neg2) {
