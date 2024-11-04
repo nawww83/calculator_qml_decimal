@@ -4,7 +4,7 @@
 #include "calculus_global.h"
 #include "decimal.h"
 
-namespace c {
+namespace calculus {
 
 enum Ops {
     ADD = 0, // Сложение.

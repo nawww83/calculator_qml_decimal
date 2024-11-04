@@ -30,15 +30,15 @@ class RequestObserver : public QThread
 public:
     /**
      * @brief Конструктор.
-     * @param r Вектор запросов.
+     * @param request Вектор запросов.
      * @param used Семафор "Используется".
      * @param free Семафор "Свободно".
      * @param c Контроллер.
      */
-    explicit RequestObserver(QVector<tp::Request>& r,
+    explicit RequestObserver(QVector<tp::Request>& request,
                              QSemaphore* used, QSemaphore* free,
                              Controller* c) :
-        mRequest(r),
+        mRequest(request),
         mUsed(used),
         mFree(free),
         mController(c) {}
@@ -83,7 +83,7 @@ protected:
     /**
      * @brief Флаг останова.
      */
-    bool mFinish{};
+    bool mFinish;
 };
 
 /**
@@ -95,13 +95,13 @@ class ResultObserver : public QThread
 public:
     /**
      * @brief Конструктор.
-     * @param r Вектор ответов.
+     * @param result Вектор ответов.
      * @param used Семафор "Используется".
      * @param free Семафор "Свободно".
      */
-    explicit ResultObserver(QVector<tp::Result>& r,
+    explicit ResultObserver(QVector<tp::Result>& result,
                             QSemaphore* used, QSemaphore* free) :
-        mResult(r),
+        mResult(result),
         mUsed(used),
         mFree(free) {}
 
@@ -147,7 +147,7 @@ protected:
     /**
      * @brief Флаг останова.
      */
-    bool mFinish{};
+    bool mFinish;
 };
 
 } // namespace ro
