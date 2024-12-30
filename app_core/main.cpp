@@ -33,8 +33,10 @@ int main(int argc, char *argv[])
     qDebug() << "Testing...";
     bool all_is_ok = true;
 
-    const auto thousand = int_power(10, 3);
-    all_is_ok &= thousand == u128::U128{1000, 0};
+    {
+        const auto thousand = int_power(10, 3);
+        all_is_ok &= thousand == u128::U128{1000, 0};
+    }
 
     {
         u128::U128 result{};
@@ -69,6 +71,40 @@ int main(int argc, char *argv[])
         u128::U128 max_int_value = u128::get_max_value();
         u128::U128 overflowed = max_int_value + u128::U128{1, 0};
         all_is_ok &= overflowed.is_overflow();
+    }
+
+    {
+        u128::U128 max_int_value = u128::get_max_value();
+        u128::U128 normal_value = max_int_value - u128::U128{1, 0};
+        all_is_ok &= !normal_value.is_singular();
+    }
+
+    {
+        u128::U128 x {1, 0};
+        u128::U128 y {1, 0, true};
+        const auto z = x * y;
+        all_is_ok &= z.is_negative();
+    }
+
+    {
+        u128::U128 x {1, 0, true};
+        u128::U128 y {1, 0, true};
+        const auto z = x * y;
+        all_is_ok &= z.is_positive();
+    }
+
+    {
+        u128::U128 x {1, 0};
+        u128::U128 y {1, 0, true};
+        const auto z = x / y;
+        all_is_ok &= z.is_negative();
+    }
+
+    {
+        u128::U128 x {1, 0, true};
+        u128::U128 y {1, 0, true};
+        const auto z = x / y;
+        all_is_ok &= z.is_positive();
     }
 
     assert(all_is_ok);

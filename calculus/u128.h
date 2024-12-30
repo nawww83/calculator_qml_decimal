@@ -57,6 +57,11 @@ struct Sign {
     constexpr Sign(bool value): mSign {value}{};
     constexpr Sign& operator=(const Sign& other) = default;
     constexpr Sign& operator=(Sign&& other) = default;
+    Sign& operator^(const Sign& other) {
+        bool sign = operator()() ^ other.operator()();
+        this->mSign = sign;
+        return *this;
+    }
     bool operator()() const {return mSign != 0;}
     void operator-() {
         mSign = 1 - (operator()() ? 1 : 0);
@@ -299,8 +304,7 @@ struct U128 {
     }
 
     U128 shl64(U128 x) const { // x * 2^64
-        U128 result {0, x.mLow};
-        result.mSign = x.mSign;
+        U128 result {0, x.mLow, x.mSign};
         result.mSingular = x.mSingular;
         if (x.mHigh != 0 && !x.is_singular()) {
             result.set_overflow();
@@ -309,13 +313,16 @@ struct U128 {
     }
 
     U128 operator*(U128 rhs) const {
-        U128 result = *this * rhs.mLow;
-        const auto tmp = *this * rhs.mHigh;
+        const U128 X = *this;
+        U128 result = X * rhs.mLow;
+        result.mSign = this->mSign() ^ rhs.mSign();
+        const auto tmp = X * rhs.mHigh;
         result = result + shl64(tmp);
         return result;
     }
 
-    U128 div10() const { // Специальный метод деления на 10 для строкового представления числа.
+    U128 div10() const { // Специальный метод деления на 10 для формирования
+                         // строкового представления числа.
         U128 X = *this;
         const bool sign = X.mSign();
         X.mSign = false;
@@ -336,9 +343,10 @@ struct U128 {
         return result;
     }
 
-    int mod10() const {
-        const U128 X = this->div10();
-        return (*this - X * 10).mLow;
+    int mod10() const { // Специальный метод нахождения остатка от деления на 10 для формирования
+                        // строкового представления числа.
+        constexpr int multiplier_mod10 = mMaxULOW % 10 + 1;
+        return ((mLow % 10) + multiplier_mod10 * (mHigh % 10)) % 10;
     }
 
     // Метод итеративного деления широкого числа на узкое.
@@ -439,10 +447,8 @@ struct U128 {
             return result;
         }
         U128 X = *this;
-        constexpr int multiplier_mod10 = mMaxULOW % 10 + 1;
         while (!X.is_zero()) {
-            const int d =
-                ((X.mLow % 10) + multiplier_mod10 * (X.mHigh % 10)) % 10;
+            const int d = X.mod10();
             result.push_back(DIGITS[d]);
             X = X.div10();
         }
