@@ -271,6 +271,10 @@ class Decimal {
         if (absolute_value(mNominator) >= mChangedDenominator) {
             auto tmp = mNominator / mChangedDenominator;
             r = the_sign == 0 ? r + tmp : r - tmp;
+            if (r.is_overflow()) {
+                mStringRepresentation = "inf";
+                return;
+            }
             if (mNominator.is_nonegative()) {
                 auto res = mNominator - mChangedDenominator * tmp;
                 mNominator = res;

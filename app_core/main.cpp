@@ -70,6 +70,22 @@ int main(int argc, char *argv[])
         all_is_ok &= z.IsOverflowed();
     }
 
+    { // max_int,999 + 0,001
+        Decimal d1; d1.SetDecimal(u128::U128{-1ull, -1ull}, u128::U128{999, 0} );
+        Decimal d2; d2.SetDecimal(u128::U128{0, 0}, u128::U128{1, 0} );
+        assert(d2.GetWidth() == 3);
+        const auto z = d1 + d2;
+        all_is_ok &= z.IsOverflowed();
+    }
+
+    { // -max_int,999 - 0,001
+        Decimal d1; d1.SetDecimal(u128::U128{-1ull, -1ull, true}, u128::U128{999, 0} );
+        Decimal d2; d2.SetDecimal(u128::U128{0, 0}, u128::U128{1, 0} );
+        assert(d2.GetWidth() == 3);
+        const auto z = d1 - d2;
+        all_is_ok &= z.IsOverflowed();
+    }
+
     {
         const auto thousand = int_power(10, 3);
         all_is_ok &= thousand == u128::U128{1000, 0};
