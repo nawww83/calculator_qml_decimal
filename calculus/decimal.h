@@ -464,15 +464,17 @@ public:
      * @return Да/нет.
      */
     bool IsOverflowed() const {
-        return mInteger.is_negative() && mNominator.is_negative();
+        return (mInteger.is_negative() && mNominator.is_negative()) ||
+               (mInteger.is_overflow() || mNominator.is_overflow());
     }
 
     /**
-     * @brief Не число.
+     * @brief Не является числом.
      * @return Да/нет.
      */
     bool IsNotANumber() const {
-        return mInteger.is_zero() && mNominator.is_zero() && mChangedDenominator.is_zero();
+        return (mInteger.is_zero() && mNominator.is_zero() && mChangedDenominator.is_zero()) ||
+               (mInteger.is_nan() || mNominator.is_nan());
     }
 
     /**

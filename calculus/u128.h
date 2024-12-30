@@ -186,9 +186,22 @@ struct U128 {
         return result;
     }
 
+    U128 abs() const {
+        U128 result = *this;
+        result.mSign = false;
+        return result;
+    }
+
     U128 operator+(U128 rhs) const {
         U128 result{};
         U128 X = *this;
+        if (X.is_singular()) {
+            return X;
+        }
+        if (rhs.is_singular()) {
+            X.mSingular = rhs.mSingular;
+            return X;
+        }
         if (X.is_negative() && !rhs.is_negative()) {
             X.mSign = false;
             result = rhs - X;
@@ -221,6 +234,13 @@ struct U128 {
     U128 operator-(U128 rhs) const {
         U128 result{};
         U128 X = *this;
+        if (X.is_singular()) {
+            return X;
+        }
+        if (rhs.is_singular()) {
+            X.mSingular = rhs.mSingular;
+            return X;
+        }
         if (X.is_negative() && !rhs.is_negative()) {
             rhs.mSign = 1;
             result = rhs + X;
@@ -285,15 +305,17 @@ struct U128 {
         U128 result{};
         result.mLow = t1;
         const ULOW div = (q + s) + ((p + r + t) >> mHalfWidth);
-        const ULOW mod = (t21 << mHalfWidth) + (t22 << mHalfWidth);
+        const auto p1 = t21 << mHalfWidth;
+        const auto p2 = t22 << mHalfWidth;
+        const ULOW mod = p1 + p2;
         result.mLow += mod;
         result.mHigh += div;
         result.mHigh += t3;
-        result.mSingular.mOverflow = result.mHigh < t3 ? true : false;
+        result.mSingular.mOverflow = result.mHigh < t3;
         return result;
     }
 
-    U128 operator*(ULOW rhs) const {
+    U128 operator*(ULOW rhs) const { // Без переполнения, чтобы работал алгоритм деления.
         U128 result = mult64(mLow, rhs);
         U128 tmp = mult64(mHigh, rhs);
         tmp.mHigh = tmp.mLow;
@@ -315,6 +337,10 @@ struct U128 {
     U128 operator*(U128 rhs) const {
         const U128 X = *this;
         U128 result = X * rhs.mLow;
+        if (result.abs() < X.abs()) {
+            result.set_overflow();
+            return result;
+        }
         result.mSign = this->mSign() ^ rhs.mSign();
         const auto tmp = X * rhs.mHigh;
         result = result + shl64(tmp);
@@ -324,20 +350,24 @@ struct U128 {
     U128 div10() const { // Специальный метод деления на 10 для формирования
                          // строкового представления числа.
         U128 X = *this;
+        if (X.is_singular()) {
+            return X;
+        }
         const bool sign = X.mSign();
         X.mSign = false;
-        ULOW Q = X.mHigh / 10;
-        ULOW R = X.mHigh % 10;
-        ULOW N = R * (mMaxULOW / 10) + (X.mLow / 10);
-        U128 result; result.mHigh = Q; result.mLow = N;
-        U128 E = X - result * 10;
-        while (E.mHigh != 0 || E.mLow >= 10) {
-            Q = E.mHigh / 10;
-            R = E.mHigh % 10;
-            N = R * (mMaxULOW / 10) + (E.mLow / 10);
+        ULOW Q = X.mHigh / ULOW(10);
+        ULOW R = X.mHigh % ULOW(10);
+        ULOW N = R * (mMaxULOW / ULOW(10)) + (X.mLow / ULOW(10));
+        U128 result{}; result.mHigh = Q; result.mLow = N;
+        const U128 tmp = result * ULOW(10);
+        U128 E = X - tmp;
+        while (E.mHigh != 0 || E.mLow >= ULOW(10)) {
+            Q = E.mHigh / ULOW(10);
+            R = E.mHigh % ULOW(10);
+            N = R * (mMaxULOW / ULOW(10)) + (E.mLow / ULOW(10));
             U128 tmp {N, Q};
             result += tmp;
-            E -= tmp * 10;
+            E -= tmp * ULOW(10);
         }
         result.mSign = sign;
         return result;
@@ -345,6 +375,9 @@ struct U128 {
 
     int mod10() const { // Специальный метод нахождения остатка от деления на 10 для формирования
                         // строкового представления числа.
+        if (this->is_singular()) {
+            return -1;
+        }
         constexpr int multiplier_mod10 = mMaxULOW % 10 + 1;
         return ((mLow % 10) + multiplier_mod10 * (mHigh % 10)) % 10;
     }
@@ -446,9 +479,16 @@ struct U128 {
             result = "Overflow";
             return result;
         }
+        if (this->is_nan()) {
+            result = "NaN";
+            return result;
+        }
         U128 X = *this;
         while (!X.is_zero()) {
             const int d = X.mod10();
+            if (d < 0) {
+                return result;
+            }
             result.push_back(DIGITS[d]);
             X = X.div10();
         }

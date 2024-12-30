@@ -33,6 +33,43 @@ int main(int argc, char *argv[])
     qDebug() << "Testing...";
     bool all_is_ok = true;
 
+    { // max_int / 10
+        u128::U128 x {-1ull, -1ull};
+        x = x.div10();
+        all_is_ok &= !x.is_singular();
+        all_is_ok &= x.value().starts_with("34028236692093846346337460743176821145");
+    }
+
+    { // max_int * 1
+        u128::U128 x {-1ull, -1ull};
+        const auto z = x * u128::U128{1, 0};
+        all_is_ok &= !x.is_singular();
+        all_is_ok &= x == z;
+    }
+
+    { // max_int * -1 == -max_int
+        u128::U128 x {-1ull, -1ull};
+        const auto z = x * u128::U128{1, 0, true};
+        all_is_ok &= !x.is_singular();
+        all_is_ok &= -x == z;
+    }
+
+    { // max_int * 1,00...01
+        Decimal d1; d1.SetDecimal(u128::U128{-1ull, -1ull}, u128::U128{0, 0} );
+        Decimal d2; d2.SetDecimal(u128::U128{1, 0}, u128::U128{1, 0} );
+        assert(d2.GetWidth() > 0);
+        const auto z = d1 * d2;
+        all_is_ok &= z.IsOverflowed();
+    }
+
+    { // -max_int * 1,00...01
+        Decimal d1; d1.SetDecimal(u128::U128{-1ull, -1ull, true}, u128::U128{0, 0} );
+        Decimal d2; d2.SetDecimal(u128::U128{1, 0}, u128::U128{1, 0} );
+        assert(d2.GetWidth() > 0);
+        const auto z = d1 * d2;
+        all_is_ok &= z.IsOverflowed();
+    }
+
     {
         const auto thousand = int_power(10, 3);
         all_is_ok &= thousand == u128::U128{1000, 0};
@@ -70,6 +107,12 @@ int main(int argc, char *argv[])
     {
         u128::U128 max_int_value = u128::get_max_value();
         u128::U128 overflowed = max_int_value + u128::U128{1, 0};
+        all_is_ok &= overflowed.is_overflow();
+    }
+
+    {
+        u128::U128 max_int_value = u128::get_max_value();
+        u128::U128 overflowed = max_int_value * u128::U128{2, 0};
         all_is_ok &= overflowed.is_overflow();
     }
 
