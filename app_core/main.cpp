@@ -6,53 +6,6 @@
 
 using namespace dec_n;
 
-bool test_decimal_additives(Decimal dec1, Decimal dec2) {
-    using namespace std;
-    auto dec3 = dec1 + dec2;
-    auto dec4 = dec1 - dec2;
-    auto dec5 = dec2 - dec1;
-
-    Decimal zero;
-    zero.SetZero();
-    bool is_ok = true;
-    is_ok &= ((dec4 + dec5) == zero);
-    is_ok &= ((dec5 + dec4) == zero);
-    is_ok &= ((dec3 - dec1) == dec2);
-    is_ok &= ((dec3 - dec2) == dec1);
-    is_ok &= ((dec2 + dec4) == dec1);
-    is_ok &= ((dec4 + dec2) == dec1);
-    is_ok &= ((dec1 + dec5) == dec2);
-    is_ok &= ((dec5 + dec1) == dec2);
-    is_ok &= ((dec3 + dec4 + dec5) == (dec1 + dec2));
-    assert(is_ok && "Additives test: failed!");
-    return is_ok;
-}
-
-bool test_decimal_multiplicatives(Decimal dec1, Decimal dec2) {
-    using namespace std;
-
-    assert(dec2.IsInteger() && "Dec2 must be an integer!");
-
-    auto dec3 = dec1 * dec2;
-    auto dec4 = dec2 * dec1;
-
-    Decimal sum;
-    sum.SetZero();
-    if (dec2.IntegerPart() >= 0) {
-        for (long long x=0; x<std::abs(dec2.IntegerPart()); ++x) {
-            sum = sum + dec1;
-        }
-    } else {
-        for (long long x=0; x<std::abs(dec2.IntegerPart()); ++x) {
-            sum = sum - dec1;
-        }
-    }
-    const bool is_ok = sum == dec3 && sum == dec4 && dec3 == dec4;
-    assert(is_ok && "Multiplicative test: failed!");
-    return is_ok;
-}
-
-
 int main(int argc, char *argv[])
 {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -79,94 +32,45 @@ int main(int argc, char *argv[])
 
     qDebug() << "Testing...";
     bool all_is_ok = true;
-    Decimal dec1;
-    Decimal dec2;
 
-    for (long long i=-15ll; i<15ll; ++i) {
-        for (long long j=-15ll; j<15ll; ++j) {
-            if ((i != 0) && (j < 0)) {
-                continue;
-            }
-            dec1.SetDecimal(i, j, 15ll);
-            if (! all_is_ok) {
-                break;
-            }
-            for (long long k=-15ll; k<15ll; ++k) {
-                for (long long l=-15ll; l<15ll; ++l) {
-                    if ((k != 0) && (l < 0)) {
-                        continue;
-                    }
-                    dec2.SetDecimal(k, l, 15ll);
-                    all_is_ok &= test_decimal_additives(dec1, dec2);
-                    if (! all_is_ok) {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    for (long long i=-15ll; i<15ll; ++i) {
-        for (long long j=-15ll; j<15ll; ++j) {
-            if ((i != 0) && (j < 0)) {
-                continue;
-            }
-            dec1.SetDecimal(i, j, 15ll);
-            if (! all_is_ok) {
-                break;
-            }
-            for (long long k=-15ll; k<15ll; ++k) {
-                dec2.SetDecimal(k, 0, 15ll);
-                all_is_ok &= test_decimal_multiplicatives(dec1, dec2);
-                if (! all_is_ok) {
-                    break;
-                }
-            }
-        }
-    }
+    const auto thousand = int_power(10, 3);
+    all_is_ok &= thousand == u128::U128{1000, 0};
+
     {
-        Decimal res;
-        dec1.SetDecimal(9223372036854775807ll, 50ll, 100ll);
-        dec2.SetDecimal(9223372036854775807ll, 50ll, 100ll);
-        res = dec1 + dec2;
-        assert(res.IsOverflowed() && "Must be overflow!");
-
-        dec1.SetDecimal(9223372036854775807ll, 0, 100ll);
-        dec2.SetDecimal(1ll, 0, 100ll);
-        res = dec1 + dec2;
-        assert(res.IsOverflowed() && "Must be overflow!");
-
-        dec1.SetDecimal(4611686018427387904ll, 0, 100ll);
-        dec2.SetDecimal(2ll, 0, 100ll);
-        res = dec1 * dec2;
-        assert(res.IsOverflowed() && "Must be overflow!");
-
-        dec1.SetDecimal(4611686018427387903ll, 0, 100ll);
-        dec2.SetDecimal(2ll, 0, 100ll);
-        res = dec1 * dec2;
-        assert(!res.IsOverflowed() && "Must not be overflow!");
-
-        dec1.SetDecimal(-4611686018427387904ll, 0, 100ll);
-        dec2.SetDecimal(2ll, 0, 100ll);
-        res = dec1 * dec2;
-        assert(res.IsOverflowed() && "Must be overflow!");
-
-        dec1.SetDecimal(-4611686018427387905ll, 0, 100ll);
-        dec2.SetDecimal(2ll, 0, 100ll);
-        res = dec1 * dec2;
-        assert(res.IsOverflowed() && "Must be overflow!");
-
-        dec1.SetDecimal(0, 0, 0);
-        assert(dec1.IsNotANumber() && "Must be NAN!");
-
-        dec2.SetDecimal(-1, -1, 1);
-        assert(dec2.IsOverflowed() && "Must be overflow!");
-
-        dec1.SetStringRepresentation("");
-        assert(dec1.IsNotANumber() && "Must be NAN!");
-
-        dec2.SetStringRepresentation("inf");
-        assert(dec2.IsOverflowed() && "Must be overflow!");
+        u128::U128 result{};
+        result.mLow = 1;
+        result.mHigh = 0;
+        result.mSign = true;
+        all_is_ok &= result.is_negative();
     }
+
+    {
+        u128::U128 result{1, 0, true};
+        all_is_ok &= result.is_negative();
+    }
+
+    {
+        u128::U128 big_number {18'446'744'073'709'551'610ull, 0};
+        u128::U128 result = big_number + u128::U128{6, 0};
+        all_is_ok &= result.value().starts_with( "18446744073709551616" );
+    }
+
+    {
+        u128::U128 big_number {0, 1};
+        all_is_ok &= big_number.mod10() == 6;
+    }
+
+    {
+        u128::U128 max_int_value = u128::get_max_value();
+        all_is_ok &= max_int_value.value() == "340282366920938463463374607431768211455";
+    }
+
+    {
+        u128::U128 max_int_value = u128::get_max_value();
+        u128::U128 overflowed = max_int_value + u128::U128{1, 0};
+        all_is_ok &= overflowed.is_overflow();
+    }
+
     assert(all_is_ok);
     qDebug() << "Test is Ok!";
 

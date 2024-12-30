@@ -148,6 +148,11 @@ void AppCore::process(int requested_operation, QString input_value)
         emit clearInputField();
         return;
     }
+    if (requested_operation == OperationEnums::MAX_INT_VALUE) {
+        u128::U128 max_value = u128::get_max_value();
+        emit setInput(QString::fromStdString(max_value.value()));
+        return;
+    }
     // По введенной строке сконструировать число Decimal.
     auto construct_decimal = [&input_value]() {
         static auto re = QRegularExpression{"(\\s)"};

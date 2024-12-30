@@ -17,7 +17,8 @@ SOURCES += \
 HEADERS += \
     calculus_global.h \
     calculus.h \
-    decimal.h
+    decimal.h \
+    u128.h
 
 # Default rules for deployment.
 unix {

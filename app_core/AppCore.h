@@ -15,7 +15,8 @@ enum Operations {
     SUB,
     MULT,
     DIV,
-    NEGATION
+    NEGATION,
+    MAX_INT_VALUE   // Получить наибольшее целое (положительное) число.
 };
 Q_ENUM_NS(Operations)
 }

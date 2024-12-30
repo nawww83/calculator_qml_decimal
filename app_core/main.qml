@@ -9,7 +9,7 @@ import operation.enums 1.0 as Operations
 import "global_vars.js" as Global
 
 Window {
-    width: 440
+    width: 640
     height: 235
     maximumHeight: height
     maximumWidth: width
@@ -17,7 +17,7 @@ Window {
     minimumWidth: width
 
     visible: true
-    title: qsTr("Decimal калькулятор 64-bit")
+    title: qsTr("Decimal калькулятор 128-bit")
 
     function regex_1() {
         var pattern = "^[-]?([1-9]\\d{0,2}(\\s?\\d{0,3})*|0)([.,]\\d{0,w_original})?$"
@@ -112,7 +112,7 @@ Window {
             text: ""
             font.pointSize: 16
             Layout.fillWidth: true
-            maximumLength: 32
+            maximumLength: 64
             validator: RegularExpressionValidator { regularExpression: decimalRegEx }
 
             focus: true
@@ -315,7 +315,7 @@ Window {
 
                 Button {
                     id: clear
-                    text: "C"
+                    text: "Clear"
                     bottomPadding: 10
                     font.pixelSize: 24
                     Layout.fillWidth: true
@@ -331,6 +331,26 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: AppCore.process(Operations.OperationEnums.CLEAR_ALL);
+                    }
+                }
+                Button {
+                    id: max_integer
+                    text: "Max Int"
+                    bottomPadding: 10
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: max_integer.down ? "#ff0000" : (max_integer.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.MAX_INT_VALUE);
                     }
                 }
             }
