@@ -40,6 +40,8 @@ DISTFILES +=
 INCLUDEPATH += ../calculus
 DEPENDPATH += ../calculus
 
+win32:RC_ICONS += favicon.ico
+
 buildCalculusDir = $$OUT_PWD/../calculus
 win32:CONFIG(release, debug|release): LIBS += -L$$buildCalculusDir/release/ -lcalculus
 else:win32:CONFIG(debug, debug|release): LIBS += -L$$buildCalculusDir/debug/ -lcalculus
