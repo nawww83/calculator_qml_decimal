@@ -10,6 +10,8 @@ namespace u128 {
 
 using ULOW = uint64_t; // Тип половинок: старшей и младшей частей составного числа.
 
+static constexpr auto INF = "inf";
+
 static_assert(CHAR_BIT == 8);
 
 struct Quadrupole { // Структура для задания дроби (A*M + B) / (C*M + D).
@@ -71,6 +73,10 @@ struct Sign {
     }
     auto operator<=>(const Sign& other) = delete;
 };
+
+struct U128;
+
+U128 shl64(U128 x);
 
 // High/Low структура 128-битного числа со знаком и флагом переполнения.
 // Для иллюстрации алгоритма деления двух U128 чисел реализованы основные
@@ -325,15 +331,6 @@ struct U128 {
         return result;
     }
 
-    U128 shl64(U128 x) const { // x * 2^64
-        U128 result {0, x.mLow, x.mSign};
-        result.mSingular = x.mSingular;
-        if (x.mHigh != 0 && !x.is_singular()) {
-            result.set_overflow();
-        }
-        return result;
-    }
-
     U128 operator*(U128 rhs) const {
         const U128 X = *this;
         U128 result = X * rhs.mLow;
@@ -476,11 +473,11 @@ struct U128 {
     std::string value() const {
         std::string result{};
         if (this->is_overflow()) {
-            result = "Overflow";
+            result = INF;
             return result;
         }
         if (this->is_nan()) {
-            result = "NaN";
+            result = "";
             return result;
         }
         U128 X = *this;
@@ -524,6 +521,23 @@ inline U128 get_max_value() {
     U128 result{};
     result.mLow = -1;
     result.mHigh = -1;
+    return result;
+}
+
+inline U128 int_power(ULOW x, int y) {
+    u128::U128 result = get_unit();
+    for (int i = 1; i <= y; ++i) {
+        result = result * x;
+    }
+    return result;
+}
+
+inline U128 shl64(U128 x) { // x * 2^64
+    U128 result {0, x.mLow, x.mSign};
+    result.mSingular = x.mSingular;
+    if (x.mHigh != 0 && !x.is_singular()) {
+        result.set_overflow();
+    }
     return result;
 }
 
