@@ -308,8 +308,7 @@ struct U128 {
         const ULOW s = t22 >> mHalfWidth;
         const ULOW r = t22 & MASK;
         const ULOW t3 = x_high * y_high;
-        U128 result{};
-        result.mLow = t1;
+        U128 result{t1, 0};
         const ULOW div = (q + s) + ((p + r + t) >> mHalfWidth);
         const auto p1 = t21 << mHalfWidth;
         const auto p2 = t22 << mHalfWidth;
@@ -321,21 +320,23 @@ struct U128 {
         return result;
     }
 
-    U128 operator*(ULOW rhs) const { // Без переполнения, чтобы работал алгоритм деления.
+    U128 operator*(ULOW rhs) const {
         U128 result = mult64(mLow, rhs);
         U128 tmp = mult64(mHigh, rhs);
+        const bool is_overflow = tmp.mHigh != 0;
         tmp.mHigh = tmp.mLow;
         tmp.mLow = 0;
         result += tmp;
         result.mSign = !result.is_zero() ? this->mSign() : false;
+        if (is_overflow)
+            result.set_overflow();
         return result;
     }
 
     U128 operator*(U128 rhs) const {
         const U128 X = *this;
         U128 result = X * rhs.mLow;
-        if (result.abs() < X.abs()) {
-            result.set_overflow();
+        if (result.is_singular()) {
             return result;
         }
         result.mSign = this->mSign() ^ rhs.mSign();

@@ -114,6 +114,22 @@ int main(int argc, char *argv[])
     }
 
     {
+        const auto ten_to_36 = u128::int_power(10, 36);
+        const auto thousand = u128::int_power(10, 3);
+        const auto z = ten_to_36 * thousand;
+        all_is_ok &= z.is_overflow();
+    }
+
+    {
+        const auto ten_to_36 = u128::int_power(10, 36);
+        Decimal d1; d1.SetDecimal(ten_to_36, u128::get_zero() );
+        Decimal d2; d2.SetDecimal(u128::get_zero(), u128::get_unit() );
+        const auto z = d1 / d2;
+        assert(d2.GetWidth() == 3);
+        all_is_ok &= z.IsOverflowed();
+    }
+
+    {
         u128::U128 result{};
         result.mLow = 1;
         result.mHigh = 0;
