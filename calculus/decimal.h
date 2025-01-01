@@ -359,7 +359,7 @@ class Decimal {
         }
         current_index++;
         digit = mStringRepresentation[current_index];
-        mNominator = mNominator + u128::U128{static_cast<u128::ULOW>(undigits(digit)), 0};
+        mNominator = mNominator + u128::get_by_digit( undigits(digit) );
         current_index++;
         digit = mStringRepresentation[current_index];
         const int length = mStringRepresentation.RealSize();
@@ -369,14 +369,14 @@ class Decimal {
                 break;
             }
             mNominator = mNominator * 10;
-            mNominator = mNominator + u128::U128{static_cast<u128::ULOW>(undigits(digit)), 0};
+            mNominator = mNominator + u128::get_by_digit( undigits(digit) );
             current_index++;
             digit = mStringRepresentation[current_index];
             idx_width++;
         }
         while (idx_width < global.mWidth) { // Добавление нулей. Например 4,5 => 4,50 при width = 2.
             mNominator = mNominator * 10;
-            mNominator = mNominator + u128::U128{0, 0};
+            mNominator = mNominator + u128::get_zero();
             idx_width++;
         }
         if (mInteger.is_zero() && the_sign != 0) { // Если целая часть равна нулю, то знак храним в числителе.
@@ -591,6 +591,14 @@ public:
      */
     Decimal operator*(const Decimal& other) const {
         Decimal result{};
+        if (other.IsOverflowed() || this->IsOverflowed()) {
+            result.SetInfinity();
+            return result;
+        }
+        if (other.IsNotANumber() || this->IsNotANumber()) {
+            result.SetNotANumber();
+            return result;
+        }
         const bool neg1 = IsNegative();
         const bool neg2 = other.IsNegative();
         const bool overflow1 = (mInteger * other.mNominator).is_overflow();
@@ -744,6 +752,14 @@ public:
             result.SetNotANumber();
             return result;
         }
+        if (other.IsOverflowed() || this->IsOverflowed()) {
+            result.SetInfinity();
+            return result;
+        }
+        if (other.IsNotANumber() || this->IsNotANumber()) {
+            result.SetNotANumber();
+            return result;
+        }
         const bool neg1 = IsNegative();
         const bool neg2 = other.IsNegative();
         const bool all_integers = mNominator.is_zero() && other.mNominator.is_zero();
@@ -773,13 +789,6 @@ public:
             }
             result.SetDecimal(integer_part, fraction_part);
             return result;
-        }
-        {
-            const auto tmp = mInteger * global.mDenominator;
-            if ( tmp.is_overflow() ) {
-                result.SetInfinity();
-                return result;
-            }
         }
         if (!neg1 && !neg2) {
             const auto A = mInteger * global.mDenominator + mNominator;

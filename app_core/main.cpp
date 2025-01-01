@@ -6,31 +6,7 @@
 
 using namespace dec_n;
 
-int main(int argc, char *argv[])
-{
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-#endif
-
-    QGuiApplication app(argc, argv);
-
-    qRegisterMetaType<QVector<dec_n::Decimal>>("QVector<dec_n::Decimal>");
-
-    qmlRegisterUncreatableMetaObject(OperationEnums::staticMetaObject,
-                                     "operation.enums",
-                                     1,
-                                     0,
-                                     "OperationEnums",
-                                     "Error: only enums");
-
-    QQmlApplicationEngine engine;
-
-    AppCore AppCore;
-    if (! dec_n::is_two_complement()) {
-        return 0;
-    }
-
-    qDebug() << "Testing...";
+static void run_unit_tests() {
     bool all_is_ok = true;
 
     { // max_int / 10
@@ -205,6 +181,34 @@ int main(int argc, char *argv[])
     }
 
     assert(all_is_ok);
+}
+
+int main(int argc, char *argv[])
+{
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
+
+    QGuiApplication app(argc, argv);
+
+    qRegisterMetaType<QVector<dec_n::Decimal>>("QVector<dec_n::Decimal>");
+
+    qmlRegisterUncreatableMetaObject(OperationEnums::staticMetaObject,
+                                     "operation.enums",
+                                     1,
+                                     0,
+                                     "OperationEnums",
+                                     "Error: only enums");
+
+    QQmlApplicationEngine engine;
+
+    AppCore AppCore;
+    if (! dec_n::is_two_complement()) {
+        return 0;
+    }
+
+    qDebug() << "Test...";
+    run_unit_tests();
     qDebug() << "Test is Ok!";
 
     auto ctx = engine.rootContext();

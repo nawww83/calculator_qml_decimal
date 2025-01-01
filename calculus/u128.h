@@ -60,13 +60,12 @@ struct Sign {
     constexpr Sign& operator=(const Sign& other) = default;
     constexpr Sign& operator=(Sign&& other) = default;
     Sign& operator^(const Sign& other) {
-        bool sign = operator()() ^ other.operator()();
-        this->mSign = sign;
+        this->mSign = operator()() ^ other.operator()();
         return *this;
     }
     bool operator()() const {return mSign != 0;}
     void operator-() {
-        mSign = 1 - (operator()() ? 1 : 0);
+        mSign = 1 - operator()();
     }
     bool operator==(const Sign& other) const {
         return mSign == other.mSign ? true : ((operator()() && other.operator()()) || (!operator()() && !other.operator()()));
@@ -335,6 +334,16 @@ struct U128 {
 
     U128 operator*(U128 rhs) const {
         const U128 X = *this;
+        if (X.is_overflow() || rhs.is_overflow()) {
+            U128 result;
+            result.set_overflow();
+            return result;
+        }
+        if (X.is_nan() || rhs.is_nan()) {
+            U128 result;
+            result.set_nan();
+            return result;
+        }
         U128 result = X * rhs.mLow;
         if (result.is_singular()) {
             return result;
@@ -387,12 +396,15 @@ struct U128 {
     U128 operator/(ULOW y) const {
         assert(y != 0);
         const U128 X = *this;
+        if (X.is_singular()) {
+            return X;
+        }
         ULOW Q = X.mHigh / y;
         ULOW R = X.mHigh % y;
         ULOW N = R * (mMaxULOW / y) + (X.mLow / y);
-        U128 result; result.mHigh = Q; result.mLow = N; result.mSign = X.mSign;
+        U128 result{N, Q, X.mSign};
         U128 E = X - result * y; // Ошибка от деления: остаток от деления.
-        while (1) {
+        for (;;) {
             Q = E.mHigh / y;
             R = E.mHigh % y;
             N = R * (mMaxULOW / y) + (E.mLow / y);
@@ -423,6 +435,16 @@ struct U128 {
     U128 operator/(const U128 other) const {
         U128 X = *this;
         U128 Y = other;
+        if (X.is_overflow() || Y.is_overflow()) {
+            U128 result;
+            result.set_overflow();
+            return result;
+        }
+        if (X.is_nan() || Y.is_nan()) {
+            U128 result;
+            result.set_nan();
+            return result;
+        }
         constexpr U128 ZERO {0, 0};
         constexpr U128 UNIT {1, 0};
         constexpr U128 UNIT_NEG {1, 0, true};
@@ -540,6 +562,10 @@ inline U128 shl64(U128 x) { // x * 2^64
         result.set_overflow();
     }
     return result;
+}
+
+inline U128 get_by_digit(int digit) {
+    return U128{static_cast<u128::ULOW>(digit), 0};
 }
 
 

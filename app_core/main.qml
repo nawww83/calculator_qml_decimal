@@ -360,7 +360,7 @@ Window {
             id: help
             font.pixelSize: 13
             textFormat: Text.RichText
-            text: "Смена знака числа: underscore <b>&#95;</b><br>
+            text: "Смена знака числа: нажмите underscore <b>&#95;</b><br>
                     Cброс: <b>Esc</b><br>
                     Смена количества знаков после запятой: <b>Ctrl+S</b><br>
                     Вводимые операции не имеют приоритета.<br>
