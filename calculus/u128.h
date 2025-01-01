@@ -76,6 +76,9 @@ struct Sign {
 struct U128;
 
 U128 shl64(U128 x);
+U128 get_zero();
+U128 get_unit();
+U128 get_unit_neg();
 
 // High/Low структура 128-битного числа со знаком и флагом переполнения.
 // Для иллюстрации алгоритма деления двух U128 чисел реализованы основные
@@ -408,8 +411,7 @@ struct U128 {
             Q = E.mHigh / y;
             R = E.mHigh % y;
             N = R * (mMaxULOW / y) + (E.mLow / y);
-            U128 tmp{N, Q};
-            tmp.mSign = E.mSign;
+            U128 tmp{N, Q, E.mSign};
             if (tmp.is_zero()) {
                 break;
             }
@@ -417,7 +419,7 @@ struct U128 {
             E -= tmp * y;
         }
         if (E.is_negative()) { // И при этом не равно нулю.
-            result -= U128{1, 0};
+            result -= get_unit();
             U128 tmp {y, 0};
             E += tmp;
         }
@@ -445,9 +447,6 @@ struct U128 {
             result.set_nan();
             return result;
         }
-        constexpr U128 ZERO {0, 0};
-        constexpr U128 UNIT {1, 0};
-        constexpr U128 UNIT_NEG {1, 0, true};
         if (Y.mHigh == 0) {
             X.mSign = X.mSign() ^ Y.mSign();
             U128 result = X / Y.mLow;
@@ -467,16 +466,16 @@ struct U128 {
         U128 Quotient = W1 / W2;
         Quotient = Quotient / C1;
         U128 result = U128{Q, 0} + Quotient;
-        if (make_sign_inverse) {-result.mSign;}
+        if (make_sign_inverse) {result = -result;}
         U128 N = Y * result.mLow;
-        if (make_sign_inverse) {-N.mSign;}
+        if (make_sign_inverse) {N = -N;}
         assert(!N.is_overflow());
         U128 Error = X - N;
         U128 More = Error - Y;
-        bool do_inc = More.is_positive();
+        bool do_inc = More.is_nonegative();
         bool do_dec = Error.is_negative();
         while (do_dec || do_inc) {
-            result += (do_inc ? UNIT : (do_dec ? UNIT_NEG : ZERO));
+            result += (do_inc ? get_unit() : (do_dec ? get_unit_neg() : get_zero()));
             if (do_dec) {
                 Error += Y;
             }
@@ -484,7 +483,7 @@ struct U128 {
                 Error -= Y;
             }
             More = Error - Y;
-            do_inc = More.is_positive();
+            do_inc = More.is_nonegative();
             do_dec = Error.is_negative();
         }
         return result;

@@ -14,6 +14,15 @@ static void run_unit_tests() {
         x = x.div10();
         all_is_ok &= !x.is_singular();
         all_is_ok &= x.value().starts_with("34028236692093846346337460743176821145");
+        assert(all_is_ok);
+    }
+
+    { // max_int / max_int
+        u128::U128 x = u128::get_max_value();
+        u128::U128 y = u128::get_max_value();
+        const auto z = x / y;
+        all_is_ok &= z == u128::get_unit();
+        assert(all_is_ok);
     }
 
     { // max_int * 1
@@ -21,6 +30,7 @@ static void run_unit_tests() {
         const auto z = x * u128::get_unit();
         all_is_ok &= !x.is_singular();
         all_is_ok &= x == z;
+        assert(all_is_ok);
     }
 
     { // max_int * -1 == -max_int
@@ -28,6 +38,7 @@ static void run_unit_tests() {
         const auto z = x * u128::get_unit_neg();
         all_is_ok &= !x.is_singular();
         all_is_ok &= -x == z;
+        assert(all_is_ok);
     }
 
     { // max_int / 1
@@ -35,6 +46,7 @@ static void run_unit_tests() {
         const auto z = x / u128::get_unit();
         all_is_ok &= !x.is_singular();
         all_is_ok &= x == z;
+        assert(all_is_ok);
     }
 
     { // max_int / -1 == -max_int
@@ -42,6 +54,7 @@ static void run_unit_tests() {
         const auto z = x / u128::get_unit_neg();
         all_is_ok &= !x.is_singular();
         all_is_ok &= -x == z;
+        assert(all_is_ok);
     }
 
     { // max_int * 1,00...01
@@ -50,6 +63,7 @@ static void run_unit_tests() {
         assert(d2.GetWidth() > 0);
         const auto z = d1 * d2;
         all_is_ok &= z.IsOverflowed();
+        assert(all_is_ok);
     }
 
     { // max_int / 0,999
@@ -58,6 +72,7 @@ static void run_unit_tests() {
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
         all_is_ok &= z.IsOverflowed();
+        assert(all_is_ok);
     }
 
     { // -max_int / 0,999
@@ -66,6 +81,7 @@ static void run_unit_tests() {
         assert(d2.GetWidth() > 0);
         const auto z = d1 / d2;
         all_is_ok &= z.IsOverflowed();
+        assert(all_is_ok);
     }
 
     { // max_int,999 + 0,001
@@ -74,6 +90,7 @@ static void run_unit_tests() {
         assert(d2.GetWidth() == 3);
         const auto z = d1 + d2;
         all_is_ok &= z.IsOverflowed();
+        assert(all_is_ok);
     }
 
     { // -max_int,999 - 0,001
@@ -82,11 +99,13 @@ static void run_unit_tests() {
         assert(d2.GetWidth() == 3);
         const auto z = d1 - d2;
         all_is_ok &= z.IsOverflowed();
+        assert(all_is_ok);
     }
 
     {
         const auto thousand = u128::int_power(10, 3);
         all_is_ok &= thousand == u128::U128{1000, 0};
+        assert(all_is_ok);
     }
 
     {
@@ -94,6 +113,7 @@ static void run_unit_tests() {
         const auto thousand = u128::int_power(10, 3);
         const auto z = ten_to_36 * thousand;
         all_is_ok &= z.is_overflow();
+        assert(all_is_ok);
     }
 
     {
@@ -103,6 +123,7 @@ static void run_unit_tests() {
         const auto z = d1 / d2;
         assert(d2.GetWidth() == 3);
         all_is_ok &= z.IsOverflowed();
+        assert(all_is_ok);
     }
 
     {
@@ -111,45 +132,53 @@ static void run_unit_tests() {
         result.mHigh = 0;
         result.mSign = true;
         all_is_ok &= result.is_negative();
+        assert(all_is_ok);
     }
 
     {
         u128::U128 result{1, 0, true};
         all_is_ok &= result.is_negative();
+        assert(all_is_ok);
     }
 
     {
         u128::U128 big_number {18'446'744'073'709'551'610ull, 0};
         u128::U128 result = big_number + u128::U128{6, 0};
         all_is_ok &= result.value().starts_with( "18446744073709551616" );
+        assert(all_is_ok);
     }
 
     {
         u128::U128 big_number = shl64(u128::get_unit());
-        all_is_ok &= big_number.mod10() == 6; // 2**64 % 10.
+        all_is_ok &= big_number.mod10() == 6; // 2**64 % 10
+        assert(all_is_ok);
     }
 
     {
         u128::U128 max_int_value = u128::get_max_value();
         all_is_ok &= max_int_value.value() == "340282366920938463463374607431768211455";
+        assert(all_is_ok);
     }
 
     {
         u128::U128 max_int_value = u128::get_max_value();
         u128::U128 overflowed = max_int_value + u128::U128{1, 0};
         all_is_ok &= overflowed.is_overflow();
+        assert(all_is_ok);
     }
 
     {
         u128::U128 max_int_value = u128::get_max_value();
         u128::U128 overflowed = max_int_value * u128::U128{2, 0};
         all_is_ok &= overflowed.is_overflow();
+        assert(all_is_ok);
     }
 
     {
         u128::U128 max_int_value = u128::get_max_value();
         u128::U128 normal_value = max_int_value - u128::U128{1, 0};
         all_is_ok &= !normal_value.is_singular();
+        assert(all_is_ok);
     }
 
     {
@@ -157,6 +186,7 @@ static void run_unit_tests() {
         u128::U128 y {1, 0, true};
         const auto z = x * y;
         all_is_ok &= z.is_negative();
+        assert(all_is_ok);
     }
 
     {
@@ -164,6 +194,7 @@ static void run_unit_tests() {
         u128::U128 y {1, 0, true};
         const auto z = x * y;
         all_is_ok &= z.is_positive();
+        assert(all_is_ok);
     }
 
     {
@@ -171,6 +202,7 @@ static void run_unit_tests() {
         u128::U128 y {1, 0, true};
         const auto z = x / y;
         all_is_ok &= z.is_negative();
+        assert(all_is_ok);
     }
 
     {
@@ -178,9 +210,8 @@ static void run_unit_tests() {
         u128::U128 y {1, 0, true};
         const auto z = x / y;
         all_is_ok &= z.is_positive();
+        assert(all_is_ok);
     }
-
-    assert(all_is_ok);
 }
 
 int main(int argc, char *argv[])
