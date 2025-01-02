@@ -17,7 +17,7 @@ Window {
     minimumWidth: width
 
     visible: true
-    title: qsTr("Decimal калькулятор 128-bit")
+    title: qsTr("Decimal калькулятор 128-bit, version " + Global.APP_VERSION)
 
     function regex_1() {
         var pattern = "^[-]?([1-9]\\d{0,2}(\\s?\\d{0,3})*|0)([.,]\\d{0,w_original})?$"
