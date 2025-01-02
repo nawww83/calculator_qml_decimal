@@ -1,14 +1,11 @@
 #pragma once
 
-#include <cmath>   // std::pow
-#include <cassert> // assert
-#include <array>   // std::array
-#include <cstring> // std::memcpy
-#include <string>  // std::string
-#include <climits> // CHAR_BIT
+#include <cassert>   // assert
+#include <array>     // std::array
+#include <string>    // std::string
+#include <climits>   // CHAR_BIT
 #include <algorithm> // std::clamp
-
-#include "u128.h"
+#include "u128.h"    // U128
 
 
 namespace dec_n {
@@ -380,10 +377,11 @@ public:
      * @brief Установить количество знаков после запятой.
      * @param width Количество знаков после запятой.
      * @return Произошло ли изменение количества знаков.
+     * @param max_width Наибольшее количество знаков.
      */
-    static bool SetWidth(int width) {
+    static bool SetWidth(int width, int max_width) {
         int old_width = global.mWidth;
-        global.mWidth = std::clamp(width, 0, 9);
+        global.mWidth = std::clamp(width, 0, max_width);
         global.mDenominator = u128::int_power(10, global.mWidth);
         return global.mWidth != old_width;
     }

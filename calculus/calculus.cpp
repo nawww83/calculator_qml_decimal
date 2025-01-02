@@ -58,7 +58,7 @@ CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Deci
     return dec_n::Decimal{};
 }
 
-void changeDecimalWidth(int width)
+void changeDecimalWidth(int width, int max_width)
 {
-    dec_n::Decimal::SetWidth(width);
+    dec_n::Decimal::SetWidth(width, max_width);
 }

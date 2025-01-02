@@ -9,8 +9,8 @@ import operation.enums 1.0 as Operations
 import "global_vars.js" as Global
 
 Window {
-    width: 640
-    height: 245
+    width: 675
+    height: 250
     maximumHeight: height
     maximumWidth: width
     minimumHeight: height
@@ -93,13 +93,13 @@ Window {
                 id: newDecimalWidthInput
                 font.pointSize: 13
                 Layout.fillWidth: true
-                placeholderText: qsTr("Количество знаков после запятой")
-                validator: RegularExpressionValidator { regularExpression: /(\d)/ }
+                placeholderText: qsTr("Количество знаков после запятой, max " + Global.maxDecimalWidth)
+                validator: RegularExpressionValidator { regularExpression: /(\d{2})/ }
                 Keys.onReturnPressed: dialog.accept()
             }
         }
 
-        onAccepted: { AppCore.change_decimal_width(newDecimalWidthInput.text) }
+        onAccepted: { AppCore.change_decimal_width(newDecimalWidthInput.text, Global.maxDecimalWidth) }
         onOpened: newDecimalWidthInput.focus = true
     }
 
@@ -112,7 +112,7 @@ Window {
             text: ""
             font.pointSize: 16
             Layout.fillWidth: true
-            maximumLength: 64
+            maximumLength: 80
             validator: RegularExpressionValidator { regularExpression: decimalRegEx }
 
             focus: true
@@ -291,10 +291,9 @@ Window {
                         onClicked: AppCore.process(Operations.OperationEnums.DIV, input.text)
                     }
                 }
-
                 Button {
                     id: equal
-                    text: "\u003d"
+                    text: "="
                     bottomPadding: 10
                     font.pixelSize: 28
                     Layout.fillWidth: true
@@ -312,27 +311,6 @@ Window {
                         onClicked: AppCore.process(Operations.OperationEnums.EQUAL, input.text)
                     }
                 }
-
-                Button {
-                    id: clear
-                    text: "Clear"
-                    bottomPadding: 10
-                    font.pixelSize: 24
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: clear.down ? "#ff0000" : (clear.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 2
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.CLEAR_ALL);
-                    }
-                }
                 Button {
                     id: max_integer
                     text: "Max Int"
@@ -340,6 +318,8 @@ Window {
                     font.pixelSize: 24
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Наибольшее целое число")
 
                     background: Rectangle {
                        opacity: enabled ? 1 : 0.3
@@ -351,6 +331,28 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: AppCore.process(Operations.OperationEnums.MAX_INT_VALUE);
+                    }
+                }
+                Button {
+                    id: clear
+                    text: "C"
+                    bottomPadding: 10
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Сброс")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: clear.down ? "#ff0000" : (clear.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.CLEAR_ALL);
                     }
                 }
             }

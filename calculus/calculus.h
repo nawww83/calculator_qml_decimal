@@ -37,7 +37,8 @@ CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Deci
  * @brief Изменить количество знаков после запятой у Decimal. Несмотря на статическую переменную,
  * это требуется, потому что это код библиотеки (dll, so), который отличается от кода основного приложения.
  * @param width Количество знаков после запятой.
+ * @param max_width Наибольшее количество знаков.
  */
-CALCULUS_EXPORT void changeDecimalWidth(int width);
+CALCULUS_EXPORT void changeDecimalWidth(int width, int max_width);
 
 #endif // CALCULUS_H

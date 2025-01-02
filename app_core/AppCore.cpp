@@ -322,16 +322,17 @@ void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal> res, int id)
     }
 }
 
-void AppCore::change_decimal_width(int width)
+void AppCore::change_decimal_width(int width, int max_width)
 {
-    const bool is_changed = dec_n::Decimal::SetWidth(width);
-    emit controller.sync_decimal_width(width);
+    const bool is_changed = dec_n::Decimal::SetWidth(width, max_width);
+    emit controller.sync_decimal_width(width, max_width);
     if (is_changed) {
         Reset();
         emit clearTempResult();
         emit clearCurrentOperation();
         emit clearInputField();
-        emit changeDecimalWidth(width);
-        qDebug().noquote() << modifiers::red << QString::fromUtf8("Изменено количество знаков после запятой: ") << width << modifiers::esc_colorization;
+        emit changeDecimalWidth(dec_n::Decimal::GetWidth());
+        qDebug().noquote() << modifiers::red << QString::fromUtf8("Изменено количество знаков после запятой: ") <<
+                            dec_n::Decimal::GetWidth() << modifiers::esc_colorization;
     }
 }
