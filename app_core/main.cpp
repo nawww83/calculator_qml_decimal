@@ -57,6 +57,13 @@ static void run_unit_tests() {
         assert(all_is_ok);
     }
 
+    {
+        Decimal d1; d1.SetDecimal(u128::get_unit(), u128::get_zero() );
+        const auto z = -d1;
+        all_is_ok &= z.ValueAsStringView().starts_with("-1");
+        assert(all_is_ok);
+    }
+
     { // max_int * 1,00...01
         Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_unit(), u128::get_unit() );
@@ -65,7 +72,6 @@ static void run_unit_tests() {
         all_is_ok &= z.IsOverflowed();
         assert(all_is_ok);
     }
-
 
     { // max_int * 0,5
         Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
