@@ -264,14 +264,22 @@ class Decimal {
             return;
         }
         for (int i = 0; !r.is_zero() ; i++) {
-            mStringRepresentation[required_length - global.mWidth - 1 - separator_length - i] = u128::DIGITS[r.mod10()];
+            const auto mod10 = r.mod10();
+            if (mod10 < 0) {
+                break;
+            }
+            mStringRepresentation[required_length - global.mWidth - 1 - separator_length - i] = u128::DIGITS[mod10];
             r = r.div10();
         }
         if (separator_length > 0) {
             mStringRepresentation[required_length - 1 - global.mWidth] = chars::separator;
         }
         for (int i = 0; i < global.mWidth; i++) {
-            mStringRepresentation[required_length - 1 - i] = u128::DIGITS[fraction.mod10()];
+            const auto mod10 = fraction.mod10();
+            if (mod10 < 0) {
+                break;
+            }
+            mStringRepresentation[required_length - 1 - i] = u128::DIGITS[mod10];
             fraction = fraction.div10();
         }
     }
@@ -355,6 +363,16 @@ class Decimal {
 public:
     explicit Decimal() {
         TransformToString();
+    }
+
+    Decimal operator-() const {
+        Decimal result = *this;
+        if (result.mInteger.is_zero()) {
+            -result.mNominator;
+        } else {
+            -result.mInteger;
+        }
+        return result;
     }
 
     /**
@@ -483,6 +501,14 @@ public:
 
     static auto Denominator() {
         return global.mDenominator;
+    }
+
+    Decimal Abs() const {
+        Decimal result = *this;
+        if (result.IsNegative()) {
+            result = -result;
+        }
+        return result;
     }
 
     /**
@@ -631,6 +657,22 @@ public:
             }
             result.SetDecimal(integer_part, fraction_part);
             return result;
+        }
+        // Оба дробные, и хотя бы один из них имеет ненулевую целую часть.
+        if ((!right_integer && !left_integer) && (!this->mInteger.is_zero() || !other.mInteger.is_zero())) {
+            if (this->mInteger.abs() >= other.mInteger.abs()) {
+                Decimal N; N.SetDecimal(this->mInteger, u128::get_zero());
+                result = N * other;
+                Decimal M; M.SetDecimal(u128::get_zero(), this->mNominator);
+                result = result + M * other;
+                return result;
+            } else {
+                Decimal N; N.SetDecimal(other.mInteger, u128::get_zero());
+                result = N * (*this);
+                Decimal M; M.SetDecimal(u128::get_zero(), other.mNominator);
+                result = result + M * (*this);
+                return result;
+            }
         }
         if (!neg1 && !neg2) {
             const auto A = mInteger*other.mNominator + mNominator*other.mInteger + (mNominator*other.mNominator)/global.mDenominator;
