@@ -368,10 +368,11 @@ public:
     Decimal operator-() const {
         Decimal result = *this;
         if (result.mInteger.is_zero()) {
-            -result.mNominator;
+            result.mNominator = -result.mNominator;
         } else {
-            -result.mInteger;
+            result.mInteger = -result.mInteger;
         }
+        result.TransformToString();
         return result;
     }
 

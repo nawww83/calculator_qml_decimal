@@ -206,7 +206,7 @@ void AppCore::process(int requested_operation, QString input_value)
     // Операция смены знака.
     if (requested_operation == OperationEnums::NEGATION) {
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-        val = dec_n::Decimal{} - val;
+        val = -val;
         std::string_view sv = val.ValueAsStringView();
         emit setInput(QString::fromStdString({sv.data(), sv.size()}));
         return;
