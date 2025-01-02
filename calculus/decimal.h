@@ -844,11 +844,11 @@ public:
             result.SetDecimal(integer_part, fraction_part);
             return result;
         }
-        const bool nominator_is_integer = mNominator.is_zero() && !mInteger.is_zero();
-        if (nominator_is_integer) {
-            const u128::U128 tmp = mInteger.abs() * global.mDenominator;
+        const bool nominator_has_integer = !mInteger.is_zero();
+        if (nominator_has_integer) {
+            const u128::U128 tmp = mInteger.abs() * global.mDenominator + mNominator.abs();
             if (tmp.is_overflow()) {
-                Decimal N; N.SetDecimal( mInteger, u128::get_zero() );
+                Decimal N; N.SetDecimal( mInteger, mNominator );
                 const bool sign = other.IsNegative();
                 const auto D = other.mNominator.abs() + global.mDenominator*other.mInteger.abs();
                 Decimal M; M.SetDecimal( sign ? -D : D, u128::get_zero() );

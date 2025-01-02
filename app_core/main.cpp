@@ -141,6 +141,18 @@ static void run_unit_tests() {
         assert(all_is_ok);
     }
 
+    { // (max_int * 0,9) / 0,9
+        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
+        Decimal d2; d2.SetDecimal(u128::get_zero(),  u128::U128{900, 0} );
+        assert(d2.GetWidth() == 3);
+        auto z = d1 * d2;
+        z = z / d2;
+        const auto error = z - d1;
+        all_is_ok &= !z.IsOverflowed();
+        all_is_ok &= error.Abs().IntegerPart().is_zero();
+        assert(all_is_ok);
+    }
+
     { // max_int / 0,999
         Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_zero(),  u128::U128{999, 0} );
