@@ -78,7 +78,6 @@ struct U128;
 U128 shl64(U128 x);
 U128 get_zero();
 U128 get_unit();
-U128 get_unit_neg();
 int num_of_digits(U128 x);
 
 // High/Low структура 128-битного числа со знаком и флагом переполнения.
@@ -476,7 +475,7 @@ struct U128 {
         bool do_inc = More.is_nonegative();
         bool do_dec = Error.is_negative();
         while (do_dec || do_inc) {
-            result += (do_inc ? get_unit() : (do_dec ? get_unit_neg() : get_zero()));
+            result += (do_inc ? get_unit() : (do_dec ? -get_unit() : get_zero()));
             if (do_dec) {
                 Error += Y;
             }
@@ -529,14 +528,6 @@ inline U128 get_unit() {
     U128 result{};
     result.mLow = 1;
     result.mHigh = 0;
-    return result;
-}
-
-inline U128 get_unit_neg() {
-    U128 result{};
-    result.mLow = 1;
-    result.mHigh = 0;
-    result.mSign = true;
     return result;
 }
 
