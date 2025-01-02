@@ -234,9 +234,6 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
 
     AppCore AppCore;
-    if (! dec_n::is_two_complement()) {
-        return 0;
-    }
 
     qDebug() << "Test...";
     run_unit_tests();

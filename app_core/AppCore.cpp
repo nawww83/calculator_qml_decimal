@@ -61,14 +61,15 @@ static constexpr auto err_description = [](int error_code) -> QString {
  */
 static constexpr auto description = [](int operation) -> QString {
     switch (operation) {
-        case OperationEnums::ADD:       return QString::fromUtf8("Сложение");
-        case OperationEnums::SUB:       return QString::fromUtf8("Вычитание");
-        case OperationEnums::MULT:      return QString::fromUtf8("Умножение");
-        case OperationEnums::DIV:       return QString::fromUtf8("Деление");
-        case OperationEnums::EQUAL:     return QString::fromUtf8("Равно");
-        case OperationEnums::NEGATION:  return QString::fromUtf8("Смена знака");
-        case OperationEnums::CLEAR_ALL: return QString::fromUtf8("Сброс");
-        default:                        return QString::fromUtf8("Неизвестная операция");
+        case OperationEnums::ADD:           return QString::fromUtf8("Сложение");
+        case OperationEnums::SUB:           return QString::fromUtf8("Вычитание");
+        case OperationEnums::MULT:          return QString::fromUtf8("Умножение");
+        case OperationEnums::DIV:           return QString::fromUtf8("Деление");
+        case OperationEnums::EQUAL:         return QString::fromUtf8("Равно");
+        case OperationEnums::NEGATION:      return QString::fromUtf8("Смена знака");
+        case OperationEnums::CLEAR_ALL:     return QString::fromUtf8("Сброс");
+        case OperationEnums::MAX_INT_VALUE: return QString::fromUtf8("Наибольшее целое число");
+        default:                            return QString::fromUtf8("Неизвестная операция");
     }
 };
 

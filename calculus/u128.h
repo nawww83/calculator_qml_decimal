@@ -79,6 +79,7 @@ U128 shl64(U128 x);
 U128 get_zero();
 U128 get_unit();
 U128 get_unit_neg();
+int num_of_digits(U128 x);
 
 // High/Low структура 128-битного числа со знаком и флагом переполнения.
 // Для иллюстрации алгоритма деления двух U128 чисел реализованы основные
@@ -561,6 +562,20 @@ inline U128 shl64(U128 x) { // x * 2^64
         result.set_overflow();
     }
     return result;
+}
+
+/**
+ * @brief Количество цифр числа.
+ * @param x Число.
+ * @return Количество цифр, минимум 1.
+ */
+inline int num_of_digits(U128 x) {
+    int i = 0;
+    while (!x.is_zero()) {
+        x = x.div10();
+        i++;
+    }
+    return i + (i == 0);
 }
 
 inline U128 get_by_digit(int digit) {

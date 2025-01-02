@@ -50,38 +50,6 @@ constexpr int undigits(char d) {
     }
 }
 
-/**
- * @brief Количество цифр числа.
- * @param x Число.
- * @return Количество цифр, минимум 1.
- */
-inline int num_of_digits(u128::U128 x) {
-    int i = 0;
-    while (!x.is_zero()) {
-        x = x.div10();
-        i++;
-    }
-    return i + (i == 0);
-}
-
-/**
- * @brief Работает ли платформа с дополнительным кодом.
- * @return Да/нет.
- */
-inline bool is_two_complement() {
-    const unsigned long long w = static_cast<unsigned long long>(-1ll);
-    std::byte b[8];
-    std::memcpy(b, &w, sizeof(b));
-    const auto ref = std::byte(255);
-    bool all_is_0xff = true;
-    for (int i=0; i<(int)sizeof(b); ++i) {
-        all_is_0xff &= b[i] == ref;
-    }
-    const long long wi = static_cast<long long>(w);
-    assert(wi == -1ll);
-    return all_is_0xff && wi == -1ll;
-}
-
 namespace chars {
     static const char minus_sign = '-';
     static const char separator = ',';
@@ -277,7 +245,7 @@ class Decimal {
         }
         mChangedDenominator = global.mDenominator;
         const int separator_length = global.mWidth < 1 ? 0 : 1;
-        const int required_length = (num_of_digits(r) + separator_length + global.mWidth) + (the_sign == 0 ? 0 : 1);
+        const int required_length = (u128::num_of_digits(r) + separator_length + global.mWidth) + (the_sign == 0 ? 0 : 1);
         // Целая часть, разделитель, дробная часть (precision), знак.
         assert(required_length <= Vector128::MaxSize());
         assert(required_length > 0);
@@ -599,32 +567,26 @@ public:
             result.SetNotANumber();
             return result;
         }
-        const bool neg1 = IsNegative();
-        const bool neg2 = other.IsNegative();
-        const bool overflow1 = (mInteger * other.mNominator).is_overflow();
-        const bool overflow2 = (other.mInteger * mNominator).is_overflow();
-        const bool overflow3 = (mInteger * mNominator).is_overflow();
-        const bool overflow4 = (other.mInteger * other.mNominator).is_overflow();
-        const bool overflow5 = (mNominator * other.mNominator).is_overflow();
-        const bool overflow6 = (mInteger * other.mInteger).is_overflow();
-        const bool all_integers = mNominator.is_zero() && other.mNominator.is_zero();
-        if (overflow6) {
+        auto integer_part = mInteger * other.mInteger;
+        if (integer_part.is_overflow()) {
             result.SetInfinity();
             return result;
         }
-        auto integer_part = mInteger * other.mInteger;
+        const bool all_integers = mNominator.is_zero() && other.mNominator.is_zero();
         auto fraction_part = integer_part * 0;
         if (all_integers) {
             result.SetDecimal(integer_part, fraction_part);
             return result;
         }
+        const bool neg1 = IsNegative();
+        const bool neg2 = other.IsNegative();
         const bool left_integer = mNominator.is_zero() && !other.mNominator.is_zero();
         if (left_integer) {
-            if (overflow1) {
+            const auto A = mInteger.abs() * other.mNominator.abs();
+            if (A.is_overflow()) {
                 result.SetInfinity();
                 return result;
             }
-            const auto A = mInteger.abs() * other.mNominator.abs();
             const auto tmp = A / global.mDenominator;
             integer_part += (neg1 ^ neg2) ? -tmp : tmp;
             fraction_part = A - tmp * global.mDenominator;
@@ -636,12 +598,11 @@ public:
         }
         const bool right_integer = !mNominator.is_zero() && other.mNominator.is_zero();
         if (right_integer) {
-            if (overflow2) {
+            const auto A = mNominator.abs() * other.mInteger.abs();
+            if (A.is_overflow()) {
                 result.SetInfinity();
                 return result;
             }
-
-            const auto A = mNominator.abs() * other.mInteger.abs();
             const auto tmp = A / global.mDenominator;
             integer_part += (neg1 ^ neg2) ? -tmp : tmp;
             fraction_part = A - tmp * global.mDenominator;
@@ -651,12 +612,12 @@ public:
             result.SetDecimal(integer_part, fraction_part);
             return result;
         }
-        if (overflow1 || overflow2 || overflow3 || overflow4 || overflow5 || overflow6) {
-            result.SetInfinity();
-            return result;
-        }
         if (!neg1 && !neg2) {
             const auto A = mInteger*other.mNominator + mNominator*other.mInteger + (mNominator*other.mNominator)/global.mDenominator;
+            if (A.is_overflow()) {
+                result.SetInfinity();
+                return result;
+            }
             const auto tmp = A / global.mDenominator;
             integer_part += tmp;
             fraction_part = A - tmp * global.mDenominator;
@@ -668,6 +629,10 @@ public:
             const int neg2_weak = other.IsWeakNegative();
             if (neg1_strong && neg2_strong) {
                 const auto A = mInteger.abs()*other.mNominator + other.mInteger.abs()*mNominator + (mNominator*other.mNominator)/global.mDenominator;
+                if (A.is_overflow()) {
+                    result.SetInfinity();
+                    return result;
+                }
                 const auto tmp = A / global.mDenominator;
                 integer_part += tmp;
                 fraction_part = A - tmp * global.mDenominator;
@@ -675,19 +640,30 @@ public:
             }
             if (neg1_weak && neg2_strong) {
                 const auto A = other.mInteger.abs()*mNominator.abs() + (mNominator.abs()*other.mNominator)/global.mDenominator;
+                if (A.is_overflow()) {
+                    result.SetInfinity();
+                    return result;
+                }
                 const auto tmp = A / global.mDenominator;
                 integer_part += tmp;
                 fraction_part = A - tmp * global.mDenominator;
             }
             if (neg1_strong && neg2_weak) {
                 const auto A = mInteger.abs()*other.mNominator.abs() + (mNominator*other.mNominator.abs())/global.mDenominator;
+                if (A.is_overflow()) {
+                    result.SetInfinity();
+                    return result;
+                }
                 const auto tmp = A / global.mDenominator;
                 integer_part += tmp;
                 fraction_part = A - tmp * global.mDenominator;
             }
             if (neg1_weak && neg2_weak) {
-
                 const auto A = (mNominator.abs()*other.mNominator.abs())/global.mDenominator;
+                if (A.is_overflow()) {
+                    result.SetInfinity();
+                    return result;
+                }
                 const auto tmp = A / global.mDenominator;
                 integer_part += tmp;
                 fraction_part = A - tmp * global.mDenominator;
@@ -698,6 +674,10 @@ public:
             const int neg1_weak = IsWeakNegative();
             if (neg1_strong) {
                 const auto A = mInteger.abs()*other.mNominator + other.mInteger*mNominator + (mNominator*other.mNominator)/global.mDenominator;
+                if (A.is_overflow()) {
+                    result.SetInfinity();
+                    return result;
+                }
                 const auto tmp = A / global.mDenominator;
                 integer_part = integer_part.abs() + tmp;
                 fraction_part = A - tmp * global.mDenominator;
@@ -706,6 +686,10 @@ public:
             }
             if (neg1_weak) {
                 const auto A = other.mInteger*mNominator.abs() + (mNominator.abs()*other.mNominator)/global.mDenominator;
+                if (A.is_overflow()) {
+                    result.SetInfinity();
+                    return result;
+                }
                 const auto tmp = A / global.mDenominator;
                 integer_part = tmp;
                 fraction_part = A - tmp * global.mDenominator;
@@ -718,6 +702,10 @@ public:
             const int neg2_weak = other.IsWeakNegative();
             if (neg2_strong) {
                 const auto A = mInteger*other.mNominator + other.mInteger.abs()*mNominator + (mNominator*other.mNominator)/global.mDenominator;
+                if (A.is_overflow()) {
+                    result.SetInfinity();
+                    return result;
+                }
                 const auto tmp = A / global.mDenominator;
                 integer_part = integer_part.abs() + tmp;
                 fraction_part = A - tmp * global.mDenominator;
@@ -726,6 +714,10 @@ public:
             }
             if (neg2_weak) {
                 const auto A = mInteger*other.mNominator.abs() + (mNominator*other.mNominator.abs())/global.mDenominator;
+                if (A.is_overflow()) {
+                    result.SetInfinity();
+                    return result;
+                }
                 const auto tmp = A / global.mDenominator;
                 integer_part = tmp;
                 fraction_part = A - tmp * global.mDenominator;
