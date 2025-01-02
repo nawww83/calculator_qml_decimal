@@ -584,7 +584,12 @@ public:
         if (left_integer) {
             const auto A = mInteger.abs() * other.mNominator.abs();
             if (A.is_overflow()) {
-                result.SetInfinity();
+                Decimal N; N.SetDecimal( mInteger, u128::get_zero() ); // Через Decimal вычисляется точно.
+                Decimal M; M.SetDecimal( global.mDenominator, u128::get_zero() );
+                Decimal P; P.SetDecimal( other.mNominator, u128::get_zero() );
+                N = N / M;
+                N = N * P;
+                result = result + N;
                 return result;
             }
             const auto tmp = A / global.mDenominator;
@@ -600,7 +605,12 @@ public:
         if (right_integer) {
             const auto A = mNominator.abs() * other.mInteger.abs();
             if (A.is_overflow()) {
-                result.SetInfinity();
+                Decimal N; N.SetDecimal( other.mInteger, u128::get_zero() ); // Через Decimal вычисляется точно.
+                Decimal M; M.SetDecimal( global.mDenominator, u128::get_zero() );
+                Decimal P; P.SetDecimal( mNominator, u128::get_zero() );
+                N = N / M;
+                N = N * P;
+                result = result + N;
                 return result;
             }
             const auto tmp = A / global.mDenominator;
