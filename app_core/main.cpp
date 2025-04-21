@@ -205,6 +205,42 @@ static void run_unit_tests() {
         assert(all_is_ok);
     }
 
+    { // -X * -Y
+        Decimal d1; d1.SetDecimal(-u128::U128{55, 0}, u128::U128{550, 0} );
+        Decimal d2; d2.SetDecimal(-u128::U128{44, 0}, u128::U128{440, 0} );
+        assert(d2.GetWidth() == 3);
+        const auto z = d1 * d2;
+        all_is_ok &= z.ValueAsStringView() == "2468,642";
+        assert(all_is_ok);
+    }
+
+    { // -X * Y
+        Decimal d1; d1.SetDecimal(-u128::U128{55, 0}, u128::U128{550, 0} );
+        Decimal d2; d2.SetDecimal(u128::U128{44, 0}, u128::U128{440, 0} );
+        assert(d2.GetWidth() == 3);
+        const auto z = d1 * d2;
+        all_is_ok &= z.ValueAsStringView() == "-2468,642";
+        assert(all_is_ok);
+    }
+
+    { // X * -Y
+        Decimal d1; d1.SetDecimal(u128::U128{55, 0}, u128::U128{550, 0} );
+        Decimal d2; d2.SetDecimal(-u128::U128{44, 0}, u128::U128{440, 0} );
+        assert(d2.GetWidth() == 3);
+        const auto z = d1 * d2;
+        all_is_ok &= z.ValueAsStringView() == "-2468,642";
+        assert(all_is_ok);
+    }
+
+    { // X * Y
+        Decimal d1; d1.SetDecimal(u128::U128{55, 0}, u128::U128{550, 0} );
+        Decimal d2; d2.SetDecimal(u128::U128{44, 0}, u128::U128{440, 0} );
+        assert(d2.GetWidth() == 3);
+        const auto z = d1 * d2;
+        all_is_ok &= z.ValueAsStringView() == "2468,642";
+        assert(all_is_ok);
+    }
+
     {
         const auto thousand = u128::int_power(10, 3);
         all_is_ok &= thousand == u128::U128{1000, 0};

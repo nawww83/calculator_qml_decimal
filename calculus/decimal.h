@@ -662,13 +662,13 @@ public:
             if (this->mInteger.abs() >= other.mInteger.abs()) {
                 Decimal N; N.SetDecimal(this->mInteger, u128::get_zero());
                 result = N * other;
-                Decimal M; M.SetDecimal(u128::get_zero(), this->mNominator);
+                Decimal M; M.SetDecimal(u128::get_zero(), (this->mInteger.is_negative() ? -this->mNominator : this->mNominator));
                 result = result + M * other;
                 return result;
             } else {
                 Decimal N; N.SetDecimal(other.mInteger, u128::get_zero());
                 result = N * (*this);
-                Decimal M; M.SetDecimal(u128::get_zero(), other.mNominator);
+                Decimal M; M.SetDecimal(u128::get_zero(), (other.mInteger.is_negative() ? -other.mNominator : other.mNominator));
                 result = result + M * (*this);
                 return result;
             }
@@ -681,7 +681,8 @@ public:
             }
             const auto [tmp, remainder] = A / global.mDenominator;
             integer_part += tmp;
-            fraction_part = A - tmp * global.mDenominator;
+            // fraction_part = A - tmp * global.mDenominator;
+            fraction_part = remainder;
         }
         if (neg1 && neg2) {
             const int neg1_strong = IsStrongNegative();
@@ -696,7 +697,8 @@ public:
                 }
                 const auto [tmp, remainder] = A / global.mDenominator;
                 integer_part += tmp;
-                fraction_part = A - tmp * global.mDenominator;
+                // fraction_part = A - tmp * global.mDenominator;
+                fraction_part = remainder;
 
             }
             if (neg1_weak && neg2_strong) {
@@ -707,7 +709,8 @@ public:
                 }
                 const auto [tmp, remainder] = A / global.mDenominator;
                 integer_part += tmp;
-                fraction_part = A - tmp * global.mDenominator;
+                // fraction_part = A - tmp * global.mDenominator;
+                fraction_part = remainder;
             }
             if (neg1_strong && neg2_weak) {
                 const auto A = mInteger.abs()*other.mNominator.abs() + ((mNominator*other.mNominator.abs())/global.mDenominator).first;
@@ -717,7 +720,8 @@ public:
                 }
                 const auto [tmp, remainder] = A / global.mDenominator;
                 integer_part += tmp;
-                fraction_part = A - tmp * global.mDenominator;
+                // fraction_part = A - tmp * global.mDenominator;
+                fraction_part = remainder;
             }
             if (neg1_weak && neg2_weak) {
                 const auto [A, remainder] = (mNominator.abs()*other.mNominator.abs())/global.mDenominator;
@@ -727,7 +731,8 @@ public:
                 }
                 const auto [tmp, remainder2] = A / global.mDenominator;
                 integer_part += tmp;
-                fraction_part = A - tmp * global.mDenominator;
+                // fraction_part = A - tmp * global.mDenominator;
+                fraction_part = remainder2;
             }
         }
         if (neg1 && !neg2) {
