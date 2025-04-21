@@ -387,7 +387,7 @@ Window {
             text: "Смена знака числа: нажмите underscore <b>&#95;</b><br>
                     Cброс: <b>Esc</b><br>
                     Смена количества знаков после запятой: <b>Ctrl+S</b><br>
-                    Вводимые операции не имеют приоритета.<br>
+                    Двухоперандные операции не имеют приоритета.<br>
                     <a href=\"https://github.com/nawww83/calculator_qml_decimal\">See github: nawww83</a>"
             onLinkActivated: link => Qt.openUrlExternally(link)
             MouseArea {

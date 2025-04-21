@@ -55,6 +55,9 @@ CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Deci
             error_code = calculus::ZERO_DIVISION;
         }
         break;
+    case calculus::SEPARATOR:
+        error_code = calculus::UNKNOW_OP;
+        break;
     default: error_code = calculus::UNKNOW_OP;
     }
     return dec_n::Decimal{};

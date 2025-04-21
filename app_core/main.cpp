@@ -6,6 +6,7 @@
 
 using namespace dec_n;
 
+#ifdef QT_DEBUG
 static void run_unit_tests() {
     bool all_is_ok = true;
 
@@ -315,6 +316,8 @@ static void run_unit_tests() {
         assert(all_is_ok);
     }
 }
+#endif
+
 
 int main(int argc, char *argv[])
 {
@@ -337,9 +340,11 @@ int main(int argc, char *argv[])
 
     AppCore AppCore;
 
+    #ifdef QT_DEBUG
     qDebug() << "Test...";
     run_unit_tests();
     qDebug() << "Test is Ok!";
+    #endif
 
     auto ctx = engine.rootContext();
     ctx->setContextProperty("AppCore", &AppCore);
