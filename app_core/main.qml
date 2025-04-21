@@ -312,6 +312,28 @@ Window {
                     }
                 }
                 Button {
+                    id: sqrt
+                    text: "SQRT"
+                    bottomPadding: 10
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Корень квадратный из модуля числа")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: sqrt.down ? "#ff0000" : (sqrt.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.SQRT, input.text);
+                    }
+                }
+                Button {
                     id: max_integer
                     text: "Max Int"
                     bottomPadding: 10

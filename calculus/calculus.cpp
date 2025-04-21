@@ -36,6 +36,8 @@ CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Deci
         break;
     case calculus::NEG: result = dec_n::Decimal{} - x;
         return result;
+    case calculus::SQRT: result = dec_n::Sqrt(x);
+        return result;
     case calculus::DIV:
         if (!y.IsZero()) {
             result = x / y;

@@ -1,10 +1,12 @@
 #pragma once
 
 #include <algorithm> // std::reverse
-#include <cassert>
-#include <cstdint>
-#include <climits>
-#include <string> // std::string
+#include <map>       // std::map
+#include <cassert> // assert
+#include <string>    // std::string
+#include <utility>   // std::pair
+#include <functional> // std::function
+#include <tuple> // std::ignore, std::tie
 
 namespace u128 {
 
@@ -25,6 +27,12 @@ struct Quadrupole { // Структура для задания дроби (A*M 
 struct Signess { // Структура для задания знаков двух чисел.
     bool s1;
     bool s2;
+};
+
+struct Dipole { // Структура для задания числа (A*M + B).
+    // M - множитель системы счисления, 2^W, W = 64 - битовая ширина половинок.
+    ULOW A;
+    ULOW B;
 };
 
 static constexpr char DIGITS[10]{'0', '1', '2', '3', '4',
@@ -78,7 +86,7 @@ struct U128;
 U128 shl64(U128 x);
 U128 get_zero();
 U128 get_unit();
-int num_of_digits(U128 x);
+U128 get_unit_neg();
 
 // High/Low структура 128-битного числа со знаком и флагом переполнения.
 // Для иллюстрации алгоритма деления двух U128 чисел реализованы основные
@@ -358,7 +366,7 @@ struct U128 {
     }
 
     U128 div10() const { // Специальный метод деления на 10 для формирования
-                         // строкового представления числа.
+        // строкового представления числа.
         U128 X = *this;
         if (X.is_singular()) {
             return X;
@@ -384,7 +392,7 @@ struct U128 {
     }
 
     int mod10() const { // Специальный метод нахождения остатка от деления на 10 для формирования
-                        // строкового представления числа.
+        // строкового представления числа.
         if (this->is_singular()) {
             return -1;
         }
@@ -396,17 +404,17 @@ struct U128 {
     // Наиболее вероятное количество итераций: ~N/4, где N - количество битов узкого числа.
     // В данном случае имеем ~64/4 = 16 итераций.
     // Максимум до ~(N+1) итерации.
-    U128 operator/(ULOW y) const {
+    std::pair<U128, U128> operator/(ULOW y) const {
         assert(y != 0);
         const U128 X = *this;
         if (X.is_singular()) {
-            return X;
+            return std::make_pair(X, u128::get_zero());
         }
         ULOW Q = X.mHigh / y;
         ULOW R = X.mHigh % y;
         ULOW N = R * (mMaxULOW / y) + (X.mLow / y);
         U128 result{N, Q, X.mSign};
-        U128 E = X - result * y; // Ошибка от деления: остаток от деления.
+        U128 E = X - result * y; // Остаток от деления.
         for (;;) {
             Q = E.mHigh / y;
             R = E.mHigh % y;
@@ -423,33 +431,34 @@ struct U128 {
             U128 tmp {y, 0};
             E += tmp;
         }
-        return result;
+        return std::make_pair(result, E);
     }
 
-    U128& operator/=(ULOW y) {
-        *this = *this / y;
-        return *this;
+    std::pair<U128, U128> operator/=(ULOW y) {
+        U128 remainder;
+        std::tie(*this, remainder) = *this / y;
+        return std::make_pair(*this, remainder);
     }
 
     // Метод деления двух широких чисел.
     // Отсутствует "раскачка" алгоритма для "плохих" случаев деления: (A*M + B)/(1*M + D).
     // Наиболее вероятное общее количество итераций: 4...6.
-    U128 operator/(const U128 other) const {
+    std::pair<U128, U128> operator/(const U128 other) const {
         U128 X = *this;
         U128 Y = other;
         if (X.is_overflow() || Y.is_overflow()) {
             U128 result;
             result.set_overflow();
-            return result;
+            return std::make_pair(result, u128::get_zero());
         }
         if (X.is_nan() || Y.is_nan()) {
             U128 result;
             result.set_nan();
-            return result;
+            return std::make_pair(result, u128::get_zero());
         }
         if (Y.mHigh == 0) {
             X.mSign = X.mSign() ^ Y.mSign();
-            U128 result = X / Y.mLow;
+            auto result = X / Y.mLow;
             return result;
         }
         const bool make_sign_inverse = X.mSign != Y.mSign;
@@ -463,8 +472,8 @@ struct U128 {
         W1 = W1 + DeltaQ;
         const ULOW C1 = (Y.mHigh < mMaxULOW) ? Y.mHigh + ULOW(1) : mMaxULOW;
         const ULOW W2 = mMaxULOW - Delta / C1;
-        U128 Quotient = W1 / W2;
-        Quotient = Quotient / C1;
+        auto [Quotient, _] = W1 / W2;
+        std::tie(Quotient, std::ignore) = Quotient / C1;
         U128 result = U128{Q, 0} + Quotient;
         if (make_sign_inverse) {result = -result;}
         U128 N = Y * result.mLow;
@@ -475,7 +484,7 @@ struct U128 {
         bool do_inc = More.is_nonegative();
         bool do_dec = Error.is_negative();
         while (do_dec || do_inc) {
-            result += (do_inc ? get_unit() : (do_dec ? -get_unit() : get_zero()));
+            result += (do_inc ? get_unit() : (do_dec ? get_unit_neg() : get_zero()));
             if (do_dec) {
                 Error += Y;
             }
@@ -486,12 +495,12 @@ struct U128 {
             do_inc = More.is_nonegative();
             do_dec = Error.is_negative();
         }
-        return result;
+        return std::make_pair(result, Error);
     }
 
     /**
- * Возвращает строковое представление числа.
- */
+    * Возвращает строковое представление числа.
+    */
     std::string value() const {
         std::string result{};
         if (this->is_overflow()) {
@@ -528,6 +537,14 @@ inline U128 get_unit() {
     U128 result{};
     result.mLow = 1;
     result.mHigh = 0;
+    return result;
+}
+
+inline U128 get_unit_neg() {
+    U128 result{};
+    result.mLow = 1;
+    result.mHigh = 0;
+    result.mSign = true;
     return result;
 }
 
@@ -569,9 +586,141 @@ inline int num_of_digits(U128 x) {
     return i + (i == 0);
 }
 
+/**
+ * Целочисленный квадратный корень.
+ * @param exact Точно ли прошло извлечение корня.
+ */
+inline U128 isqrt(U128 x, bool& exact) {
+    exact = false;
+    if (x.is_singular()) {
+        return x;
+    }
+    const U128 c {ULOW(1) << U128::mHalfWidth, 0};
+    U128 result;
+    x = x.abs();
+    if (x >= U128{0, 1}) {
+        result = c;
+    } else {
+        result = U128 {ULOW(1) << (U128::mHalfWidth / 2), 0};
+    }
+    U128 prevprev = get_unit_neg();
+    U128 prev = x;
+    for (;;) {
+        prevprev = prev;
+        prev = result;
+        const auto [tmp, remainder] = x / result;
+        std::tie(result, std::ignore) = (result + tmp) / 2;
+        if (result.is_zero()) {
+            exact = true;
+            return result;
+        }
+        if (result == prev) {
+            exact = (tmp == prev) && remainder.is_zero(); // Нет остатка от деления.
+            return result;
+        }
+        if (result == prevprev) {
+            return prev;
+        }
+    }
+}
+
+inline bool is_prime(U128 x) {
+    [[maybe_unused]] bool exact;
+    const auto x_sqrt = isqrt(x, exact) + u128::get_unit();
+    U128 d {2, 0};
+    bool is_ok = true;
+    while (d < x_sqrt) {
+        auto [_, remainder] = x / d;
+        is_ok &= !remainder.is_zero();
+        d += u128::get_unit();
+    }
+    return is_ok;
+}
+
+inline std::pair<U128, int> div_by_2(U128& x) {
+    auto [tmp, remainder] = x / 2;
+    int i = 0;
+    while (remainder.is_zero()) {
+        i++;
+        x = tmp;
+        std::tie(tmp, remainder) = x / 2;
+    }
+    return std::make_pair(U128{2, 0}, i);
+}
+
+inline std::pair<U128, U128> ferma_method(U128 x) {
+    bool exact;
+    const auto x_sqrt = isqrt(x, exact);
+    if (exact) {
+        return std::make_pair(x_sqrt, x_sqrt);
+    }
+    const auto error = x - x_sqrt * x_sqrt;
+    auto y = U128{2, 0} * x_sqrt + u128::get_unit() - error;
+    for (auto k = u128::get_unit(); ; k += u128::get_unit()) {
+        if (k > U128(1, 0)) { // Проверка с другой стороны: ускоряет поиск.
+            // Основано на равенстве, следующем из метода Ферма: индекс k = (F^2 + x) / (2F) - floor(sqrt(x)).
+            // Здесь F - кандидат в множители, x - раскладываемое число.
+            auto [test, remainder] = (k * k + x) / (U128{2, 0} * k); // Здесь k как некоторый множитель F.
+            test -= x_sqrt;
+            if ( test.is_positive() && remainder.is_zero()) {
+                auto [tmp, remainder] = x / k;
+                if (remainder.is_zero()) // На всякий случай оставим.
+                    return std::make_pair(k, tmp);
+            }
+        }
+        bool exact;
+        auto y_sqrt = isqrt(y, exact);
+        const auto delta = U128{2, 0} * x_sqrt + U128{2, 0} * k + u128::get_unit();
+        y = y + delta;
+        if (!exact)
+            continue;
+        return std::make_pair(x_sqrt + k - y_sqrt, x_sqrt + k + y_sqrt);
+    }
+    return std::make_pair(x, U128{1, 0}); // По какой-то причине не раскладывается.
+};
+
+inline std::map<U128, int> factor(U128 x) {
+    if (x.is_zero()) {
+        return {{x, 1}};
+    }
+    if (x == u128::get_unit()) {
+        return {{x, 1}};
+    }
+    if (x.is_singular()) {
+        return {{x, 1}};
+    }
+    x = x.abs();
+    std::map<U128, int> result{};
+    // Делим на 2 до упора.
+    {
+        auto [p, i] = div_by_2(x);
+        if (i > 0)
+            result[p] = i;
+        if (x < U128{2, 0}) {
+            return result;
+        }
+    }
+    // Применяем метод Ферма рекурсивно.
+    std::function<void(U128)> ferma_recursive;
+    ferma_recursive = [&ferma_recursive, &result](U128 x) -> void {
+        auto [a, b] = ferma_method(x);
+        if (a == U128{1, 0}) {
+            result[b]++;
+            return;
+        }
+        else if (b == U128{1, 0}) {
+            result[a]++;
+            return;
+        }
+        ferma_recursive(a);
+        ferma_recursive(b);
+    };
+    ferma_recursive(x);
+    return result;
+}
+
 inline U128 get_by_digit(int digit) {
     return U128{static_cast<u128::ULOW>(digit), 0};
 }
-
 
 } // namespace u128

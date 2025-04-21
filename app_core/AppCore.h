@@ -15,6 +15,7 @@ enum Operations {
     SUB,
     MULT,
     DIV,
+    SQRT,
     NEGATION,
     MAX_INT_VALUE   // Получить наибольшее целое (положительное) число.
 };

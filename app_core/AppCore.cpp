@@ -66,6 +66,7 @@ static constexpr auto description = [](int operation) -> QString {
         case OperationEnums::MULT:          return QString::fromUtf8("Умножение");
         case OperationEnums::DIV:           return QString::fromUtf8("Деление");
         case OperationEnums::EQUAL:         return QString::fromUtf8("Равно");
+        case OperationEnums::SQRT:          return QString::fromUtf8("Квадратный корень");
         case OperationEnums::NEGATION:      return QString::fromUtf8("Смена знака");
         case OperationEnums::CLEAR_ALL:     return QString::fromUtf8("Сброс");
         case OperationEnums::MAX_INT_VALUE: return QString::fromUtf8("Наибольшее целое число");
@@ -123,7 +124,7 @@ void AppCore::DoWork(dec_n::Decimal value, int operation) {
     };
     switch (mState) {
         case StateEnums::EQUALS_LOOP:
-        mRegister[1] = value;
+            mRegister[1] = value;
             push_request();
             break;
         case StateEnums::EQUAL_TO_OP:
@@ -179,7 +180,8 @@ void AppCore::process(int requested_operation, QString input_value)
     if ((mState == StateEnums::RESETTED) && is_not_a_number) {
         return;
     }
-    if (requested_operation != OperationEnums::NEGATION && requested_operation != OperationEnums::EQUAL) {
+    if (requested_operation != OperationEnums::NEGATION &&
+        requested_operation != OperationEnums::EQUAL) {
         emit showCurrentOperation(description(requested_operation));
     }
     // Обработка запроса при пустом поле ввода и существовании математической операции.
@@ -202,6 +204,10 @@ void AppCore::process(int requested_operation, QString input_value)
     }
     const bool current_val_is_the_same = (val == mPreviousValue);
     mPreviousValue = val;
+    if (requested_operation == OperationEnums::SQRT) {
+        mCurrentOperation = requested_operation;
+        requested_operation = OperationEnums::EQUAL;
+    }
     // Обработка частичных операций.
     // Операция смены знака.
     if (requested_operation == OperationEnums::NEGATION) {

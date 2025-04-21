@@ -20,7 +20,7 @@ static void run_unit_tests() {
     { // max_int / max_int
         u128::U128 x = u128::get_max_value();
         u128::U128 y = u128::get_max_value();
-        const auto z = x / y;
+        const auto [z, remainder] = x / y;
         all_is_ok &= z == u128::get_unit();
         assert(all_is_ok);
     }
@@ -43,7 +43,7 @@ static void run_unit_tests() {
 
     { // max_int / 1
         u128::U128 x = u128::get_max_value();
-        const auto z = x / u128::get_unit();
+        const auto [z, remainder] = x / u128::get_unit();
         all_is_ok &= !x.is_singular();
         all_is_ok &= x == z;
         assert(all_is_ok);
@@ -51,7 +51,7 @@ static void run_unit_tests() {
 
     { // max_int / -1 == -max_int
         u128::U128 x = u128::get_max_value();
-        const auto z = x / (-u128::get_unit());
+        const auto [z, remainder] = x / (-u128::get_unit());
         all_is_ok &= !x.is_singular();
         all_is_ok &= -x == z;
         assert(all_is_ok);
@@ -302,7 +302,7 @@ static void run_unit_tests() {
     {
         u128::U128 x {1, 0};
         u128::U128 y {1, 0, true};
-        const auto z = x / y;
+        const auto [z, remainder] = x / y;
         all_is_ok &= z.is_negative();
         assert(all_is_ok);
     }
@@ -310,7 +310,7 @@ static void run_unit_tests() {
     {
         u128::U128 x {1, 0, true};
         u128::U128 y {1, 0, true};
-        const auto z = x / y;
+        const auto [z, remainder] = x / y;
         all_is_ok &= z.is_positive();
         assert(all_is_ok);
     }
