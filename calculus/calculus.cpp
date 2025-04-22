@@ -38,6 +38,24 @@ CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Deci
         return result;
     case calculus::SQRT: result = dec_n::Sqrt(x);
         return result;
+    case calculus::SQR: result = x * x;
+        return result;
+    case calculus::RECIPROC:
+    {
+        if (x.IsZero()) {
+            error_code = calculus::ZERO_DIVISION;
+        } else {
+            dec_n::Decimal one;
+            one.SetDecimal(u128::get_unit(), u128::get_zero());
+            result = one / x;
+            if (result.IsOverflowed()) {
+                error_code = calculus::NOT_FINITE;
+            } else {
+                return result;
+            }
+        }
+        break;
+    }
     case calculus::DIV:
         if (!y.IsZero()) {
             result = x / y;

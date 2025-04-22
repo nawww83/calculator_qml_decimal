@@ -67,6 +67,8 @@ static constexpr auto description = [](int operation) -> QString {
         case OperationEnums::DIV:           return QString::fromUtf8("Деление");
         case OperationEnums::EQUAL:         return QString::fromUtf8("Равно");
         case OperationEnums::SQRT:          return QString::fromUtf8("Квадратный корень");
+        case OperationEnums::SQR:           return QString::fromUtf8("Квадрат числа");
+        case OperationEnums::RECIPROC:      return QString::fromUtf8("Обратное число");
         case OperationEnums::SEPARATOR:     return QString::fromUtf8("Разделитель операций: недопустимая операция!");
         case OperationEnums::NEGATION:      return QString::fromUtf8("Смена знака");
         case OperationEnums::CLEAR_ALL:     return QString::fromUtf8("Сброс");
@@ -222,7 +224,6 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
     if (requested_operation == OperationEnums::SQRT) {
-        // Выполнить операцию.
         if ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP)) {
             qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation) << QString::fromUtf8("из") << val.ValueAsStringView();
             val = dec_n::Sqrt(val);
@@ -232,6 +233,50 @@ void AppCore::process(int requested_operation, QString input_value)
         } else {
             mCurrentOperation = requested_operation;
             emit showCurrentOperation(description(OperationEnums::SQRT));
+        }
+    }
+    if (requested_operation == OperationEnums::SQR) {
+        if ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP)) {
+            qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation) << val.ValueAsStringView();
+            val = val * val;
+            std::string_view sv = val.ValueAsStringView();
+            emit setInput(QString::fromStdString({sv.data(), sv.size()}));
+            return;
+        } else {
+            mCurrentOperation = requested_operation;
+            emit showCurrentOperation(description(OperationEnums::SQR));
+        }
+    }
+    if (requested_operation == OperationEnums::RECIPROC) {
+        if ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP)) {
+            qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation) << QString::fromUtf8("от") << val.ValueAsStringView();
+            if (val.IsZero()) {
+                int err = Errors::ZERO_DIVISION;
+                emit clearInputField();
+                emit clearCurrentOperation();
+                emit showTempResult(err_description(err), false);
+                Reset();
+                qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
+                return;
+            }
+            dec_n::Decimal one;
+            one.SetDecimal(u128::get_unit(), u128::get_zero());
+            val = one / val;
+            if (val.IsOverflowed()) {
+                int err = Errors::NOT_FINITE;
+                emit clearInputField();
+                emit clearCurrentOperation();
+                emit showTempResult(err_description(err), false);
+                Reset();
+                qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
+                return;
+            }
+            std::string_view sv = val.ValueAsStringView();
+            emit setInput(QString::fromStdString({sv.data(), sv.size()}));
+            return;
+        } else {
+            mCurrentOperation = requested_operation;
+            emit showCurrentOperation(description(OperationEnums::RECIPROC));
         }
     }
     // При нажатии Enter и отсутствии математической операции при изменении числа обновить введенное значение форматным.

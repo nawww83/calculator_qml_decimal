@@ -17,6 +17,8 @@ enum Operations {
     DIV,
     SEPARATOR, // Разделитель двухоперандных/однооперандных операций.
     SQRT,
+    SQR,
+    RECIPROC,
     NEGATION,
     MAX_INT_VALUE   // Получить наибольшее целое (положительное) число.
 };

@@ -10,7 +10,7 @@ import "global_vars.js" as Global
 
 Window {
     width: 675
-    height: 250
+    height: 315
     maximumHeight: height
     maximumWidth: width
     minimumHeight: height
@@ -199,7 +199,7 @@ Window {
 
         Pane {
             Layout.fillWidth: true
-            implicitHeight: 65
+            implicitHeight: 60
             background: Rectangle {
                 color: "transparent"
                 border.color: "green"
@@ -207,7 +207,6 @@ Window {
             }
             RowLayout {
                 anchors.fill: parent
-
                 Button {
                     id: add
                     text: "\u002b"
@@ -270,7 +269,6 @@ Window {
                         onClicked: AppCore.process(Operations.OperationEnums.MULT, input.text)
                     }
                 }
-
                 Button {
                     id: div
                     text: "\u00f7"
@@ -312,8 +310,43 @@ Window {
                     }
                 }
                 Button {
+                    id: clear
+                    text: "C"
+                    bottomPadding: 10
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Сброс")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: clear.down ? "#ff0000" : (clear.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.CLEAR_ALL);
+                    }
+                }
+            } // RowLayout
+        } // Pane
+
+        Pane {
+            Layout.fillWidth: true
+            implicitHeight: 60
+            background: Rectangle {
+                color: "transparent"
+                border.color: "green"
+                radius: 3
+            }
+            RowLayout {
+                anchors.fill: parent
+                Button {
                     id: sqrt
-                    text: "SQRT"
+                    text: "\u221ax"
                     bottomPadding: 10
                     font.pixelSize: 24
                     Layout.fillWidth: true
@@ -331,6 +364,50 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: AppCore.process(Operations.OperationEnums.SQRT, input.text);
+                    }
+                }
+                Button {
+                    id: sqr
+                    text: "x²"
+                    bottomPadding: 10
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Квадрат числа")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: sqr.down ? "#ff0000" : (sqr.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.SQR, input.text);
+                    }
+                }
+                Button {
+                    id: reciprocal
+                    text: "1/x"
+                    bottomPadding: 10
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Обратное число")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: reciprocal.down ? "#ff0000" : (reciprocal.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 2
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.RECIPROC, input.text);
                     }
                 }
                 Button {
@@ -355,30 +432,8 @@ Window {
                         onClicked: AppCore.process(Operations.OperationEnums.MAX_INT_VALUE);
                     }
                 }
-                Button {
-                    id: clear
-                    text: "C"
-                    bottomPadding: 10
-                    font.pixelSize: 24
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Сброс")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: clear.down ? "#ff0000" : (clear.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 2
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.CLEAR_ALL);
-                    }
-                }
-            }
-        }
+            } // RowLayout
+        } // Pane
 
         TextArea {
             id: help
