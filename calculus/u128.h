@@ -657,6 +657,9 @@ inline std::pair<U128, U128> ferma_method(U128 x) {
     const auto error = x - x_sqrt * x_sqrt;
     auto y = U128{2, 0} * x_sqrt + u128::get_unit() - error;
     for (auto k = u128::get_unit(); ; k += u128::get_unit()) {
+        if (k > x_sqrt) {
+            return std::make_pair(x, u128::get_unit()); // x - простое число.
+        }
         if (k > U128(1, 0)) { // Проверка с другой стороны: ускоряет поиск.
             // Основано на равенстве, следующем из метода Ферма: индекс k = (F^2 + x) / (2F) - floor(sqrt(x)).
             // Здесь F - кандидат в множители, x - раскладываемое число.
