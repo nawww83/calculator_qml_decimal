@@ -39,7 +39,12 @@ CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Deci
     case calculus::SQRT: result = dec_n::Sqrt(x);
         return result;
     case calculus::SQR: result = x * x;
-        return result;
+        if (result.IsOverflowed()) {
+            error_code = calculus::NOT_FINITE;
+        } else {
+            return result;
+        }
+        break;
     case calculus::RECIPROC:
     {
         if (x.IsZero()) {

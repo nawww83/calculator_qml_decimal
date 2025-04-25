@@ -239,6 +239,15 @@ void AppCore::process(int requested_operation, QString input_value)
         if ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP)) {
             qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation) << val.ValueAsStringView();
             val = val * val;
+            if (val.IsOverflowed()) {
+                int err = Errors::NOT_FINITE;
+                emit clearInputField();
+                emit clearCurrentOperation();
+                emit showTempResult(err_description(err), false);
+                Reset();
+                qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
+                return;
+            }
             std::string_view sv = val.ValueAsStringView();
             emit setInput(QString::fromStdString({sv.data(), sv.size()}));
             return;
