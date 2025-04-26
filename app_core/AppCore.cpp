@@ -381,15 +381,16 @@ void AppCore::handle_results(int err, int operation, QVector<dec_n::Decimal> res
 void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decimal> res, int id)
 {
     if (err == Errors::NO_ERRORS) {
+        QDebug deb(QtDebugMsg);
         const bool state_is_the_equal =
             (mState == StateEnums::EQUALS_LOOP) ||
                                         (mState == StateEnums::OP_TO_EQUAL);
         if (operation == OperationEnums::FACTOR) {
-            QDebug deb(QtDebugMsg);
             // Отобразить операцию в истории.
-            deb.noquote() << modifiers::bright_blue << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:");
+            deb.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id <<
+                QString::fromUtf8(", результат: ");
             u128::U128 prime;
-            deb.noquote() << "{";
+            deb.noquote().nospace() << "{";
             for (int i = 0; const auto& el : res) {
                 i++;
                 if (i % 2)
@@ -397,15 +398,15 @@ void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decima
                 else {
                     int power = el.IntegerPart().mLow;
                     const std::string& prime_str = prime.value();
-                    deb.noquote() << "(" << QString::fromStdString({prime_str.data(), prime_str.size()}) << "^" << power;
+                    deb.noquote().nospace() << QString::fromStdString({prime_str.data(), prime_str.size()}) << "^" << power;
                     if (i == res.size()) {
-                        deb.noquote() << ")";
+                        ;
                     } else {
-                        deb.noquote() << "),";
+                        deb.noquote().nospace() << "; ";
                     }
                 }
             }
-            deb.noquote() << "}" << modifiers::esc_colorization;
+            deb.noquote().nospace() << "}" << modifiers::esc_colorization;
             emit setEnableFactorButton(true);
         } else {
             // Показать результат в поле ввода, если нажата "Enter".
@@ -422,8 +423,8 @@ void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decima
             // Отобразить операцию в истории.
             {
                 std::string_view sv = res[0].ValueAsStringView();
-                qDebug().noquote() << modifiers::bright_blue << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:") <<
-                                    QString::fromStdString({sv.data(), sv.size()}) << modifiers::esc_colorization;
+                deb.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id << QString::fromUtf8(", результат: ") <<
+                    QString::fromStdString({sv.data(), sv.size()}) << modifiers::esc_colorization;
             }
         }
     } else
