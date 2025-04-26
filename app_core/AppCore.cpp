@@ -205,8 +205,12 @@ void AppCore::process(int requested_operation, QString input_value)
             qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
             return;
         }
-        // Смена текущей математической операции пользователем.
-        {
+        // Игнорирование однооперандной операции
+        if (requested_operation > OperationEnums::SEPARATOR) {
+            return;
+        } else
+        // Смена текущей двухоперандной операции пользователем.
+        if (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR) {
             qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
             mCurrentOperation = requested_operation;
             return;
