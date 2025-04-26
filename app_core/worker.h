@@ -43,7 +43,7 @@ public slots:
             // Операнды копируются.
             v[0] = doIt(operation, operands[0], operands[1], error_code);
         }
-        emit results_ready(error_code, v);
+        emit results_ready(error_code, operation, v);
     }
 
     /**
@@ -58,6 +58,6 @@ signals:
     /**
      * @brief Уведомляет контроллер о готовности результата.
      */
-    void results_ready(int, QVector<dec_n::Decimal>);
+    void results_ready(int, int, QVector<dec_n::Decimal>);
 };
 

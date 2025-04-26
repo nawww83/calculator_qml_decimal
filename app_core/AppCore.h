@@ -123,13 +123,13 @@ public slots:
     /**
      * @brief Обработать пришедший из контроллера результат и положить в очередь.
      */
-    void handle_results(int, QVector< dec_n::Decimal >);
+    void handle_results(int, int, QVector< dec_n::Decimal >);
 
     /**
      * @brief Обработать находящийся в очереди результат: отдать в GUI.
      * @param id Идентификатор запроса/ответа в очереди.
      */
-    void handle_results_queue(int, QVector< dec_n::Decimal >, int id);
+    void handle_results_queue(int, int, QVector< dec_n::Decimal >, int id);
 
     /**
      * @brief Запрос на изменение количества знаков после запятой у чисел Decimal.

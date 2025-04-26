@@ -363,28 +363,28 @@ void AppCore::process(int requested_operation, QString input_value)
     DoWork(val, mCurrentOperation);
 }
 
-void AppCore::handle_results(int err, QVector<dec_n::Decimal> res)
+void AppCore::handle_results(int err, int operation, QVector<dec_n::Decimal> res)
 {
     // Поместить результат в регистр для дальнейших операций (цепочка операций).
     mRegister[1] = res.first();
 
-    auto push_result = [this, err, res]() {
+    auto push_result = [this, err, operation, res]() {
         results_free.acquire();
         mResultIdx = (mResultIdx + 1) % tp::BUFFER_SIZE;
-        results[mResultIdx] = {err, res};
+        results[mResultIdx] = {err, operation, res};
         results_used.release();
     };
 
     push_result();
 }
 
-void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal> res, int id)
+void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decimal> res, int id)
 {
     if (err == Errors::NO_ERRORS) {
         const bool state_is_the_equal =
             (mState == StateEnums::EQUALS_LOOP) ||
                                         (mState == StateEnums::OP_TO_EQUAL);
-        if (mCurrentOperation == OperationEnums::FACTOR) {
+        if (operation == OperationEnums::FACTOR) {
             QDebug deb(QtDebugMsg);
             // Отобразить операцию в истории.
             deb.noquote() << modifiers::bright_blue << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:");

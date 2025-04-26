@@ -117,7 +117,7 @@ public:
             }
             mIdx = (mIdx + 1) % tp::BUFFER_SIZE;
             res = mResult[mIdx].mResult;
-            emit handleResults(mResult[mIdx].mErrorCode, res, mIdx);
+            emit handleResults(mResult[mIdx].mErrorCode, mResult[mIdx].mOperation, res, mIdx);
             mFree->release();
         }
     }
@@ -132,7 +132,7 @@ public slots:
     }
 
 signals:
-    void handleResults(int, QVector<dec_n::Decimal>, int);
+    void handleResults(int, int, QVector<dec_n::Decimal>, int);
 
 protected:
 
