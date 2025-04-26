@@ -43,6 +43,10 @@ Window {
             input.text = thousandSeparator(val)
         }
 
+        function onSetEnableFactorButton(val) {
+            factor.enabled = val
+        }
+
         function onShowTempResult(val, is_number) {
             if (is_number) {
                 temp_result.color = "black";
@@ -422,6 +426,27 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: AppCore.process(Operations.OperationEnums.MAX_INT_VALUE);
+                    }
+                }
+                Button {
+                    id: factor
+                    text: "Factor"
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Разложить на простые множители целую часть числа")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: factor.down ? "#ff0000" : (factor.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.FACTOR, input.text);
                     }
                 }
             } // RowLayout

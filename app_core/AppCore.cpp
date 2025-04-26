@@ -73,6 +73,7 @@ static constexpr auto description = [](int operation) -> QString {
         case OperationEnums::NEGATION:      return QString::fromUtf8("Смена знака");
         case OperationEnums::CLEAR_ALL:     return QString::fromUtf8("Сброс");
         case OperationEnums::MAX_INT_VALUE: return QString::fromUtf8("Наибольшее целое число");
+        case OperationEnums::FACTOR:        return QString::fromUtf8("Разложить на простые множители целую часть числа");
         default:                            return QString::fromUtf8("Неизвестная операция");
     }
 };
@@ -188,6 +189,14 @@ void AppCore::process(int requested_operation, QString input_value)
     const bool is_not_a_number = val.IsNotANumber();
     // Игнорирование запросов при сброшенном состоянии и пустом поле ввода.
     if ((mState == StateEnums::RESETTED) && is_not_a_number) {
+        return;
+    }
+    if (!is_not_a_number && requested_operation == OperationEnums::FACTOR) {
+        emit setEnableFactorButton(false);
+        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
+        mState = StateEnums::EQUALS_LOOP;
+        mCurrentOperation = OperationEnums::FACTOR;
+        DoWork(val, requested_operation);
         return;
     }
     if (requested_operation < OperationEnums::SEPARATOR &&
@@ -362,7 +371,7 @@ void AppCore::handle_results(int err, QVector<dec_n::Decimal> res)
     auto push_result = [this, err, res]() {
         results_free.acquire();
         mResultIdx = (mResultIdx + 1) % tp::BUFFER_SIZE;
-        results[mResultIdx] = {err, res.first()};
+        results[mResultIdx] = {err, res};
         results_used.release();
     };
 
@@ -375,22 +384,47 @@ void AppCore::handle_results_queue(int err, QVector<dec_n::Decimal> res, int id)
         const bool state_is_the_equal =
             (mState == StateEnums::EQUALS_LOOP) ||
                                         (mState == StateEnums::OP_TO_EQUAL);
-        // Показать результат в поле ввода, если нажата "Enter".
-        if (state_is_the_equal) {
-            std::string_view sv = res[0].ValueAsStringView().data();
-            emit setInput(QString::fromStdString({sv.data(), sv.size()}));
-            emit clearTempResult();
-        } else
-        // Показать результат в поле "Только для чтения" ниже, если выполняется цепочка операций.
-        {
-            std::string_view sv = mRegister[1].ValueAsStringView();
-            emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
-        }
-        // Отобразить операцию в истории.
-        {
-            std::string_view sv = res[0].ValueAsStringView();
-            qDebug().noquote() << modifiers::bright_blue << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:") <<
-                                QString::fromStdString({sv.data(), sv.size()}) << modifiers::esc_colorization;
+        if (mCurrentOperation == OperationEnums::FACTOR) {
+            QDebug deb(QtDebugMsg);
+            // Отобразить операцию в истории.
+            deb.noquote() << modifiers::bright_blue << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:");
+            u128::U128 prime;
+            deb.noquote() << "{";
+            for (int i = 0; const auto& el : res) {
+                i++;
+                if (i % 2)
+                    prime = el.IntegerPart();
+                else {
+                    int power = el.IntegerPart().mLow;
+                    const std::string& prime_str = prime.value();
+                    deb.noquote() << "(" << QString::fromStdString({prime_str.data(), prime_str.size()}) << "^" << power;
+                    if (i == res.size()) {
+                        deb.noquote() << ")";
+                    } else {
+                        deb.noquote() << "),";
+                    }
+                }
+            }
+            deb.noquote() << "}" << modifiers::esc_colorization;
+            emit setEnableFactorButton(true);
+        } else {
+            // Показать результат в поле ввода, если нажата "Enter".
+            if (state_is_the_equal) {
+                std::string_view sv = res[0].ValueAsStringView().data();
+                emit setInput(QString::fromStdString({sv.data(), sv.size()}));
+                emit clearTempResult();
+            } else
+            // Показать результат в поле "Только для чтения" ниже, если выполняется цепочка операций.
+            {
+                std::string_view sv = mRegister[1].ValueAsStringView();
+                emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
+            }
+            // Отобразить операцию в истории.
+            {
+                std::string_view sv = res[0].ValueAsStringView();
+                qDebug().noquote() << modifiers::bright_blue << QString::fromUtf8("Ответ ID:") << id << QString::fromUtf8("результат:") <<
+                                    QString::fromStdString({sv.data(), sv.size()}) << modifiers::esc_colorization;
+            }
         }
     } else
     // Отобразить ошибку.

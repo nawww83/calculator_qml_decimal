@@ -116,7 +116,7 @@ public:
                 continue;
             }
             mIdx = (mIdx + 1) % tp::BUFFER_SIZE;
-            res[0] = mResult[mIdx].mResult;
+            res = mResult[mIdx].mResult;
             emit handleResults(mResult[mIdx].mErrorCode, res, mIdx);
             mFree->release();
         }

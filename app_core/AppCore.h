@@ -20,6 +20,7 @@ enum Operations {
     SQR,
     RECIPROC,
     NEGATION,
+    FACTOR,         // Разложить на простые множители.
     MAX_INT_VALUE   // Получить наибольшее целое (положительное) число.
 };
 Q_ENUM_NS(Operations)
@@ -73,6 +74,12 @@ signals:
      * @param val Строковое представление числа-результата.
      */
     void setInput(QString val);
+
+    /**
+     * @brief setEnableFactorButton
+     * @param val
+     */
+    void setEnableFactorButton(bool val);
 
     /**
      * @brief Показать результат во вспомогательном поле только для чтения.

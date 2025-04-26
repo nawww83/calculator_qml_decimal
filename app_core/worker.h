@@ -27,8 +27,22 @@ public slots:
      */
     void do_work(int operation, QVector<dec_n::Decimal> operands) {
         int error_code;
-        // Операнды копируются.
-        v[0] = doIt(operation, operands[0], operands[1], error_code);
+        if (operation == calculus::FACTOR) {
+            auto f = calculus::factor(operands[0].IntegerPart(), error_code);
+            v.clear();
+            dec_n::Decimal p;
+            dec_n::Decimal q;
+            for (auto [p_, q_] : f) {
+                p.SetDecimal(p_, u128::get_zero());
+                q.SetDecimal(u128::U128{static_cast<u128::ULOW>(q_), 0}, u128::get_zero());
+                v.push_back(p);
+                v.push_back(q);
+            }
+        } else {
+            v.resize(1);
+            // Операнды копируются.
+            v[0] = doIt(operation, operands[0], operands[1], error_code);
+        }
         emit results_ready(error_code, v);
     }
 

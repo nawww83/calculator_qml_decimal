@@ -38,7 +38,7 @@ struct Result {
      * @brief Результат операции.
      * Обернут в Qt вектор из-за обеспечения безопасной передачи из потока в поток.
      */
-    dec_n::Decimal mResult;
+    QVector<dec_n::Decimal> mResult;
 };
 
 }
