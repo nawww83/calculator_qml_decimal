@@ -3,14 +3,14 @@
 
 namespace calculus {
 
-CALCULUS_EXPORT std::map<u128::U128, int> factor(u128::U128 x, int& error) {
+std::map<u128::U128, int> factor(u128::U128 x, int& error) {
     error = NO_ERRORS;
     return u128::factor(x);
 }
 
 }
 
-CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error_code)
+dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error_code)
 {
     error_code = calculus::NO_ERRORS;
     dec_n::Decimal result {};
@@ -99,4 +99,8 @@ CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Deci
 void changeDecimalWidth(int width, int max_width)
 {
     dec_n::Decimal::SetWidth(width, max_width);
+}
+
+void stopCaclulation() {
+    u128::Globals::SetStop(true);
 }

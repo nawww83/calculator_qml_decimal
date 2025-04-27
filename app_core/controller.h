@@ -16,6 +16,11 @@ class Controller : public QObject
      * @brief Рабочий поток.
      */
     QThread workerThread;
+
+    /**
+     * @brief Поток для остановки расчетов.
+     */
+    QThread stopThread;
 public:
     /**
      * @brief Конструктор.
@@ -25,6 +30,8 @@ public:
     void quit() {
         workerThread.quit();
         workerThread.wait();
+        stopThread.quit();
+        stopThread.wait();
     }
 
 signals:
@@ -42,5 +49,10 @@ signals:
      * @brief Сигнал синхронизации количества знаков после запятой для Decimal в пространстве библиотеки.
      */
     void sync_decimal_width(int, int);
+
+    /**
+     * @brief Остановить текущее вычисление разово.
+     */
+    void stop_calculation();
 };
 

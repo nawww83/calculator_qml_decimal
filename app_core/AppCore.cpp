@@ -152,8 +152,9 @@ void AppCore::DoWork(dec_n::Decimal value, int operation) {
 
 void AppCore::process(int requested_operation, QString input_value)
 {
-    // Операция сброса.
+    // Операция сброса|остановки вычислений.
     if (requested_operation == OperationEnums::CLEAR_ALL) {
+        emit controller.stop_calculation();
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
         Reset();
         emit clearTempResult();

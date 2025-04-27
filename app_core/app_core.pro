@@ -32,6 +32,7 @@ HEADERS += \
     AppCore.h \
     controller.h \
     observers.h \
+    stopper.h \
     types.h \
     worker.h
 

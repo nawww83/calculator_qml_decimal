@@ -1,7 +1,9 @@
 #pragma once
 
 #include <algorithm> // std::reverse
+#include <atomic>
 #include <map>       // std::map
+#include <vector>       // std::vector
 #include <cassert> // assert
 #include <string>    // std::string
 #include <utility>   // std::pair
@@ -79,6 +81,23 @@ struct Sign {
         return mSign == other.mSign ? true : ((operator()() && other.operator()()) || (!operator()() && !other.operator()()));
     }
     auto operator<=>(const Sign& other) = delete;
+};
+
+class Globals {
+    static struct _gu128 {
+        /**
+    * @brief Признак остановки расчетов. Для потенциально долгих операций.
+    */
+        std::atomic<bool> is_stop = false;
+    } global_u128;
+public:
+    explicit Globals() = default;
+    static void SetStop(bool value) {
+        global_u128.is_stop.store(value);
+    }
+    static bool LoadStop() {
+        return global_u128.is_stop.load(std::memory_order::relaxed);
+    }
 };
 
 struct U128;
@@ -637,15 +656,15 @@ inline bool is_prime(U128 x) {
     return is_ok;
 }
 
-inline std::pair<U128, int> div_by_2(U128& x) {
-    auto [tmp, remainder] = x / 2;
+inline std::pair<U128, int> div_by_q(U128& x, ULOW q) {
+    auto [tmp, remainder] = x / q;
     int i = 0;
     while (remainder.is_zero()) {
         i++;
         x = tmp;
-        std::tie(tmp, remainder) = x / 2;
+        std::tie(tmp, remainder) = x / q;
     }
-    return std::make_pair(U128{2, 0}, i);
+    return std::make_pair(U128{q, 0}, i);
 }
 
 inline std::pair<U128, U128> ferma_method(U128 x) {
@@ -657,6 +676,8 @@ inline std::pair<U128, U128> ferma_method(U128 x) {
     const auto error = x - x_sqrt * x_sqrt;
     auto y = U128{2, 0} * x_sqrt + u128::get_unit() - error;
     for (auto k = u128::get_unit(); ; k += u128::get_unit()) {
+        if ( Globals::LoadStop() )
+            break;
         if (k > x_sqrt) {
             return std::make_pair(x, u128::get_unit()); // x - простое число.
         }
@@ -683,6 +704,7 @@ inline std::pair<U128, U128> ferma_method(U128 x) {
 };
 
 inline std::map<U128, int> factor(U128 x) {
+    Globals::SetStop(false);
     if (x.is_zero()) {
         return {{x, 1}};
     }
@@ -694,9 +716,13 @@ inline std::map<U128, int> factor(U128 x) {
     }
     x = x.abs();
     std::map<U128, int> result{};
-    // Делим на 2 до упора.
+    // Делим на простые из списка.
+    for (const auto& el : std::vector{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41,
+                                      43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127,
+                                      131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211,
+                                      223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293})
     {
-        auto [p, i] = div_by_2(x);
+        auto [p, i] = div_by_q(x, el);
         if (i > 0)
             result[p] = i;
         if (x < U128{2, 0}) {
@@ -719,11 +745,14 @@ inline std::map<U128, int> factor(U128 x) {
         ferma_recursive(b);
     };
     ferma_recursive(x);
+    Globals::SetStop(false);
     return result;
 }
 
 inline U128 get_by_digit(int digit) {
     return U128{static_cast<u128::ULOW>(digit), 0};
 }
+
+inline Globals::_gu128 Globals::global_u128;
 
 } // namespace u128

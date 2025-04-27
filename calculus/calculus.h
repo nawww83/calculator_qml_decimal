@@ -54,4 +54,9 @@ CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Deci
  */
 CALCULUS_EXPORT void changeDecimalWidth(int width, int max_width);
 
+/**
+ * @brief Остановить текущее вычисление разово.
+ */
+CALCULUS_EXPORT void stopCaclulation();
+
 #endif // CALCULUS_H
