@@ -147,7 +147,9 @@ void AppCore::DoWork(dec_n::Decimal value, int operation) {
             mRegister[0] = value;
             push_request();
             break;
-        default: ;
+        default:
+            mRegister[1] = value;
+            push_request();
     }
 }
 
@@ -158,11 +160,11 @@ void AppCore::process(int requested_operation, QString input_value)
         g_console_output_mutex.lock();
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
         g_console_output_mutex.unlock();
-        emit controller.stop_calculation();
         emit clearTempResult();
         emit clearCurrentOperation();
         if (mCurrentOperation != OperationEnums::FACTOR)
             emit clearInputField();
+        emit controller.stop_calculation();
         Reset();
         return;
     }
@@ -199,8 +201,8 @@ void AppCore::process(int requested_operation, QString input_value)
     if (!is_not_a_number && requested_operation == OperationEnums::FACTOR) {
         emit setEnableFactorButton(false);
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-        mState = StateEnums::EQUALS_LOOP;
         mCurrentOperation = OperationEnums::FACTOR;
+        emit showCurrentOperation(description(requested_operation));
         DoWork(val, requested_operation);
         return;
     }
@@ -305,6 +307,9 @@ void AppCore::process(int requested_operation, QString input_value)
             mCurrentOperation = requested_operation;
             emit showCurrentOperation(description(OperationEnums::RECIPROC));
         }
+    }
+    if (requested_operation == OperationEnums::EQUAL && mCurrentOperation == OperationEnums::FACTOR) {
+        return;
     }
     // При нажатии Enter и отсутствии математической операции при изменении числа обновить введенное значение форматным.
     if ((requested_operation == OperationEnums::EQUAL) && (mCurrentOperation < 0) && (!current_val_is_the_same)) {
