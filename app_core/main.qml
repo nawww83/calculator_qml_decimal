@@ -316,7 +316,7 @@ Window {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Сброс|Остановка расчета")
+                    ToolTip.text: qsTr("Сброс / Остановка расчета")
 
                     background: Rectangle {
                        opacity: enabled ? 1 : 0.3

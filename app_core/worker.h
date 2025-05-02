@@ -1,8 +1,10 @@
 #pragma once
 
+#include "AppCore.h"
 #include "calculus.h"
 #include "decimal.h"
 #include "qobject.h"
+#include <iostream>
 
 /**
  * @brief Класс "Работник", живущий в отдельном потоке и вызывающий библиотечную функцию расчета.
@@ -27,6 +29,7 @@ public slots:
      */
     void do_work(int operation, QVector<dec_n::Decimal> operands) {
         int error_code;
+        auto start = std::chrono::high_resolution_clock::now();
         if (operation == calculus::FACTOR) {
             auto f = calculus::factor(operands[0].IntegerPart(), error_code);
             v.clear();
@@ -42,6 +45,11 @@ public slots:
             v.resize(1);
             // Операнды копируются.
             v[0] = doIt(operation, operands[0], operands[1], error_code);
+        }
+        auto stop = std::chrono::high_resolution_clock::now();
+        if (operation == OperationEnums::FACTOR) {
+            auto duration = duration_cast<std::chrono::seconds>(stop - start);
+            std::cout << "elapsed: " << duration.count() << " s" << std::endl;
         }
         emit results_ready(error_code, operation, v);
     }

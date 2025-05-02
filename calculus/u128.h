@@ -668,39 +668,58 @@ inline std::pair<U128, int> div_by_q(U128& x, ULOW q) {
 }
 
 inline std::pair<U128, U128> ferma_method(U128 x) {
-    bool exact;
-    const auto x_sqrt = isqrt(x, exact);
-    if (exact) {
-        return std::make_pair(x_sqrt, x_sqrt);
+    U128 x_sqrt;
+    {
+        bool is_exact;
+        x_sqrt = isqrt(x, is_exact);
+        if (is_exact)
+            return std::make_pair(x_sqrt, x_sqrt);
     }
     const auto error = x - x_sqrt * x_sqrt;
     auto y = U128{2, 0} * x_sqrt + u128::get_unit() - error;
-    for (auto k = u128::get_unit(); ; k += u128::get_unit()) {
-        if ( Globals::LoadStop() )
+    {
+        bool is_exact;
+        auto y_sqrt = isqrt(y, is_exact);
+        const auto delta = x_sqrt + x_sqrt + U128{3, 0};
+        y = y + delta;
+        if (is_exact)
+            return std::make_pair(x_sqrt + u128::get_unit() - y_sqrt, x_sqrt + u128::get_unit() + y_sqrt);
+    }
+    auto k_upper = x_sqrt;
+    for ( auto k = U128{2, 0};; k += u128::get_unit()) {
+        if (!(k.mLow & 65535) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
             break;
-        if (k > x_sqrt) {
+        if (k > k_upper) {
             return std::make_pair(x, u128::get_unit()); // x - простое число.
         }
-        if (k > U128(1, 0)) { // Проверка с другой стороны: ускоряет поиск.
+        if (k.mLow % 2) { // Проверка с другой стороны: ускоряет поиск.
             // Основано на равенстве, следующем из метода Ферма: индекс k = (F^2 + x) / (2F) - floor(sqrt(x)).
             // Здесь F - кандидат в множители, x - раскладываемое число.
-            auto [test, remainder] = (k * k + x) / (U128{2, 0} * k); // Здесь k как некоторый множитель F.
-            test -= x_sqrt;
-            if ( test.is_positive() && remainder.is_zero()) {
-                auto [tmp, remainder] = x / k;
-                if (remainder.is_zero()) // На всякий случай оставим.
-                    return std::make_pair(k, tmp);
+            const auto N1 = k * k + x;
+            if ((N1.mLow % 2) == 0) {
+                auto [q1, remainder] = N1 / (k + k); // Здесь k как некоторый множитель F.
+                if (remainder.is_zero() && (q1 > x_sqrt)) {
+                    auto [q2, remainder] = x / k;
+                    if (remainder.is_zero()) // На всякий случай оставим.
+                        return std::make_pair(k, q2);
+                }
             }
         }
-        bool exact;
-        auto y_sqrt = isqrt(y, exact);
-        const auto delta = U128{2, 0} * x_sqrt + U128{2, 0} * k + u128::get_unit();
-        y = y + delta;
-        if (!exact)
+        if (auto r = y.mod10(); (r != 1 && r != 9)) // Просеиваем заведомо лишние.
             continue;
-        return std::make_pair(x_sqrt + k - y_sqrt, x_sqrt + k + y_sqrt);
+        bool is_exact;
+        const auto y_sqrt = isqrt(y, is_exact);
+        const auto delta = (x_sqrt + x_sqrt) + (k + k) + u128::get_unit();
+        y = y + delta;
+        const auto first_multiplier = x_sqrt + k - y_sqrt;
+        if (first_multiplier < k_upper) {
+            k_upper = first_multiplier;
+        }
+        if (!is_exact)
+            continue;
+        return std::make_pair(first_multiplier, x_sqrt + k + y_sqrt);
     }
-    return std::make_pair(x, U128{1, 0}); // По какой-то причине не раскладывается.
+    return std::make_pair(x, u128::get_unit()); // По какой-то причине не раскладывается.
 };
 
 inline std::map<U128, int> factor(U128 x) {
@@ -716,8 +735,16 @@ inline std::map<U128, int> factor(U128 x) {
     }
     x = x.abs();
     std::map<U128, int> result{};
-    // Делим на простые из списка.
-    for (const auto& el : std::vector{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41,
+    { // Обязательное для метода Ферма деление на 2.
+        auto [p, i] = div_by_q(x, 2);
+        if (i > 0)
+            result[p] = i;
+        if (x < U128{2, 0}) {
+            return result;
+        }
+    }
+    // Делим на простые из списка: опционально.
+    for (const auto& el : std::vector{3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41,
                                       43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127,
                                       131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211,
                                       223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293})

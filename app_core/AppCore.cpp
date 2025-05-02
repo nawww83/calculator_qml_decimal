@@ -93,6 +93,7 @@ AppCore::AppCore(QObject *parent) : QObject(parent)
 
 AppCore::~AppCore()
 {
+    emit controller.stop_calculation();
     qDebug() << "~AppCore: stop all threads...";
     reqObs.finish();
     resObs.finish();
@@ -411,7 +412,7 @@ void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decima
             emit setEnableFactorButton(true);
         } else {
             // Показать результат в поле ввода, если нажата "Enter".
-            if (state_is_the_equal) {
+            if (state_is_the_equal || mState == StateEnums::RESETTED) {
                 std::string_view sv = res[0].ValueAsStringView().data();
                 emit setInput(QString::fromStdString({sv.data(), sv.size()}));
                 emit clearTempResult();
