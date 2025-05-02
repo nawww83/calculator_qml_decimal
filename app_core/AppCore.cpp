@@ -155,12 +155,15 @@ void AppCore::process(int requested_operation, QString input_value)
 {
     // Операция сброса|остановки вычислений.
     if (requested_operation == OperationEnums::CLEAR_ALL) {
-        emit controller.stop_calculation();
+        g_console_output_mutex.lock();
         qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-        Reset();
+        g_console_output_mutex.unlock();
+        emit controller.stop_calculation();
         emit clearTempResult();
         emit clearCurrentOperation();
-        emit clearInputField();
+        if (mCurrentOperation != OperationEnums::FACTOR)
+            emit clearInputField();
+        Reset();
         return;
     }
     if (requested_operation == OperationEnums::MAX_INT_VALUE) {
@@ -409,6 +412,7 @@ void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decima
                 }
             }
             deb.noquote().nospace() << "}" << modifiers::esc_colorization;
+            mCurrentOperation = OperationEnums::CLEAR_ALL;
             emit setEnableFactorButton(true);
         } else {
             // Показать результат в поле ввода, если нажата "Enter".

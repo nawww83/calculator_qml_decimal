@@ -6,6 +6,8 @@
 
 Q_DECLARE_METATYPE(dec_n::Decimal);
 
+inline std::mutex g_console_output_mutex;
+
 namespace OperationEnums {
 Q_NAMESPACE
 enum Operations {

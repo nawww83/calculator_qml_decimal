@@ -49,7 +49,9 @@ public slots:
         auto stop = std::chrono::high_resolution_clock::now();
         if (operation == OperationEnums::FACTOR) {
             auto duration = duration_cast<std::chrono::seconds>(stop - start);
+            g_console_output_mutex.lock();
             std::cout << "elapsed: " << duration.count() << " s" << std::endl;
+            g_console_output_mutex.unlock();
         }
         emit results_ready(error_code, operation, v);
     }
