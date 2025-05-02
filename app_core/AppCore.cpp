@@ -115,16 +115,17 @@ void AppCore::DoWork(dec_n::Decimal value, int operation) {
     // Послать запрос в очередь.
     auto push_request = [this, operation]() {
         QVector<dec_n::Decimal> v {mRegister[1], mRegister[0]};
-        std::string_view sv1 = mRegister[1].ValueAsStringView();
         mRequestIdx = (mRequestIdx + 1) % tp::BUFFER_SIZE;
         if (operation < OperationEnums::SEPARATOR) {
             std::string_view sv0 = mRegister[0].ValueAsStringView();
+            std::string_view sv1 = mRegister[1].ValueAsStringView();
             qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
                                << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
                                << "y:" << QString::fromStdString({sv0.data(), sv0.size()}).toUtf8()
                                << "ID:" << mRequestIdx
                      << modifiers::esc_colorization;
         } else {
+            std::string_view sv1 = mRegister[1].ValueAsStringView();
             qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
                                << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
                                << "ID:" << mRequestIdx
@@ -196,6 +197,10 @@ void AppCore::process(int requested_operation, QString input_value)
     const bool is_not_a_number = val.IsNotANumber();
     // Игнорирование запросов при сброшенном состоянии и пустом поле ввода.
     if ((mState == StateEnums::RESETTED) && is_not_a_number) {
+        return;
+    }
+    // Запрет факторизации если вводится второй операнд.
+    if (requested_operation == OperationEnums::FACTOR && ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP))) {
         return;
     }
     if (!is_not_a_number && requested_operation == OperationEnums::FACTOR) {
@@ -418,6 +423,7 @@ void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decima
             }
             deb.noquote().nospace() << "}" << modifiers::esc_colorization;
             mCurrentOperation = OperationEnums::CLEAR_ALL;
+            mState = StateEnums::RESETTED;
             emit setEnableFactorButton(true);
         } else {
             // Показать результат в поле ввода, если нажата "Enter".
