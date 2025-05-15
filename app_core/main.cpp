@@ -96,13 +96,13 @@ static void run_unit_tests() {
         assert(all_is_ok);
     }
 
-    { // max_int / 1,999
+    { // max_int / 1,999: correct all 9's to all 0's with corresponding integer part adjusting.
         Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_unit(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
         all_is_ok &= !z.IsOverflowed();
-        all_is_ok &= z.ValueAsStringView().starts_with("170226296608773618540957782607187699577,288");
+        all_is_ok &= z.ValueAsStringView().starts_with("170141183460469231731687303715884105727,500");
         assert(all_is_ok);
     }
 
@@ -112,7 +112,7 @@ static void run_unit_tests() {
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
         all_is_ok &= !z.IsOverflowed();
-        all_is_ok &= z.ValueAsStringView().starts_with("-170226296608773618540957782607187699577,288");
+        all_is_ok &= z.ValueAsStringView().starts_with("-170141183460469231731687303715884105727,500");
         assert(all_is_ok);
     }
 
@@ -122,7 +122,7 @@ static void run_unit_tests() {
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
         all_is_ok &= !z.IsOverflowed();
-        all_is_ok &= z.ValueAsStringView().starts_with("-170226296608773618540957782607187699577,288");
+        all_is_ok &= z.ValueAsStringView().starts_with("-170141183460469231731687303715884105727,500");
         assert(all_is_ok);
     }
 
@@ -132,7 +132,7 @@ static void run_unit_tests() {
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
         all_is_ok &= !z.IsOverflowed();
-        all_is_ok &= z.ValueAsStringView().starts_with("170226296608773618540957782607187699577,288");
+        all_is_ok &= z.ValueAsStringView().starts_with("170141183460469231731687303715884105727,500");
         assert(all_is_ok);
     }
 
@@ -165,7 +165,7 @@ static void run_unit_tests() {
         Decimal d2; d2.SetDecimal(u128::get_zero(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
-        all_is_ok &= z.IsOverflowed();
+        all_is_ok &= !z.IsOverflowed();
         assert(all_is_ok);
     }
 
@@ -174,7 +174,7 @@ static void run_unit_tests() {
         Decimal d2; d2.SetDecimal(u128::get_zero(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
-        all_is_ok &= z.IsOverflowed();
+        all_is_ok &= !z.IsOverflowed();
         assert(all_is_ok);
     }
 
@@ -183,7 +183,7 @@ static void run_unit_tests() {
         Decimal d2; d2.SetDecimal(u128::get_zero(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / -d2;
-        all_is_ok &= z.IsOverflowed();
+        all_is_ok &= !z.IsOverflowed();
         assert(all_is_ok);
     }
 
@@ -199,6 +199,24 @@ static void run_unit_tests() {
     { // -max_int,999 - 0,001
         Decimal d1; d1.SetDecimal(-u128::get_max_value(), u128::U128{999, 0} );
         Decimal d2; d2.SetDecimal(u128::get_zero(), u128::get_unit() );
+        assert(d2.GetWidth() == 3);
+        const auto z = d1 - d2;
+        all_is_ok &= z.IsOverflowed();
+        assert(all_is_ok);
+    }
+
+    { // max_int,999 + 0,000
+        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::U128{999, 0} );
+        Decimal d2; d2.SetDecimal(u128::get_zero(), u128::get_zero() );
+        assert(d2.GetWidth() == 3);
+        const auto z = d1 + d2;
+        all_is_ok &= z.IsOverflowed();
+        assert(all_is_ok);
+    }
+
+    { // -max_int,999 - 0,000
+        Decimal d1; d1.SetDecimal(-u128::get_max_value(), u128::U128{999, 0} );
+        Decimal d2; d2.SetDecimal(u128::get_zero(), u128::get_zero() );
         assert(d2.GetWidth() == 3);
         const auto z = d1 - d2;
         all_is_ok &= z.IsOverflowed();

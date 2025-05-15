@@ -241,6 +241,18 @@ class Decimal {
             std::tie(fraction, std::ignore) = fraction / mChangedDenominator;
         }
         mChangedDenominator = global.mDenominator;
+        // Коррекция всех девяток.
+        if ((fraction + u128::get_unit()) == mChangedDenominator) {
+            fraction = u128::get_zero();
+            r = the_sign ? r - u128::get_unit() : r + u128::get_unit();
+            mNominator = u128::get_zero();
+            mInteger = r;
+            if (r.is_overflow()) {
+                mStringRepresentation = u128::INF;
+                return;
+            }
+        }
+        //
         const int separator_length = global.mWidth < 1 ? 0 : 1;
         const int required_length = (u128::num_of_digits(r) + separator_length + global.mWidth) + (the_sign == 0 ? 0 : 1);
         // Целая часть, разделитель, дробная часть (precision), знак.
@@ -255,8 +267,6 @@ class Decimal {
         }
         r = r.abs();
         if (r.is_overflow()) {
-            mInteger = -u128::get_unit();
-            mNominator = -u128::get_unit();
             mStringRepresentation = u128::INF;
             return;
         }
