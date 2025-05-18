@@ -10,7 +10,7 @@ import "global_vars.js" as Global
 
 Window {
     width: 675
-    height: 285
+    height: 295
     maximumHeight: height
     maximumWidth: width
     minimumHeight: height
@@ -82,6 +82,11 @@ Window {
             return inp.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ")
         else
             return inp.substring(0, idx).replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ") + inp.substring(idx)
+    }
+
+    function setToMemory(val){
+        Global.memory_cell = val !== "" ? val : Global.memory_cell
+        memory.text = "Memory: " + Global.memory_cell
     }
 
     Dialog {
@@ -198,6 +203,12 @@ Window {
         Label {
             id: current_operation
             text: ""
+            font.pixelSize: 12
+        }
+
+        Label {
+            id: memory
+            text: "Memory:"
             font.pixelSize: 12
         }
 
@@ -447,6 +458,48 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: AppCore.process(Operations.OperationEnums.FACTOR, input.text);
+                    }
+                }
+                Button {
+                    id: to_memory
+                    text: "MS"
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Положить в память")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: to_memory.down ? "#ff0000" : (to_memory.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: setToMemory(input.text)
+                    }
+                }
+                Button {
+                    id: from_memory
+                    text: "MR"
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Извлечь из памяти")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: from_memory.down ? "#ff0000" : (from_memory.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: input.text = Global.memory_cell !== "" ? Global.memory_cell : input.text
                     }
                 }
             } // RowLayout
