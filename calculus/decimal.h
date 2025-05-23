@@ -596,6 +596,26 @@ public:
     }
 
     /**
+     * @brief Оператор сложения с целым числом.
+     * @param other Целое число.
+     * @return Результат сложения, this + other, с точностью width.
+     */
+    Decimal operator+(const u128::U128& other) const {
+        Decimal N; N.SetDecimal( other, u128::get_zero() );
+        return *this + N;
+    }
+
+    /**
+     * @brief Оператор вычитания целого числа.
+     * @param other Целое число.
+     * @return Результат вычитания, this - other, с точностью width.
+     */
+    Decimal operator-(const u128::U128& other) const {
+        Decimal N; N.SetDecimal( other, u128::get_zero() );
+        return *this - N;
+    }
+
+    /**
      * @brief Оператор умножения двух чисел.
      * @param other Второй операнд.
      * @return Результат умножения двух чисел.
@@ -963,6 +983,16 @@ public:
         }
         return result;
     }
+
+    /**
+     * @brief Оператор деления на целое число.
+     * @param other Делитель.
+     * @return Результат деления двух чисел, this / other, с точностью width.
+     */
+    Decimal operator/(const u128::U128& other) const {
+        Decimal N; N.SetDecimal( other, u128::get_zero() );
+        return *this / N;
+    }
 };
 
 /**
@@ -1000,7 +1030,12 @@ inline Decimal Sqrt(Decimal x) {
         prevprev = prev;
         prev = result;
         const auto tmp = x / result;
-        result = (result + tmp) / two;
+        if (!tmp.IsOverflowed()) {
+            result = (result + tmp) / two;
+        } else { // Нехватка точности из-за большого количества знаков после запятой: делаем "финт ушами".
+            const auto tmp_r = x / result.IntegerPart();
+            result = (tmp_r + result.IntegerPart()) / two;
+        }
         if (result.IsZero()) {
             return result;
         }
