@@ -86,7 +86,7 @@ Window {
 
     function setToMemory(val){
         Global.memory_cell = val !== "" ? val : Global.memory_cell
-        memory.text = "Memory: " + Global.memory_cell
+        memory.text = " Memory: " + Global.memory_cell
     }
 
     Dialog {
@@ -208,7 +208,7 @@ Window {
 
         Label {
             id: memory
-            text: "Memory:"
+            text: " Memory:"
             font.pixelSize: 12
         }
 
@@ -437,6 +437,27 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: AppCore.process(Operations.OperationEnums.MAX_INT_VALUE);
+                    }
+                }
+                Button {
+                    id: random_integer
+                    text: "RND"
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Случайное целое число")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: random_integer.down ? "#ff0000" : (random_integer.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.RANDINT);
                     }
                 }
                 Button {

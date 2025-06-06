@@ -18,6 +18,8 @@ HEADERS += \
     calculus_global.h \
     calculus.h \
     decimal.h \
+    lfsr.h \
+    random_gen.h \
     u128.h
 
 # Default rules for deployment.

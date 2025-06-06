@@ -174,6 +174,11 @@ void AppCore::process(int requested_operation, QString input_value)
         emit setInput(QString::fromStdString(max_value.value()));
         return;
     }
+    if (requested_operation == OperationEnums::RANDINT) {
+        u128::U128 max_value = u128::get_random_value();
+        emit setInput(QString::fromStdString(max_value.value()));
+        return;
+    }
     // По введенной строке сконструировать число Decimal.
     auto construct_decimal = [&input_value]() {
         static auto re = QRegularExpression{"(\\s)"};
@@ -251,7 +256,8 @@ void AppCore::process(int requested_operation, QString input_value)
     if (requested_operation == OperationEnums::SQRT) {
         if ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP)) {
             qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation) << QString::fromUtf8("из") << val.ValueAsStringView();
-            val = dec_n::Sqrt(val);
+            bool exact;
+            val = dec_n::Sqrt(val, exact);
             std::string_view sv = val.ValueAsStringView();
             emit setInput(QString::fromStdString({sv.data(), sv.size()}));
             return;
@@ -378,28 +384,31 @@ void AppCore::process(int requested_operation, QString input_value)
     DoWork(val, mCurrentOperation);
 }
 
-void AppCore::handle_results(int err, int operation, QVector<dec_n::Decimal> res)
+void AppCore::handle_results(int err, int operation, bool exact_sqrt, QVector<dec_n::Decimal> res)
 {
     // Поместить результат в регистр для дальнейших операций (цепочка операций).
     mRegister[1] = res.first();
 
-    auto push_result = [this, err, operation, res]() {
+    auto push_result = [this, err, operation, exact_sqrt, res]() {
         results_free.acquire();
         mResultIdx = (mResultIdx + 1) % tp::BUFFER_SIZE;
-        results[mResultIdx] = {err, operation, res};
+        results[mResultIdx] = {err, operation, exact_sqrt, res};
         results_used.release();
     };
 
     push_result();
 }
 
-void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decimal> res, int id)
+void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVector<dec_n::Decimal> res, int id)
 {
     if (err == Errors::NO_ERRORS) {
         QDebug deb(QtDebugMsg);
         const bool state_is_the_equal =
             (mState == StateEnums::EQUALS_LOOP) ||
                                         (mState == StateEnums::OP_TO_EQUAL);
+        if (operation == OperationEnums::SQRT) {
+            emit showCurrentOperation(description(OperationEnums::SQRT) + QString::fromUtf8(exact_sqrt ? ": точно." : ": приближенно."));
+        }
         if (operation == OperationEnums::FACTOR) {
             // Отобразить операцию в истории.
             deb.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id <<

@@ -2,13 +2,16 @@
 
 #include <algorithm> // std::reverse
 #include <atomic>
+#include <chrono>
 #include <map>       // std::map
+#include <random>
 #include <vector>       // std::vector
 #include <cassert> // assert
 #include <string>    // std::string
 #include <utility>   // std::pair
 #include <functional> // std::function
 #include <tuple> // std::ignore, std::tie
+#include "random_gen.h"
 
 namespace u128 {
 
@@ -98,6 +101,24 @@ public:
     static bool LoadStop() {
         return global_u128.is_stop.load(std::memory_order::relaxed);
     }
+};
+
+static auto get_random_u32x4(int64_t offset) {
+    const int64_t since_epoch_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>
+        (std::chrono::system_clock::now().time_since_epoch()).count();
+    std::seed_seq g_rnd_sequence{since_epoch_ms & 255, (since_epoch_ms >> 8) & 255,
+                                 (since_epoch_ms >> 16) & 255, (since_epoch_ms >> 24) & 255, offset};
+    lfsr8::u32x4 st;
+    g_rnd_sequence.generate(st.begin(), st.end());
+    return st;
+}
+
+struct RandomGenerator {
+    explicit RandomGenerator() {
+        mGenerator.seed(get_random_u32x4(233));
+    }
+    lfsr_rng_2::gens mGenerator;
 };
 
 struct U128;
@@ -571,6 +592,14 @@ inline U128 get_max_value() {
     U128 result{};
     result.mLow = -1;
     result.mHigh = -1;
+    return result;
+}
+
+inline U128 get_random_value() {
+    U128 result;
+    static RandomGenerator g_prng;
+    result.mLow = g_prng.mGenerator.next_u64();
+    result.mHigh = g_prng.mGenerator.next_u64();
     return result;
 }
 

@@ -1008,9 +1008,11 @@ bool inline operator==(const Decimal& lhs, const Decimal& rhs) {
 /**
  * @brief Извлечение квадратного корня.
  * @param x Число.
+ * @param exact Признак, что корень извлекся точно,
+ * при условии, что число x - целое.
  * @return Квадратный корень числа.
  */
-inline Decimal Sqrt(Decimal x) {
+inline Decimal Sqrt(Decimal x, bool& exact) {
     if (x.IsNotANumber() || x.IsOverflowed()) {
         return x;
     }
@@ -1019,8 +1021,11 @@ inline Decimal Sqrt(Decimal x) {
     }
     x = x.Abs();
     Decimal result;
-    [[maybe_unused]] bool exact;
-    result.SetDecimal( u128::isqrt(x.IntegerPart(), exact), x.Nominator()); // Установка Nominator позволяет извлекать корень из чисел менее 1.
+    // Установка Nominator позволяет извлекать корень из чисел менее 1.
+    result.SetDecimal( u128::isqrt(x.IntegerPart(), exact), x.Nominator());
+    if (exact && x.Nominator().is_zero()) {
+        return result;
+    }
     Decimal prevprev;
     prevprev.SetDecimal(u128::get_unit_neg(), u128::get_zero());
     auto prev = x;

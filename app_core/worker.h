@@ -29,6 +29,7 @@ public slots:
      */
     void do_work(int operation, QVector<dec_n::Decimal> operands) {
         int error_code;
+        bool exact_sqrt = false;
         auto start = std::chrono::high_resolution_clock::now();
         if (operation == calculus::FACTOR) {
             auto f = calculus::factor(operands[0].IntegerPart(), error_code);
@@ -44,7 +45,7 @@ public slots:
         } else {
             v.resize(1);
             // Операнды копируются.
-            v[0] = doIt(operation, operands[0], operands[1], error_code);
+            v[0] = doIt(operation, operands[0], operands[1], error_code, exact_sqrt);
         }
         auto stop = std::chrono::high_resolution_clock::now();
         if (operation == OperationEnums::FACTOR) {
@@ -53,7 +54,7 @@ public slots:
             std::cout << "elapsed: " << duration.count() << " s" << std::endl;
             g_console_output_mutex.unlock();
         }
-        emit results_ready(error_code, operation, v);
+        emit results_ready(error_code, operation, exact_sqrt, v);
     }
 
     /**
@@ -68,6 +69,6 @@ signals:
     /**
      * @brief Уведомляет контроллер о готовности результата.
      */
-    void results_ready(int, int, QVector<dec_n::Decimal>);
+    void results_ready(int, int, bool, QVector<dec_n::Decimal>);
 };
 

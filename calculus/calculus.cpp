@@ -10,7 +10,7 @@ std::map<u128::U128, int> factor(u128::U128 x, int& error) {
 
 }
 
-dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error_code)
+dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error_code, bool& exact_sqrt)
 {
     error_code = calculus::NO_ERRORS;
     dec_n::Decimal result {};
@@ -46,7 +46,7 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
         break;
     case calculus::NEG: result = dec_n::Decimal{} - x;
         return result;
-    case calculus::SQRT: result = dec_n::Sqrt(x);
+    case calculus::SQRT: result = dec_n::Sqrt(x, exact_sqrt);
         return result;
     case calculus::SQR: result = x * x;
         if (result.IsOverflowed()) {

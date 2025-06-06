@@ -43,7 +43,7 @@ signals:
     /**
      * @brief Сигнализирует "Наблюдателю" приложения о готовности результата.
      */
-    void handle_results(int, int, QVector<dec_n::Decimal>);
+    void handle_results(int, int, bool, QVector<dec_n::Decimal>);
 
     /**
      * @brief Сигнал синхронизации количества знаков после запятой для Decimal в пространстве библиотеки.
