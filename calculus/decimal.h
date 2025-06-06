@@ -1014,9 +1014,11 @@ bool inline operator==(const Decimal& lhs, const Decimal& rhs) {
  */
 inline Decimal Sqrt(Decimal x, bool& exact) {
     if (x.IsNotANumber() || x.IsOverflowed()) {
+        exact = false;
         return x;
     }
     if (x.IsZero()) {
+        exact = true;
         return x;
     }
     x = x.Abs();
@@ -1026,6 +1028,7 @@ inline Decimal Sqrt(Decimal x, bool& exact) {
     if (exact && x.Nominator().is_zero()) {
         return result;
     }
+    exact = false;
     Decimal prevprev;
     prevprev.SetDecimal(u128::get_unit_neg(), u128::get_zero());
     auto prev = x;
