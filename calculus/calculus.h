@@ -42,7 +42,7 @@ CALCULUS_EXPORT std::map<u128::U128, int> factor(u128::U128 x, int& error);
  * @param x Операнд 1.
  * @param y Операнд 2.
  * @param error_code Код ошибки.
- * @param exact_sqrt Точно ли извлекся квадратный корень, если число - целое.
+ * @param exact_sqrt Точно ли извлекся квадратный корень.
  * @return Реузльтат операции.
  */
 CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error, bool& exact_sqrt);

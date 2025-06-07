@@ -41,7 +41,7 @@ struct Result {
     int mOperation;
 
     /**
-     * @brief Точно ли извлекся квадратный корень, если число - целое.
+     * @brief Точно ли извлекся квадратный корень.
      */
     bool mExactSqrt;
 

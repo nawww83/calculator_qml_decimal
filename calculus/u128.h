@@ -116,7 +116,8 @@ static auto get_random_u32x4(int64_t offset) {
 
 struct RandomGenerator {
     explicit RandomGenerator() {
-        mGenerator.seed(get_random_u32x4(233));
+        lfsr8::u64 tmp;
+        mGenerator.seed(get_random_u32x4((lfsr8::u64)&tmp));
     }
     lfsr_rng_2::gens mGenerator;
 };
@@ -597,9 +598,20 @@ inline U128 get_max_value() {
 
 inline U128 get_random_value() {
     U128 result;
-    static RandomGenerator g_prng;
-    result.mLow = g_prng.mGenerator.next_u64();
-    result.mHigh = g_prng.mGenerator.next_u64();
+    static RandomGenerator g_prng2;
+    result.mLow = g_prng2.mGenerator.next_u64();
+    result.mHigh = g_prng2.mGenerator.next_u64();
+    g_prng2.mGenerator.next_u64();
+    g_prng2.mGenerator.next_u64();
+    return result;
+}
+
+inline U128 get_random_half_value() {
+    U128 result;
+    static RandomGenerator g_prng1;
+    result.mLow = g_prng1.mGenerator.next_u64();
+    result.mHigh = 0;
+    g_prng1.mGenerator.next_u64();
     return result;
 }
 

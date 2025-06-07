@@ -1008,8 +1008,7 @@ bool inline operator==(const Decimal& lhs, const Decimal& rhs) {
 /**
  * @brief Извлечение квадратного корня.
  * @param x Число.
- * @param exact Признак, что корень извлекся точно,
- * при условии, что число x - целое.
+ * @param exact Признак, что корень извлекся точно: квадрат даст исходное значение.
  * @return Квадратный корень числа.
  */
 inline Decimal Sqrt(Decimal x, bool& exact) {
@@ -1045,9 +1044,11 @@ inline Decimal Sqrt(Decimal x, bool& exact) {
             result = (tmp_r + result.IntegerPart()) / two;
         }
         if (result.IsZero()) {
+            exact = true;
             return result;
         }
         if (result == prev) {
+            exact = (result * result) == x;
             return result;
         }
         if (result == prevprev) {

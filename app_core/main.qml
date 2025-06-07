@@ -446,7 +446,7 @@ Window {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Случайное целое число")
+                    ToolTip.text: qsTr("Случайное целое 128-битное число")
 
                     background: Rectangle {
                        opacity: enabled ? 1 : 0.3
@@ -458,6 +458,27 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: AppCore.process(Operations.OperationEnums.RANDINT);
+                    }
+                }
+                Button {
+                    id: random_half_integer
+                    text: "RND64"
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Случайное целое 64-битное число")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: random_half_integer.down ? "#ff0000" : (random_half_integer.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.RANDINT64);
                     }
                 }
                 Button {

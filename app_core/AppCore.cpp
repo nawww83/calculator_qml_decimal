@@ -73,6 +73,8 @@ static constexpr auto description = [](int operation) -> QString {
         case OperationEnums::NEGATION:      return QString::fromUtf8("Смена знака");
         case OperationEnums::CLEAR_ALL:     return QString::fromUtf8("Сброс");
         case OperationEnums::MAX_INT_VALUE: return QString::fromUtf8("Наибольшее целое число");
+        case OperationEnums::RANDINT:       return QString::fromUtf8("Случайное число");
+        case OperationEnums::RANDINT64:     return QString::fromUtf8("Случайное 64-битное число");
         case OperationEnums::FACTOR:        return QString::fromUtf8("Разложить на простые множители целую часть числа");
         default:                            return QString::fromUtf8("Неизвестная операция");
     }
@@ -175,8 +177,13 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
     if (requested_operation == OperationEnums::RANDINT) {
-        u128::U128 max_value = u128::get_random_value();
-        emit setInput(QString::fromStdString(max_value.value()));
+        u128::U128 value = u128::get_random_value();
+        emit setInput(QString::fromStdString(value.value()));
+        return;
+    }
+    if (requested_operation == OperationEnums::RANDINT64) {
+        u128::U128 value = u128::get_random_half_value();
+        emit setInput(QString::fromStdString(value.value()));
         return;
     }
     // По введенной строке сконструировать число Decimal.
