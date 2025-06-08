@@ -420,7 +420,7 @@ Window {
                 }
                 Button {
                     id: max_integer
-                    text: "Max Int"
+                    text: "MI"
                     font.pixelSize: 24
                     Layout.fillWidth: true
                     Layout.fillHeight: true
