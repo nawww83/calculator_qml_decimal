@@ -692,17 +692,12 @@ inline U128 isqrt(U128 x, bool& exact) {
  */
 inline bool is_quadratiq_residue(U128 x, U128 p) {
     // y^2 = x mod p
-    auto [_, r] = x / p;
-    bool exact;
-    const auto x_sqrt = isqrt(x, exact);
-    for(;;) {
-        if (r > x_sqrt) {
-            break;
-        }
-        if (bool exact_; isqrt(r, exact_), exact_) {
+    auto [_, r1] = x / p;
+    for(U128 y = u128::get_unit(); y < p ; y += u128::get_unit()) {
+        U128 sq = y*y;
+        auto [_, r2] = sq / p;
+        if (r2 == r1)
             return true;
-        }
-        r += p;
     }
     return false;
 }
