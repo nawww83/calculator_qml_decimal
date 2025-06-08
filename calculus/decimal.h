@@ -244,7 +244,7 @@ class Decimal {
         // Коррекция всех девяток.
         if ((global.mWidth > 0) && ((fraction + u128::get_unit()) == mChangedDenominator)) {
             fraction = u128::get_zero();
-            r = the_sign ? r - u128::get_unit() : r + u128::get_unit();
+            r = the_sign ? r.dec() : r.inc();
             mNominator = u128::get_zero();
             mInteger = r;
             if (r.is_overflow()) {

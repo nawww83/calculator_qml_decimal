@@ -344,6 +344,24 @@ struct U128 {
         return *this;
     }
 
+    /**
+     * @brief Инкремент числа.
+     * @return Число + 1.
+     */
+    U128& inc() {
+        *this = *this + get_unit();
+        return *this;
+    }
+
+    /**
+     * @brief Декремент числа.
+     * @return Число - 1.
+     */
+    U128& dec() {
+        *this = *this - get_unit();
+        return *this;
+    }
+
     U128 mult64(ULOW x, ULOW y) const {
         constexpr ULOW MASK = (ULOW(1) << mHalfWidth) - 1;
         const ULOW x_low = x & MASK;
@@ -693,13 +711,34 @@ inline U128 isqrt(U128 x, bool& exact) {
 inline bool is_quadratiq_residue(U128 x, U128 p) {
     // y^2 = x mod p
     auto [_, r1] = x / p;
-    for(U128 y = u128::get_unit(); y < p ; y += u128::get_unit()) {
+    for(U128 y = u128::get_zero(); y < p ; y.inc()) {
         U128 sq = y*y;
         auto [_, r2] = sq / p;
         if (r2 == r1)
             return true;
     }
     return false;
+}
+
+/**
+ * @brief Возвращает корень квадратный из заданного числа
+ * по заданному модулю.
+ * @param x Число.
+ * @param p Простой модуль.
+ * @return Два значения корня.
+ */
+inline std::pair<U128, U128> sqrt_mod(U128 x, U128 p) {
+    // return  sqrt(x) mod p
+    U128 result[2];
+    int idx = 0;
+    const auto [_, r1] = x / p;
+    for(U128 y = u128::get_zero(); y < p ; y.inc()) {
+        U128 sq = y*y;
+        auto [_, r2] = sq / p;
+        if (r2 == r1)
+            result[idx++] = y;
+    }
+    return std::make_pair(result[0], result[1]);
 }
 
 inline bool is_prime(U128 x) {
@@ -710,11 +749,17 @@ inline bool is_prime(U128 x) {
     while (d < x_sqrt) {
         auto [_, remainder] = x / d;
         is_ok &= !remainder.is_zero();
-        d += u128::get_unit();
+        d.inc();
     }
     return is_ok;
 }
 
+/**
+ * @brief Делит первое число на второе до "упора".
+ * @param x Делимое.
+ * @param q Делитель.
+ * @return Пара {Делитель, количество успешных делений}
+ */
 inline std::pair<U128, int> div_by_q(U128& x, ULOW q) {
     auto [tmp, remainder] = x / q;
     int i = 0;
@@ -745,7 +790,7 @@ inline std::pair<U128, U128> ferma_method(U128 x) {
             return std::make_pair(x_sqrt + u128::get_unit() - y_sqrt, x_sqrt + u128::get_unit() + y_sqrt);
     }
     auto [k_upper, _] = x_sqrt/2; // Точный коэффициент sqrt(2) - 1 = 0,414... < 0.5.
-    for ( auto k = U128{2, 0};; k += u128::get_unit()) {
+    for ( auto k = U128{2, 0};; k.inc()) {
         if (!(k.mLow & 65535) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
             break;
         if (k > k_upper) {
