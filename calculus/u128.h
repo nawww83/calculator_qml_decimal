@@ -684,6 +684,29 @@ inline U128 isqrt(U128 x, bool& exact) {
     }
 }
 
+/**
+ * @brief Является ли заданное число квадратичным вычетом.
+ * @param x Тестируемое число.
+ * @param p Простой модуль.
+ * @return Да/нет.
+ */
+inline bool is_quadratiq_residue(U128 x, U128 p) {
+    // y^2 = x mod p
+    auto [_, r] = x / p;
+    bool exact;
+    const auto x_sqrt = isqrt(x, exact);
+    for(;;) {
+        if (r > x_sqrt) {
+            break;
+        }
+        if (bool exact_; isqrt(r, exact_), exact_) {
+            return true;
+        }
+        r += p;
+    }
+    return false;
+}
+
 inline bool is_prime(U128 x) {
     [[maybe_unused]] bool exact;
     const auto x_sqrt = isqrt(x, exact) + u128::get_unit();
@@ -726,7 +749,7 @@ inline std::pair<U128, U128> ferma_method(U128 x) {
         if (is_exact)
             return std::make_pair(x_sqrt + u128::get_unit() - y_sqrt, x_sqrt + u128::get_unit() + y_sqrt);
     }
-    auto k_upper = x_sqrt;
+    auto [k_upper, _] = x_sqrt/2; // Точный коэффициент sqrt(2) - 1 = 0,414... < 0.5.
     for ( auto k = U128{2, 0};; k += u128::get_unit()) {
         if (!(k.mLow & 65535) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
             break;
@@ -752,12 +775,9 @@ inline std::pair<U128, U128> ferma_method(U128 x) {
         const auto y_sqrt = isqrt(y, is_exact);
         const auto delta = (x_sqrt + x_sqrt) + (k + k) + u128::get_unit();
         y = y + delta;
-        const auto first_multiplier = x_sqrt + k - y_sqrt;
-        if (first_multiplier < k_upper) {
-            k_upper = first_multiplier;
-        }
         if (!is_exact)
             continue;
+        const auto first_multiplier = x_sqrt + k - y_sqrt;
         return std::make_pair(first_multiplier, x_sqrt + k + y_sqrt);
     }
     return std::make_pair(x, u128::get_unit()); // По какой-то причине не раскладывается.

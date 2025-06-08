@@ -242,7 +242,7 @@ class Decimal {
         }
         mChangedDenominator = global.mDenominator;
         // Коррекция всех девяток.
-        if ((fraction + u128::get_unit()) == mChangedDenominator) {
+        if ((global.mWidth > 0) && ((fraction + u128::get_unit()) == mChangedDenominator)) {
             fraction = u128::get_zero();
             r = the_sign ? r - u128::get_unit() : r + u128::get_unit();
             mNominator = u128::get_zero();
