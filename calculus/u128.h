@@ -1,5 +1,6 @@
 #pragma once
 
+#include <_mingw_mac.h>
 #include <algorithm> // std::reverse
 #include <atomic>
 #include <chrono>
@@ -738,6 +739,9 @@ inline std::pair<U128, U128> sqrt_mod(U128 x, U128 p) {
         if (r2 == r1)
             result[idx++] = y;
     }
+    if (idx == 1) { // Если не был установлен второй корень.
+        result[1] = result[0];
+    }
     return std::make_pair(result[0], result[1]);
 }
 
@@ -789,7 +793,7 @@ inline std::pair<U128, U128> ferma_method(U128 x) {
         if (is_exact)
             return std::make_pair(x_sqrt + u128::get_unit() - y_sqrt, x_sqrt + u128::get_unit() + y_sqrt);
     }
-    auto [k_upper, _] = x_sqrt/2; // Точный коэффициент sqrt(2) - 1 = 0,414... < 0.5.
+    const auto k_upper = x_sqrt;
     for ( auto k = U128{2, 0};; k.inc()) {
         if (!(k.mLow & 65535) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
             break;
@@ -799,7 +803,7 @@ inline std::pair<U128, U128> ferma_method(U128 x) {
         if (k.mLow % 2) { // Проверка с другой стороны: ускоряет поиск.
             // Основано на равенстве, следующем из метода Ферма: индекс k = (F^2 + x) / (2F) - floor(sqrt(x)).
             // Здесь F - кандидат в множители, x - раскладываемое число.
-            const auto N1 = k * k + x;
+            const auto& N1 = k * k + x;
             if ((N1.mLow % 2) == 0) {
                 auto [q1, remainder] = N1 / (k + k); // Здесь k как некоторый множитель F.
                 if (remainder.is_zero() && (q1 > x_sqrt)) {
@@ -809,7 +813,7 @@ inline std::pair<U128, U128> ferma_method(U128 x) {
                 }
             }
         }
-        if (auto r = y.mod10(); (r != 1 && r != 9)) // Просеиваем заведомо лишние.
+        if (const auto& r = y.mod10(); (r != 1 && r != 9)) // Просеиваем заведомо лишние.
             continue;
         bool is_exact;
         const auto y_sqrt = isqrt(y, is_exact);
