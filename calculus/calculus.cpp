@@ -5,7 +5,7 @@ namespace calculus {
 
 std::map<u128::U128, int> factor(u128::U128 x, int& error) {
     error = NO_ERRORS;
-    return u128::factor(x);
+    return u128::utils::factor(x);
 }
 
 }

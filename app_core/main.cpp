@@ -11,7 +11,7 @@ static void run_unit_tests() {
     bool all_is_ok = true;
 
     { // max_int / 10
-        u128::U128 x = u128::get_max_value();
+        u128::U128 x = u128::utils::get_max_value();
         x = x.div10();
         all_is_ok &= !x.is_singular();
         all_is_ok &= x.value().starts_with("34028236692093846346337460743176821145");
@@ -19,15 +19,15 @@ static void run_unit_tests() {
     }
 
     { // max_int / max_int
-        u128::U128 x = u128::get_max_value();
-        u128::U128 y = u128::get_max_value();
+        u128::U128 x = u128::utils::get_max_value();
+        u128::U128 y = u128::utils::get_max_value();
         const auto [z, remainder] = x / y;
         all_is_ok &= z == u128::get_unit();
         assert(all_is_ok);
     }
 
     { // max_int * 1
-        u128::U128 x = u128::get_max_value();
+        u128::U128 x = u128::utils::get_max_value();
         const auto z = x * u128::get_unit();
         all_is_ok &= !x.is_singular();
         all_is_ok &= x == z;
@@ -35,7 +35,7 @@ static void run_unit_tests() {
     }
 
     { // max_int * -1 == -max_int
-        u128::U128 x = u128::get_max_value();
+        u128::U128 x = u128::utils::get_max_value();
         const auto z = x * (-u128::get_unit());
         all_is_ok &= !x.is_singular();
         all_is_ok &= -x == z;
@@ -43,7 +43,7 @@ static void run_unit_tests() {
     }
 
     { // max_int / 1
-        u128::U128 x = u128::get_max_value();
+        u128::U128 x = u128::utils::get_max_value();
         const auto [z, remainder] = x / u128::get_unit();
         all_is_ok &= !x.is_singular();
         all_is_ok &= x == z;
@@ -51,7 +51,7 @@ static void run_unit_tests() {
     }
 
     { // max_int / -1 == -max_int
-        u128::U128 x = u128::get_max_value();
+        u128::U128 x = u128::utils::get_max_value();
         const auto [z, remainder] = x / (-u128::get_unit());
         all_is_ok &= !x.is_singular();
         all_is_ok &= -x == z;
@@ -66,7 +66,7 @@ static void run_unit_tests() {
     }
 
     { // max_int * 1,00...01
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_unit(), u128::get_unit() );
         assert(d2.GetWidth() > 0);
         const auto z = d1 * d2;
@@ -75,7 +75,7 @@ static void run_unit_tests() {
     }
 
     { // max_int * 0,5
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_zero(), u128::U128{1, 0}, u128::U128{2, 0} );
         assert(d2.GetWidth() > 0);
         const auto z = d1 * d2;
@@ -86,7 +86,7 @@ static void run_unit_tests() {
     }
 
     { // 0,5 * max_int
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_zero(), u128::U128{1, 0}, u128::U128{2, 0} );
         assert(d2.GetWidth() > 0);
         const auto z = d2 * d1;
@@ -97,7 +97,7 @@ static void run_unit_tests() {
     }
 
     { // max_int / 1,999: correct all 9's to all 0's with corresponding integer part adjusting.
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_unit(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
@@ -107,7 +107,7 @@ static void run_unit_tests() {
     }
 
     { // max_int / -1,999
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(-u128::get_unit(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
@@ -117,7 +117,7 @@ static void run_unit_tests() {
     }
 
     { // -max_int / 1,999
-        Decimal d1; d1.SetDecimal(-u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(-u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_unit(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
@@ -127,7 +127,7 @@ static void run_unit_tests() {
     }
 
     { // -max_int / -1,999
-        Decimal d1; d1.SetDecimal(-u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(-u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(-u128::get_unit(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
@@ -137,7 +137,7 @@ static void run_unit_tests() {
     }
 
     { // (max_int / 1,9) * 1,9
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_unit(),  u128::U128{900, 0} );
         assert(d2.GetWidth() == 3);
         auto z = d1 / d2;
@@ -149,7 +149,7 @@ static void run_unit_tests() {
     }
 
     { // (max_int * 0,9) / 0,9
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_zero(),  u128::U128{900, 0} );
         assert(d2.GetWidth() == 3);
         auto z = d1 * d2;
@@ -161,7 +161,7 @@ static void run_unit_tests() {
     }
 
     { // max_int / 0,999
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_zero(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
@@ -170,7 +170,7 @@ static void run_unit_tests() {
     }
 
     { // -max_int / 0,999
-        Decimal d1; d1.SetDecimal(-u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(-u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_zero(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / d2;
@@ -179,7 +179,7 @@ static void run_unit_tests() {
     }
 
     { // -max_int / -0,999
-        Decimal d1; d1.SetDecimal(-u128::get_max_value(), u128::get_zero() );
+        Decimal d1; d1.SetDecimal(-u128::utils::get_max_value(), u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_zero(),  u128::U128{999, 0} );
         assert(d2.GetWidth() == 3);
         const auto z = d1 / -d2;
@@ -188,7 +188,7 @@ static void run_unit_tests() {
     }
 
     { // max_int,999 + 0,001
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::U128{999, 0} );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::U128{999, 0} );
         Decimal d2; d2.SetDecimal(u128::get_zero(), u128::get_unit() );
         assert(d2.GetWidth() == 3);
         const auto z = d1 + d2;
@@ -197,7 +197,7 @@ static void run_unit_tests() {
     }
 
     { // -max_int,999 - 0,001
-        Decimal d1; d1.SetDecimal(-u128::get_max_value(), u128::U128{999, 0} );
+        Decimal d1; d1.SetDecimal(-u128::utils::get_max_value(), u128::U128{999, 0} );
         Decimal d2; d2.SetDecimal(u128::get_zero(), u128::get_unit() );
         assert(d2.GetWidth() == 3);
         const auto z = d1 - d2;
@@ -206,7 +206,7 @@ static void run_unit_tests() {
     }
 
     { // max_int,999 + 0,000
-        Decimal d1; d1.SetDecimal(u128::get_max_value(), u128::U128{999, 0} );
+        Decimal d1; d1.SetDecimal(u128::utils::get_max_value(), u128::U128{999, 0} );
         Decimal d2; d2.SetDecimal(u128::get_zero(), u128::get_zero() );
         assert(d2.GetWidth() == 3);
         const auto z = d1 + d2;
@@ -215,7 +215,7 @@ static void run_unit_tests() {
     }
 
     { // -max_int,999 - 0,000
-        Decimal d1; d1.SetDecimal(-u128::get_max_value(), u128::U128{999, 0} );
+        Decimal d1; d1.SetDecimal(-u128::utils::get_max_value(), u128::U128{999, 0} );
         Decimal d2; d2.SetDecimal(u128::get_zero(), u128::get_zero() );
         assert(d2.GetWidth() == 3);
         const auto z = d1 - d2;
@@ -296,21 +296,21 @@ static void run_unit_tests() {
     }
 
     {
-        const auto thousand = u128::int_power(10, 3);
+        const auto thousand = u128::utils::int_power(10, 3);
         all_is_ok &= thousand == u128::U128{1000, 0};
         assert(all_is_ok);
     }
 
     {
-        const auto ten_to_36 = u128::int_power(10, 36);
-        const auto thousand = u128::int_power(10, 3);
+        const auto ten_to_36 = u128::utils::int_power(10, 36);
+        const auto thousand = u128::utils::int_power(10, 3);
         const auto z = ten_to_36 * thousand;
         all_is_ok &= z.is_overflow();
         assert(all_is_ok);
     }
 
     {
-        const auto ten_to_36 = u128::int_power(10, 36);
+        const auto ten_to_36 = u128::utils::int_power(10, 36);
         Decimal d1; d1.SetDecimal(ten_to_36, u128::get_zero() );
         Decimal d2; d2.SetDecimal(u128::get_zero(), u128::get_unit() );
         const auto z = d1 / d2;
@@ -348,27 +348,27 @@ static void run_unit_tests() {
     }
 
     {
-        u128::U128 max_int_value = u128::get_max_value();
+        u128::U128 max_int_value = u128::utils::get_max_value();
         all_is_ok &= max_int_value.value() == "340282366920938463463374607431768211455";
         assert(all_is_ok);
     }
 
     {
-        u128::U128 max_int_value = u128::get_max_value();
+        u128::U128 max_int_value = u128::utils::get_max_value();
         u128::U128 overflowed = max_int_value + u128::U128{1, 0};
         all_is_ok &= overflowed.is_overflow();
         assert(all_is_ok);
     }
 
     {
-        u128::U128 max_int_value = u128::get_max_value();
+        u128::U128 max_int_value = u128::utils::get_max_value();
         u128::U128 overflowed = max_int_value * u128::U128{2, 0};
         all_is_ok &= overflowed.is_overflow();
         assert(all_is_ok);
     }
 
     {
-        u128::U128 max_int_value = u128::get_max_value();
+        u128::U128 max_int_value = u128::utils::get_max_value();
         u128::U128 normal_value = max_int_value - u128::U128{1, 0};
         all_is_ok &= !normal_value.is_singular();
         assert(all_is_ok);

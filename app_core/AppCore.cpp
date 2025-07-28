@@ -172,17 +172,17 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
     if (requested_operation == OperationEnums::MAX_INT_VALUE) {
-        u128::U128 max_value = u128::get_max_value();
+        u128::U128 max_value = u128::utils::get_max_value();
         emit setInput(QString::fromStdString(max_value.value()));
         return;
     }
     if (requested_operation == OperationEnums::RANDINT) {
-        u128::U128 value = u128::get_random_value();
+        u128::U128 value = u128::utils::get_random_value();
         emit setInput(QString::fromStdString(value.value()));
         return;
     }
     if (requested_operation == OperationEnums::RANDINT64) {
-        u128::U128 value = u128::get_random_half_value();
+        u128::U128 value = u128::utils::get_random_half_value();
         emit setInput(QString::fromStdString(value.value()));
         return;
     }

@@ -20,7 +20,9 @@ HEADERS += \
     decimal.h \
     lfsr.h \
     random_gen.h \
-    u128.h
+    solver.h \
+    u128.h \
+    u128_utils.h
 
 # Default rules for deployment.
 unix {

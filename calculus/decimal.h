@@ -6,6 +6,7 @@
 #include <climits>   // CHAR_BIT
 #include <algorithm> // std::clamp
 #include "u128.h"    // U128
+#include "u128_utils.h"
 
 
 namespace dec_n {
@@ -179,7 +180,7 @@ class Decimal {
         /**
          * @brief Знаменатель дробной части числа.
          */
-        u128::U128 mDenominator = u128::int_power(10, mWidth);
+        u128::U128 mDenominator = u128::utils::int_power(10, mWidth);
     } global;
 
     /**
@@ -235,7 +236,7 @@ class Decimal {
             }
         }
         u128::U128 fraction = mNominator.is_negative() ? -mNominator : mNominator;
-        const auto old_denominator = u128::int_power(10, global.mWidth);
+        const auto old_denominator = u128::utils::int_power(10, global.mWidth);
         if (old_denominator != mChangedDenominator) {
             fraction = fraction * old_denominator;
             std::tie(fraction, std::ignore) = fraction / mChangedDenominator;
@@ -254,7 +255,7 @@ class Decimal {
         }
         //
         const int separator_length = global.mWidth < 1 ? 0 : 1;
-        const int required_length = (u128::num_of_digits(r) + separator_length + global.mWidth) + (the_sign == 0 ? 0 : 1);
+        const int required_length = (u128::utils::num_of_digits(r) + separator_length + global.mWidth) + (the_sign == 0 ? 0 : 1);
         // Целая часть, разделитель, дробная часть (precision), знак.
         assert(required_length <= Vector128::MaxSize());
         assert(required_length > 0);
@@ -342,7 +343,7 @@ class Decimal {
         }
         current_index++;
         digit = mStringRepresentation[current_index];
-        mNominator = mNominator + u128::get_by_digit( undigits(digit) );
+        mNominator = mNominator + u128::utils::get_by_digit( undigits(digit) );
         current_index++;
         digit = mStringRepresentation[current_index];
         const int length = mStringRepresentation.RealSize();
@@ -352,7 +353,7 @@ class Decimal {
                 break;
             }
             mNominator = mNominator * 10;
-            mNominator = mNominator + u128::get_by_digit( undigits(digit) );
+            mNominator = mNominator + u128::utils::get_by_digit( undigits(digit) );
             current_index++;
             digit = mStringRepresentation[current_index];
             idx_width++;
@@ -392,7 +393,7 @@ public:
     static bool SetWidth(int width, int max_width) {
         int old_width = global.mWidth;
         global.mWidth = std::clamp(width, 0, max_width);
-        global.mDenominator = u128::int_power(10, global.mWidth);
+        global.mDenominator = u128::utils::int_power(10, global.mWidth);
         return global.mWidth != old_width;
     }
 
@@ -1023,7 +1024,7 @@ inline Decimal Sqrt(Decimal x, bool& exact) {
     x = x.Abs();
     Decimal result;
     // Установка Nominator позволяет извлекать корень из чисел менее 1.
-    result.SetDecimal( u128::isqrt(x.IntegerPart(), exact), x.Nominator());
+    result.SetDecimal( u128::utils::isqrt(x.IntegerPart(), exact), x.Nominator());
     if (exact && x.Nominator().is_zero()) {
         return result;
     }
