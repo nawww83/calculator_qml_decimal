@@ -74,17 +74,9 @@ inline U128 get_random_half_value() {
     return result;
 }
 
-inline U128 get_max_value()
-{
-    U128 result{};
-    result.mLow = -1;
-    result.mHigh = -1;
-    return result;
-}
-
 inline U128 int_power(ULOW x, int y)
 {
-    u128::U128 result = get_unit();
+    u128::U128 result{1};
     for (int i = 1; i <= y; ++i)
     {
         result = result * x;
@@ -165,7 +157,7 @@ inline U128 isqrt(U128 x, bool &exact)
     {
         result = U128{ULOW(1) << (U128::mHalfWidth / 2), 0};
     }
-    U128 prevprev = get_unit_neg();
+    U128 prevprev = -U128{1};
     U128 prev = x;
     for (;;)
     {
@@ -200,7 +192,7 @@ inline bool is_quadratiq_residue(U128 x, U128 p)
 {
     // y^2 = x mod p
     auto [_, r1] = x / p;
-    for (U128 y = u128::get_zero(); y < p; y.inc())
+    for (U128 y{0}; y < p; y.inc())
     {
         U128 sq = y * y;
         auto [_, r2] = sq / p;
@@ -223,7 +215,7 @@ inline std::pair<U128, U128> sqrt_mod(U128 x, U128 p)
     U128 result[2];
     int idx = 0;
     const auto [_, r1] = x / p;
-    for (U128 y = u128::get_zero(); y < p; y.inc())
+    for (U128 y{0}; y < p; y.inc())
     {
         U128 sq = y * y;
         auto [_, r2] = sq / p;
@@ -240,7 +232,7 @@ inline std::pair<U128, U128> sqrt_mod(U128 x, U128 p)
 inline bool is_prime(U128 x)
 {
     [[maybe_unused]] bool exact;
-    const auto x_sqrt = isqrt(x, exact) + u128::get_unit();
+    const auto x_sqrt = isqrt(x, exact) + U128{1};
     U128 d{2, 0};
     bool is_ok = true;
     while (d < x_sqrt)
@@ -304,7 +296,7 @@ inline std::pair<U128, int> div_by_q(U128 &x, ULOW q)
         x = tmp;
         std::tie(tmp, remainder) = x / q;
     }
-    return std::make_pair(U128{q, 0}, i);
+    return std::make_pair(U128{q}, i);
 }
 
 inline std::pair<U128, U128> ferma_method(U128 x)
@@ -317,23 +309,23 @@ inline std::pair<U128, U128> ferma_method(U128 x)
             return std::make_pair(x_sqrt, x_sqrt);
     }
     const auto error = x - x_sqrt * x_sqrt;
-    auto y = U128{2, 0} * x_sqrt + u128::get_unit() - error;
+    auto y = U128{2} * x_sqrt + U128{1} - error;
     {
         bool is_exact;
         auto y_sqrt = isqrt(y, is_exact);
         const auto delta = x_sqrt + x_sqrt + U128{3, 0};
         y = y + delta;
         if (is_exact)
-            return std::make_pair(x_sqrt + u128::get_unit() - y_sqrt, x_sqrt + u128::get_unit() + y_sqrt);
+            return std::make_pair(x_sqrt + U128{1} - y_sqrt, x_sqrt + U128{1} + y_sqrt);
     }
     const auto &k_upper = x_sqrt;
-    for (auto k = U128{2, 0};; k.inc())
+    for (auto k = U128{2};; k.inc())
     {
         if (!(k.mLow & 65535) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
             break;
         if (k > k_upper)
         {
-            return std::make_pair(x, u128::get_unit()); // x - простое число.
+            return std::make_pair(x, U128{1}); // x - простое число.
         }
         if (k.mLow % 2)
         { // Проверка с другой стороны: ускоряет поиск.
@@ -355,14 +347,14 @@ inline std::pair<U128, U128> ferma_method(U128 x)
             continue;
         bool is_exact;
         const auto y_sqrt = isqrt(y, is_exact);
-        const auto delta = (x_sqrt + x_sqrt) + (k + k) + u128::get_unit();
+        const auto delta = (x_sqrt + x_sqrt) + (k + k) + U128{1};
         y = y + delta;
         if (!is_exact)
             continue;
         const auto first_multiplier = x_sqrt + k - y_sqrt;
         return std::make_pair(first_multiplier, x_sqrt + k + y_sqrt);
     }
-    return std::make_pair(x, u128::get_unit()); // По какой-то причине не раскладывается.
+    return std::make_pair(x, U128{1}); // По какой-то причине не раскладывается.
 };
 
 inline std::map<U128, int> factor(U128 x)
@@ -372,7 +364,7 @@ inline std::map<U128, int> factor(U128 x)
     {
         return {{x, 1}};
     }
-    if (x == u128::get_unit())
+    if (x.is_unit())
     {
         return {{x, 1}};
     }
@@ -443,7 +435,7 @@ inline std::map<U128, int> factor_qs(U128 x, unsigned int sieve_size, unsigned i
     {
         if (x.is_zero())
             return x;
-        if (x == u128::get_unit())
+        if (x.is_unit())
             return x;
         std::vector<U128> base;
         PrimesGenerator pg;
@@ -511,7 +503,7 @@ inline std::map<U128, int> factor_qs(U128 x, unsigned int sieve_size, unsigned i
         std::vector<unsigned int> indices_where_unit_sieve;
         for (unsigned int i = 0; i < sieve.size(); ++i)
         {
-            if (sieve.at(i) == u128::get_unit())
+            if (sieve.at(i).is_unit())
             {
                 indices_where_unit_sieve.push_back(i);
             }
@@ -537,7 +529,7 @@ inline std::map<U128, int> factor_qs(U128 x, unsigned int sieve_size, unsigned i
         M.clear();
         for (const auto &indices : solved_indices)
         {
-            U128 A = u128::get_unit();
+            U128 A{1};
             std::map<U128, int> B_factors;
             for (auto it = indices.begin(); it != indices.end(); it++)
             {
@@ -568,38 +560,38 @@ inline std::map<U128, int> factor_qs(U128 x, unsigned int sieve_size, unsigned i
             {
                 element.second /= 2;
             }
-            U128 B = u128::get_unit();
+            U128 B{1};
             for (const auto &[prime, power] : B_factors)
             {
-                U128 tmp = u128::get_unit();
+                U128 tmp{1};
                 for (int i = 0; i < power; ++i)
                     tmp = tmp * prime;
                 B = B * tmp;
             }
             const U128 &C = A - B;
             const U128 &GCD = gcd(C, x);
-            if (GCD < x && GCD > u128::get_unit())
+            if (GCD < x && GCD > U128{1})
             {
                 return GCD;
             }
         }
         return x;
     }; // find_a_divisor()
-    U128 y = u128::get_unit();
+    U128 y{1};
     for (;;)
     {
         const auto &divisor1 = find_a_divisor(x);
         const auto &divisor2 = find_a_divisor(y);
-        if (divisor1 == u128::get_unit() && divisor2 == u128::get_unit())
+        if (divisor1.is_unit() && divisor2.is_unit())
             break;
-        if (divisor2 == y && divisor2 != u128::get_unit())
+        if (divisor2 == y && !divisor2.is_unit())
         {
             result[divisor2]++;
         }
-        if (divisor1 == x && divisor1 != u128::get_unit())
+        if (divisor1 == x && !divisor1.is_unit())
         {
             result[divisor1]++;
-            y = u128::get_unit();
+            y = U128{1};
         }
         else
         {

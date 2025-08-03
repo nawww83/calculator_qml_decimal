@@ -61,7 +61,7 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
             error_code = calculus::ZERO_DIVISION;
         } else {
             dec_n::Decimal one;
-            one.SetDecimal(u128::get_unit(), u128::get_zero());
+            one.SetDecimal(u128::U128{1}, u128::U128{0});
             result = one / x;
             if (result.IsOverflowed()) {
                 error_code = calculus::NOT_FINITE;

@@ -186,19 +186,19 @@ class Decimal {
     /**
      * @brief Целая часть числа.
      */
-    u128::U128 mInteger {u128::get_zero()};
+    u128::U128 mInteger {0};
 
     /**
      * @brief Числитель дробной части числа.
      */
-    u128::U128 mNominator {u128::get_zero()};
+    u128::U128 mNominator {0};
 
     /**
      * @brief Измененный знаменатель. В процессе операций иногда требуется изменить знаменатель.
      * Если значение -1, то знаменатель не изменился.
      * Значение по умолчанию равно нулю для отработки NaN.
      */
-    u128::U128 mChangedDenominator {u128::get_zero()};
+    u128::U128 mChangedDenominator {0};
 
     /**
      * @brief Строковое представление числа.
@@ -217,7 +217,7 @@ class Decimal {
             mStringRepresentation = "";
             return;
         }
-        mChangedDenominator = mChangedDenominator == -u128::get_unit() ? global.mDenominator : mChangedDenominator;
+        mChangedDenominator = mChangedDenominator == -u128::U128{1} ? global.mDenominator : mChangedDenominator;
         auto r = mInteger;
         const int the_sign = IsNegative();
         if (mNominator.abs() >= mChangedDenominator) {
@@ -243,10 +243,10 @@ class Decimal {
         }
         mChangedDenominator = global.mDenominator;
         // Коррекция всех девяток.
-        if ((global.mWidth > 0) && ((fraction + u128::get_unit()) == mChangedDenominator)) {
-            fraction = u128::get_zero();
+        if ((global.mWidth > 0) && ((fraction + u128::U128{1}) == mChangedDenominator)) {
+            fraction = u128::U128{0};
             r = the_sign ? r.dec() : r.inc();
-            mNominator = u128::get_zero();
+            mNominator = u128::U128{0};
             mInteger = r;
             if (r.is_overflow()) {
                 mStringRepresentation = u128::INF;
@@ -297,22 +297,22 @@ class Decimal {
      */
     void TransformToDecimal() {
         if (mStringRepresentation.RealSize() < 1) {
-            mInteger = u128::get_zero();
-            mNominator = u128::get_zero();
-            mChangedDenominator = u128::get_zero();
+            mInteger = u128::U128{0};
+            mNominator = u128::U128{0};
+            mChangedDenominator = u128::U128{0};
             return;
         }
         if (mStringRepresentation.GetStringView().starts_with(u128::INF)) {
-            mInteger = -u128::get_unit();
-            mNominator = -u128::get_unit();
+            mInteger = -u128::U128{1};
+            mNominator = -u128::U128{1};
             return;
         }
-        mNominator = u128::get_zero();
+        mNominator = u128::U128{0};
         mChangedDenominator = global.mDenominator;
         const int the_sign = mStringRepresentation[0] == chars::minus_sign ? 1 : 0;
         int current_index = the_sign == 0 ? 0 : 1;
         char digit = mStringRepresentation[current_index];
-        mInteger = u128::get_zero();
+        mInteger = u128::U128{0};
         mInteger.mLow = undigits(digit); // В случае некорректного символа возвращается ноль.
         current_index++;
         digit = mStringRepresentation[current_index];
@@ -332,8 +332,8 @@ class Decimal {
             digit = mStringRepresentation[current_index];
         } // while
         if (is_overflow) {
-            mInteger = -u128::get_unit();
-            mNominator = -u128::get_unit();
+            mInteger = -u128::U128{1};
+            mNominator = -u128::U128{1};
             mStringRepresentation = u128::INF;
             return;
         }
@@ -360,7 +360,7 @@ class Decimal {
         }
         while (idx_width < global.mWidth) { // Добавление нулей. Например 4,5 => 4,50 при width = 2.
             mNominator = mNominator * 10;
-            mNominator = mNominator + u128::get_zero();
+            mNominator = mNominator + u128::U128{0};
             idx_width++;
         }
         if (mInteger.is_zero() && the_sign != 0) { // Если целая часть равна нулю, то знак храним в числителе.
@@ -405,21 +405,21 @@ public:
      * @brief Установить ноль.
      */
     void SetZero() {
-        SetDecimal(u128::get_zero(), u128::get_zero(), global.mDenominator);
+        SetDecimal(u128::U128{0}, u128::U128{0}, global.mDenominator);
     }
 
     /**
      * @brief Установить NaN.
      */
     void SetNotANumber() {
-        SetDecimal(u128::get_zero(), u128::get_zero(), u128::get_zero());
+        SetDecimal(u128::U128{0}, u128::U128{0}, u128::U128{0});
     }
 
     /**
      * @brief Установить Inf.
      */
     void SetInfinity() {
-        SetDecimal(-u128::get_unit(), -u128::get_unit());
+        SetDecimal(-u128::U128{1}, -u128::U128{1});
     }
 
     /**
@@ -428,7 +428,7 @@ public:
      * @param nominator Числитель дробной части.
      * @param denominator Знаменатель дробной части.
      */
-    void SetDecimal(u128::U128 integer, u128::U128 nominator, u128::U128 denominator = -u128::get_unit()) {
+    void SetDecimal(u128::U128 integer, u128::U128 nominator, u128::U128 denominator = -u128::U128{1}) {
         mInteger = integer;
         mNominator = nominator;
         mChangedDenominator = denominator;
@@ -571,11 +571,11 @@ public:
             } else
                 if (f.is_negative() && sum.is_positive()) {
                     f += global.mDenominator;
-                    sum = sum - u128::get_unit();
+                    sum.dec();
                 } else
                     if (f.is_positive() && sum.is_negative()) {
                         f -= global.mDenominator;
-                        sum = sum + u128::get_unit();
+                        sum.inc();
                         if (!sum.is_zero()) {
                             f = f.abs();
                         }
@@ -602,7 +602,7 @@ public:
      * @return Результат сложения, this + other, с точностью width.
      */
     Decimal operator+(const u128::U128& other) const {
-        Decimal N; N.SetDecimal( other, u128::get_zero() );
+        Decimal N; N.SetDecimal( other, u128::U128{0});
         return *this + N;
     }
 
@@ -612,7 +612,7 @@ public:
      * @return Результат вычитания, this - other, с точностью width.
      */
     Decimal operator-(const u128::U128& other) const {
-        Decimal N; N.SetDecimal( other, u128::get_zero() );
+        Decimal N; N.SetDecimal( other, u128::U128{0} );
         return *this - N;
     }
 
@@ -648,12 +648,12 @@ public:
         if (left_integer) {
             const auto A = mInteger.abs() * other.mNominator.abs();
             if (A.is_overflow()) {
-                Decimal N; N.SetDecimal( mInteger, u128::get_zero() ); // Через Decimal вычисляется точно.
-                Decimal M; M.SetDecimal( global.mDenominator, u128::get_zero() );
-                Decimal P; P.SetDecimal( other.mNominator, u128::get_zero() );
+                Decimal N; N.SetDecimal( mInteger, u128::U128{0} ); // Через Decimal вычисляется точно.
+                Decimal M; M.SetDecimal( global.mDenominator, u128::U128{0} );
+                Decimal P; P.SetDecimal( other.mNominator, u128::U128{0} );
                 N = N / M;
                 N = N * P;
-                result.SetDecimal(integer_part, u128::get_zero());
+                result.SetDecimal(integer_part, u128::U128{0});
                 result = result + N;
                 return result;
             }
@@ -670,12 +670,12 @@ public:
         if (right_integer) {
             const auto A = mNominator.abs() * other.mInteger.abs();
             if (A.is_overflow()) {
-                Decimal N; N.SetDecimal( other.mInteger, u128::get_zero() ); // Через Decimal вычисляется точно.
-                Decimal M; M.SetDecimal( global.mDenominator, u128::get_zero() );
-                Decimal P; P.SetDecimal( mNominator, u128::get_zero() );
+                Decimal N; N.SetDecimal( other.mInteger, u128::U128{0} ); // Через Decimal вычисляется точно.
+                Decimal M; M.SetDecimal( global.mDenominator, u128::U128{0} );
+                Decimal P; P.SetDecimal( mNominator, u128::U128{0} );
                 N = N / M;
                 N = N * P;
-                result.SetDecimal(integer_part, u128::get_zero());
+                result.SetDecimal(integer_part, u128::U128{0});
                 result = result + N;
                 return result;
             }
@@ -691,15 +691,15 @@ public:
         // Оба дробные, и хотя бы один из них имеет ненулевую целую часть.
         if ((!right_integer && !left_integer) && (!this->mInteger.is_zero() || !other.mInteger.is_zero())) {
             if (this->mInteger.abs() >= other.mInteger.abs()) {
-                Decimal N; N.SetDecimal(this->mInteger, u128::get_zero());
+                Decimal N; N.SetDecimal(this->mInteger, u128::U128{0});
                 result = N * other;
-                Decimal M; M.SetDecimal(u128::get_zero(), (this->mInteger.is_negative() ? -this->mNominator : this->mNominator));
+                Decimal M; M.SetDecimal(u128::U128{0}, (this->mInteger.is_negative() ? -this->mNominator : this->mNominator));
                 result = result + M * other;
                 return result;
             } else {
-                Decimal N; N.SetDecimal(other.mInteger, u128::get_zero());
+                Decimal N; N.SetDecimal(other.mInteger, u128::U128{0});
                 result = N * (*this);
-                Decimal M; M.SetDecimal(u128::get_zero(), (other.mInteger.is_negative() ? -other.mNominator : other.mNominator));
+                Decimal M; M.SetDecimal(u128::U128{0}, (other.mInteger.is_negative() ? -other.mNominator : other.mNominator));
                 result = result + M * (*this);
                 return result;
             }
@@ -886,8 +886,8 @@ public:
                 Decimal N; N.SetDecimal( mInteger, mNominator );
                 const bool sign = other.IsNegative();
                 const auto D = other.mNominator.abs() + global.mDenominator*other.mInteger.abs();
-                Decimal M; M.SetDecimal( sign ? -D : D, u128::get_zero() );
-                Decimal P; P.SetDecimal(global.mDenominator, u128::get_zero() );
+                Decimal M; M.SetDecimal( sign ? -D : D, u128::U128{0} );
+                Decimal P; P.SetDecimal(global.mDenominator, u128::U128{0} );
                 const auto old_N = N;
                 N = N / M; // Точность теряется, вычисляем ошибку E.
                 const auto E = old_N - N * M;
@@ -991,7 +991,7 @@ public:
      * @return Результат деления двух чисел, this / other, с точностью width.
      */
     Decimal operator/(const u128::U128& other) const {
-        Decimal N; N.SetDecimal( other, u128::get_zero() );
+        Decimal N; N.SetDecimal( other, u128::U128{0} );
         return *this / N;
     }
 };
@@ -1030,10 +1030,10 @@ inline Decimal Sqrt(Decimal x, bool& exact) {
     }
     exact = false;
     Decimal prevprev;
-    prevprev.SetDecimal(u128::get_unit_neg(), u128::get_zero());
+    prevprev.SetDecimal(-u128::U128{1}, u128::U128{0});
     auto prev = x;
     Decimal two;
-    two.SetDecimal(u128::U128{2, 0}, u128::get_zero());
+    two.SetDecimal(u128::U128{2, 0}, u128::U128{0});
     for (;;) {
         prevprev = prev;
         prev = result;

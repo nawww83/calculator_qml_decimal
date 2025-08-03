@@ -37,8 +37,8 @@ public slots:
             dec_n::Decimal p;
             dec_n::Decimal q;
             for (auto [p_, q_] : f) {
-                p.SetDecimal(p_, u128::get_zero());
-                q.SetDecimal(u128::U128{static_cast<u128::ULOW>(q_), 0}, u128::get_zero());
+                p.SetDecimal(p_, u128::U128{0});
+                q.SetDecimal(u128::U128{static_cast<u128::ULOW>(q_), 0}, u128::U128{0});
                 v.push_back(p);
                 v.push_back(q);
             }

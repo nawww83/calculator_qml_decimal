@@ -20,6 +20,8 @@ HEADERS += \
     decimal.h \
     lfsr.h \
     random_gen.h \
+    sign.h \
+    singular.h \
     solver.h \
     u128.h \
     u128_utils.h

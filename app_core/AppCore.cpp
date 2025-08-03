@@ -172,7 +172,7 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
     if (requested_operation == OperationEnums::MAX_INT_VALUE) {
-        u128::U128 max_value = u128::utils::get_max_value();
+        u128::U128 max_value = u128::U128::get_max_value();
         emit setInput(QString::fromStdString(max_value.value()));
         return;
     }
@@ -307,7 +307,7 @@ void AppCore::process(int requested_operation, QString input_value)
                 return;
             }
             dec_n::Decimal one;
-            one.SetDecimal(u128::get_unit(), u128::get_zero());
+            one.SetDecimal(u128::U128{1}, u128::U128{0});
             val = one / val;
             if (val.IsOverflowed()) {
                 int err = Errors::NOT_FINITE;
