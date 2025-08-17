@@ -509,7 +509,7 @@ struct U128
         {
             const ULOW ac = x.mLow - y.mLow;
             ULOW bd = x.mHigh - y.mHigh;
-            bd -= ac > std::max(x.mLow, y.mLow) ? 1u : 0u;
+            bd -= x.mLow < y.mLow ? 1u : 0u;
             U128 result{ac, bd};
             return result;
         }
