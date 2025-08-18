@@ -320,6 +320,25 @@ static void run_unit_tests() {
     }
 
     {
+        Decimal half; half.SetDecimal(u128::U128{0}, u128::U128{500});
+        dec_n::Decimal one;
+        one.SetDecimal(u128::U128{1}, u128::U128{0});
+        const auto& two = one / half;
+        assert(half.GetWidth() == 3);
+        all_is_ok &= two.ValueAsStringView() == "2,000";
+        assert(all_is_ok);
+    }
+
+    {
+        Decimal two; two.SetDecimal(u128::U128{2}, u128::U128{0});
+        bool exact;
+        const auto& y = Sqrt(two, exact);
+        assert(y.GetWidth() == 3);
+        all_is_ok &= y.ValueAsStringView() == "1,414";
+        assert(all_is_ok);
+    }
+
+    {
         u128::U128 result{};
         result.mLow = 1;
         result.mHigh = 0;
