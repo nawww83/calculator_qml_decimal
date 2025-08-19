@@ -217,19 +217,15 @@ class Decimal {
             return;
         }
         mChangedDenominator = mChangedDenominator == -u128::U128{1} ? global.mDenominator : mChangedDenominator;
-        // Сократим общие десятки если есть.
+        // Сократим общий множитель.
         auto gcd = u128::utils::gcd(mNominator.abs(), mChangedDenominator.abs());
-        if (!mNominator.is_zero()) {
-            for (; mChangedDenominator > global.mDenominator;) {
-                const auto& [q, r] = gcd / u128::U128{10};
-                if (q.is_zero() || !r.is_zero()) break;
-                mNominator = (mNominator / u128::U128{10}).first;
-                mChangedDenominator = (mChangedDenominator / u128::U128{10}).first;
-                gcd = q;
-            }
+        if (!mNominator.is_zero() && gcd > u128::U128{1}) {
+            mNominator = (mNominator / gcd).first;
+            mChangedDenominator = (mChangedDenominator / gcd).first;
         }
         auto r = mInteger;
         const int the_sign = IsNegative();
+        // Выделим целую часть при необходимости.
         if (mNominator.abs() >= mChangedDenominator) {
             const auto& [tmp, remainder] = mNominator / mChangedDenominator;
             r = the_sign == 0 ? r + tmp : r - tmp;
@@ -245,24 +241,28 @@ class Decimal {
                 mNominator = res;
             }
         }
+        // Пересчитаем числитель и знаменатель к эталонным.
         u128::U128 fraction = mNominator.is_negative() ? -mNominator : mNominator;
-        const auto& old_denominator = global.mDenominator;
-
-        if (old_denominator != mChangedDenominator) {
-            fraction = fraction * old_denominator;
+        const auto& etalon_denominator = global.mDenominator;
+        if (etalon_denominator != mChangedDenominator) {
+            fraction = fraction * etalon_denominator;
             if (!fraction.is_singular())
                 std::tie(fraction, std::ignore) = fraction / mChangedDenominator;
         }
-        if (fraction.is_singular()) { // Случай когда делим два больших сопоставимых числа: улучшаем точность дробной части.
+        if (fraction.is_singular()) { // Улучшаем точность дробной части.
+            // Может возникнуть, например, когда делим два больших сопоставимых числа.
             fraction = mNominator.is_negative() ? -mNominator : mNominator;
-            if (old_denominator < mChangedDenominator) {
-                const auto& scale = (mChangedDenominator / old_denominator).first;
+            if (etalon_denominator < mChangedDenominator) {
+                const auto& scale = (mChangedDenominator / etalon_denominator).first;
                 fraction = (fraction / scale).first;
-            } else if (old_denominator > mChangedDenominator && mChangedDenominator.is_positive()) {
-                const auto& [scale, rem] = old_denominator / mChangedDenominator;
+            } else
+            if (etalon_denominator > mChangedDenominator && mChangedDenominator.is_positive()) {
+                const auto& [scale, rem] = etalon_denominator / mChangedDenominator;
                 fraction = fraction * scale + ((rem * fraction) / mChangedDenominator).first;
             }
         }
+        // Восстанавливаем эталонные числитель и знаменатель.
+        mNominator = mNominator.is_negative() ? -fraction : fraction;
         mChangedDenominator = global.mDenominator;
         // Коррекция всех девяток.
         if ((global.mWidth > 0) && ((fraction + u128::U128{1}) == mChangedDenominator)) {
