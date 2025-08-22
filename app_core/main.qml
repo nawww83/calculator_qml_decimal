@@ -102,13 +102,13 @@ Window {
                 id: newDecimalWidthInput
                 font.pointSize: 13
                 Layout.fillWidth: true
-                placeholderText: qsTr("Количество знаков после запятой, max " + Global.maxDecimalWidth)
+                placeholderText: qsTr("Количество знаков после запятой")
                 validator: RegularExpressionValidator { regularExpression: /(\d{2})/ }
                 Keys.onReturnPressed: dialog.accept()
             }
         }
 
-        onAccepted: { AppCore.change_decimal_width(newDecimalWidthInput.text, Global.maxDecimalWidth) }
+        onAccepted: { AppCore.change_decimal_width(newDecimalWidthInput.text) }
         onOpened: newDecimalWidthInput.focus = true
     }
 

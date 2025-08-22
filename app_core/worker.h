@@ -60,10 +60,9 @@ public slots:
     /**
      * @brief Синхронизировать количество знаков после запятой в Decimal в пространстве библиотеки.
      * @param width Количество знаков после запятой.
-     * @param max_width Наибольшее количество знаков.
      */
-    void sync_decimal_width(int width, int max_width) {
-        changeDecimalWidth(width, max_width);
+    void sync_decimal_width(int width) {
+        changeDecimalWidth(width);
     }
 signals:
     /**

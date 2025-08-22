@@ -177,6 +177,11 @@ class Decimal {
         int mWidth = 3;
 
         /**
+         * @brief Наибольшее количество цифр после запятой.
+         */
+        static constexpr int MAX_WIDTH = 12;
+
+        /**
          * @brief Знаменатель дробной части числа.
          */
         u128::U128 mDenominator = u128::utils::int_power(10, mWidth);
@@ -402,11 +407,10 @@ public:
      * @brief Установить количество знаков после запятой.
      * @param width Количество знаков после запятой.
      * @return Произошло ли изменение количества знаков.
-     * @param max_width Наибольшее количество знаков.
      */
-    static bool SetWidth(int width, int max_width) {
+    static bool SetWidth(int width) {
         int old_width = global.mWidth;
-        global.mWidth = std::clamp(width, 0, max_width);
+        global.mWidth = std::clamp(width, 0, global.MAX_WIDTH);
         global.mDenominator = u128::utils::int_power(10, global.mWidth);
         return global.mWidth != old_width;
     }

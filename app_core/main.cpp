@@ -3,6 +3,7 @@
 
 #include "AppCore.h"
 #include <QQmlContext>
+#include <QSettings>
 
 using namespace dec_n;
 
@@ -448,6 +449,14 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
 
     AppCore AppCore;
+
+    QSettings settings("MyHome", "DecimalCalculator");
+    bool ok;
+    int width = settings.value("DecimalWidth").toInt(&ok);
+    if (ok) {
+        const bool quiet = true;
+        AppCore.change_decimal_width(width, quiet);
+    }
 
     #ifdef QT_DEBUG
     qDebug() << "Test...";

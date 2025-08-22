@@ -4,6 +4,7 @@
 #include <QRegularExpression>
 #include "observers.h"
 
+#include <QSettings>
 #include <QDebug>
 
 /**
@@ -471,17 +472,20 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
     }
 }
 
-void AppCore::change_decimal_width(int width, int max_width)
+void AppCore::change_decimal_width(int width, bool quiet)
 {
-    const bool is_changed = dec_n::Decimal::SetWidth(width, max_width);
-    emit controller.sync_decimal_width(width, max_width);
+    const bool is_changed = dec_n::Decimal::SetWidth(width);
+    emit controller.sync_decimal_width(width);
     if (is_changed) {
         Reset();
         emit clearTempResult();
         emit clearCurrentOperation();
         emit clearInputField();
         emit changeDecimalWidth(dec_n::Decimal::GetWidth());
-        qDebug().noquote() << modifiers::red << QString::fromUtf8("Изменено количество знаков после запятой: ") <<
+        if (!quiet)
+            qDebug().noquote() << modifiers::red << QString::fromUtf8("Изменено количество знаков после запятой: ") <<
                             dec_n::Decimal::GetWidth() << modifiers::esc_colorization;
+        QSettings settings("MyHome", "DecimalCalculator");
+        settings.setValue("DecimalWidth", width);
     }
 }

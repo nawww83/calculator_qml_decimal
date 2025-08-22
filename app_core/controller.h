@@ -48,7 +48,7 @@ signals:
     /**
      * @brief Сигнал синхронизации количества знаков после запятой для Decimal в пространстве библиотеки.
      */
-    void sync_decimal_width(int, int);
+    void sync_decimal_width(int);
 
     /**
      * @brief Остановить текущее вычисление разово.

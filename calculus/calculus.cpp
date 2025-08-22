@@ -96,9 +96,9 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
     return dec_n::Decimal{};
 }
 
-void changeDecimalWidth(int width, int max_width)
+void changeDecimalWidth(int width)
 {
-    dec_n::Decimal::SetWidth(width, max_width);
+    dec_n::Decimal::SetWidth(width);
 }
 
 void stopCaclulation() {

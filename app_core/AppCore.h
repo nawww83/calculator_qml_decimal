@@ -138,9 +138,8 @@ public slots:
     /**
      * @brief Запрос на изменение количества знаков после запятой у чисел Decimal.
      * @param width Количество знаков после запятой.
-     * @param max_width Наибольшее количество знаков.
      */
-    void change_decimal_width(int width, int max_width);
+    void change_decimal_width(int width, bool quiet = false);
 
 protected:
 
