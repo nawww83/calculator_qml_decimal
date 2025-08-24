@@ -183,16 +183,20 @@ struct U128
     }
 
     /**
-         * @brief Оператор сдвига влево. Аналогичен умножению на степень 2.
-         * @details Сохраняет знак.
-         */
+     * @brief Оператор сдвига влево. Аналогичен умножению на степень 2.
+     * @details Сохраняет знак. Для заведомо больших сдвигов дает переполнение.
+     */
     U128 operator<<(uint32_t shift) const
     {
         U128 result = *this;
-        int ishift = shift % 128u;
+        if (shift >= 128u) {
+            result.set_overflow();
+            return result;
+        }
+        int ishift = shift;
         if (ishift < 64)
         {
-            const ULOW L = result.mLow >> (64 - ishift);
+            const ULOW L = ishift == 0 ? 0 : result.mLow >> (64 - ishift);
             result.mLow <<= ishift;
             result.mHigh <<= ishift;
             result.mHigh |= L;
@@ -202,7 +206,7 @@ struct U128
             result.mHigh = result.mLow;
             result.mLow = 0;
             ishift -= 64;
-            const ULOW L = result.mLow >> (64 - ishift);
+            const ULOW L = ishift == 0 ? 0 : result.mLow >> (64 - ishift);
             result.mLow <<= ishift;
             result.mHigh <<= ishift;
             result.mHigh |= L;
@@ -217,13 +221,16 @@ struct U128
     }
 
     /**
-         * @brief Оператор сдвига вправо. Аналогичен делению на степень 2.
-         * @details Сохраняет знак.
-         */
+     * @brief Оператор сдвига вправо. Аналогичен делению на степень 2.
+     * @details Сохраняет знак. Для заведомо больших сдвигов дает ноль.
+     */
     U128 operator>>(uint32_t shift) const
     {
+        if (shift >= 128u) {
+            return U128{0};
+        }
         U128 result = *this;
-        int ishift = shift % 128u;
+        int ishift = shift;
         if (ishift < 64)
         {
             ULOW mask{-1ull};
@@ -232,7 +239,7 @@ struct U128
             const ULOW H = result.mHigh & mask;
             result.mLow >>= ishift;
             result.mHigh >>= ishift;
-            result.mLow |= H << (64 - ishift);
+            result.mLow |= ishift == 0 ? 0 : H << (64 - ishift);
         }
         else
         {
@@ -558,15 +565,25 @@ struct U128
 
     U128 operator*(ULOW rhs) const
     {
+        if (this->is_overflow()) {
+            U128 result;
+            result.set_overflow();
+            return result;
+        }
+        if (this->is_nan()) {
+            U128 result;
+            result.set_nan();
+            return result;
+        }
+        if (this->is_zero())
+            return U128{0};
+        if (rhs == 0)
+            return U128{0};
         U128 result = mult64(mLow, rhs);
         U128 tmp = mult64(mHigh, rhs);
-        const bool is_overflow = tmp.mHigh != 0;
-        tmp.mHigh = tmp.mLow;
-        tmp.mLow = 0;
+        tmp = shl64(tmp);
         result += tmp;
         result.mSign = !result.is_zero() ? this->mSign() : false;
-        if (is_overflow)
-            result.set_overflow();
         return result;
     }
 
@@ -585,6 +602,10 @@ struct U128
             result.set_nan();
             return result;
         }
+        if (this->is_zero())
+            return U128{0};
+        if (rhs.is_zero())
+            return U128{0};
         U128 result = X * rhs.mLow;
         if (result.is_singular())
         {
