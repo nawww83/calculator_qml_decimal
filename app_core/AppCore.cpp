@@ -70,7 +70,7 @@ static constexpr auto description = [](int operation) -> QString {
         case OperationEnums::SQRT:          return QString::fromUtf8("Квадратный корень");
         case OperationEnums::SQR:           return QString::fromUtf8("Квадрат числа");
         case OperationEnums::RECIPROC:      return QString::fromUtf8("Обратное число");
-        case OperationEnums::SEPARATOR:     return QString::fromUtf8("Разделитель операций: недопустимая операция!");
+        case OperationEnums::SEPARATOR_OP_TYPE:     return QString::fromUtf8("Разделитель операций: недопустимая операция!");
         case OperationEnums::NEGATION:      return QString::fromUtf8("Смена знака");
         case OperationEnums::CLEAR_ALL:     return QString::fromUtf8("Сброс");
         case OperationEnums::MAX_INT_VALUE: return QString::fromUtf8("Наибольшее целое число");
@@ -119,7 +119,7 @@ void AppCore::DoWork(dec_n::Decimal value, int operation) {
     auto push_request = [this, operation]() {
         QVector<dec_n::Decimal> v {mRegister[1], mRegister[0]};
         mRequestIdx = (mRequestIdx + 1) % tp::BUFFER_SIZE;
-        if (operation < OperationEnums::SEPARATOR) {
+        if (operation < OperationEnums::SEPARATOR_OP_TYPE) {
             std::string_view sv0 = mRegister[0].ValueAsStringView();
             std::string_view sv1 = mRegister[1].ValueAsStringView();
             qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
@@ -172,18 +172,24 @@ void AppCore::process(int requested_operation, QString input_value)
         Reset();
         return;
     }
-    if (requested_operation == OperationEnums::MAX_INT_VALUE) {
-        u128::U128 max_value = u128::U128::get_max_value();
-        emit setInput(QString::fromStdString(max_value.value()));
-        return;
-    }
-    if (requested_operation == OperationEnums::RANDINT) {
-        u128::U128 value = u128::utils::get_random_value();
-        emit setInput(QString::fromStdString(value.value()));
-        return;
-    }
-    if (requested_operation == OperationEnums::RANDINT64) {
-        u128::U128 value = u128::utils::get_random_half_value();
+    const bool current_is_io_operation = requested_operation > OperationEnums::SEPARATOR_IO;
+    if (current_is_io_operation) {
+        u128::U128 value;
+        switch (requested_operation) {
+        case OperationEnums::MAX_INT_VALUE:
+            value = u128::U128::get_max_value();
+            break;
+        case OperationEnums::RANDINT:
+            value = u128::utils::get_random_value();
+            break;
+        case OperationEnums::RANDINT64:
+            value = u128::utils::get_random_half_value();
+            break;
+        default:
+            break;
+        }
+        if (mState == StateEnums::RESETTED)
+            emit clearTempResult();
         emit setInput(QString::fromStdString(value.value()));
         return;
     }
@@ -224,7 +230,7 @@ void AppCore::process(int requested_operation, QString input_value)
         DoWork(val, requested_operation);
         return;
     }
-    if (requested_operation < OperationEnums::SEPARATOR &&
+    if (requested_operation < OperationEnums::SEPARATOR_OP_TYPE &&
         requested_operation != OperationEnums::EQUAL) {
         emit showCurrentOperation(description(requested_operation));
     }
@@ -240,11 +246,11 @@ void AppCore::process(int requested_operation, QString input_value)
             return;
         }
         // Игнорирование однооперандной операции
-        if (requested_operation > OperationEnums::SEPARATOR) {
+        if (requested_operation > OperationEnums::SEPARATOR_OP_TYPE) {
             return;
         } else
         // Смена текущей двухоперандной операции пользователем.
-        if (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR) {
+        if (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR_OP_TYPE) {
             qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
             mCurrentOperation = requested_operation;
             return;
@@ -345,8 +351,8 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
     //
-    const bool current_is_two_operand_operation = (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR);
-    const bool current_is_one_operand_operation = requested_operation > OperationEnums::SEPARATOR;
+    const bool current_is_two_operand_operation = (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR_OP_TYPE);
+    const bool current_is_one_operand_operation = requested_operation > OperationEnums::SEPARATOR_OP_TYPE && requested_operation < OperationEnums::SEPARATOR_IO;
     const bool state_is_operation = (mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP);
     const bool state_is_the_equal = (mState == StateEnums::EQUALS_LOOP) || (mState == StateEnums::OP_TO_EQUAL);
     const bool state_is_resetted = (mState == StateEnums::RESETTED);
