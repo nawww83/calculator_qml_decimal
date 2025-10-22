@@ -3,7 +3,7 @@
 
 namespace calculus {
 
-std::map<u128::U128, int> factor(u128::U128 x, int& error) {
+std::map<bignum::u128::U128, int> factor(bignum::u128::U128 x, int& error) {
     error = NO_ERRORS;
     return u128::utils::factor(x);
 }
@@ -61,7 +61,7 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
             error_code = calculus::ZERO_DIVISION;
         } else {
             dec_n::Decimal one;
-            one.SetDecimal(u128::U128{1}, u128::U128{0});
+            one.SetDecimal(bignum::u128::U128{1}, bignum::u128::U128{0});
             result = one / x;
             if (result.IsOverflowed()) {
                 error_code = calculus::NOT_FINITE;

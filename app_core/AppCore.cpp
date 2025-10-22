@@ -4,6 +4,9 @@
 #include <QRegularExpression>
 #include "observers.h"
 
+#include "u128.hpp"
+#include "i128.hpp"
+
 #include <QSettings>
 #include <QDebug>
 
@@ -174,10 +177,10 @@ void AppCore::process(int requested_operation, QString input_value)
     }
     const bool current_is_io_operation = requested_operation > OperationEnums::SEPARATOR_IO;
     if (current_is_io_operation) {
-        u128::U128 value;
+        bignum::u128::U128 value;
         switch (requested_operation) {
         case OperationEnums::MAX_INT_VALUE:
-            value = u128::U128::get_max_value();
+            value = bignum::u128::U128::get_max_value();
             break;
         case OperationEnums::RANDINT:
             value = u128::utils::get_random_value();
@@ -314,7 +317,7 @@ void AppCore::process(int requested_operation, QString input_value)
                 return;
             }
             dec_n::Decimal one;
-            one.SetDecimal(u128::U128{1}, u128::U128{0});
+            one.SetDecimal(bignum::i128::I128{1}, bignum::i128::I128{0});
             val = one / val;
             if (val.IsOverflowed()) {
                 int err = Errors::NOT_FINITE;
@@ -427,16 +430,16 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
             // Отобразить операцию в истории.
             deb.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id <<
                 QString::fromUtf8(", результат: ");
-            u128::U128 prime;
+            bignum::i128::I128 prime;
             deb.noquote().nospace() << "{";
             for (int i = 0; const auto& el : res) {
                 i++;
                 if (i % 2)
                     prime = el.IntegerPart();
                 else {
-                    int power = el.IntegerPart().mLow;
+                    const std::string& power_str = el.IntegerPart().unsigned_part().value();
                     const std::string& prime_str = prime.value();
-                    deb.noquote().nospace() << QString::fromStdString({prime_str.data(), prime_str.size()}) << "^" << power;
+                    deb.noquote().nospace() << QString::fromStdString({prime_str.data(), prime_str.size()}) << "^" << power_str;
                     if (i == res.size()) {
                         ;
                     } else {

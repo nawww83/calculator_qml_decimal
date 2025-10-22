@@ -3,6 +3,7 @@
 
 #include "calculus_global.h"
 #include "decimal.h"
+#include "u128.hpp"
 
 namespace calculus {
 
@@ -32,7 +33,7 @@ enum Errors {
  * @param error_code Код ошибки.
  * @return  Реузльтат операции: {простой множитель p, степень q}.
  */
-CALCULUS_EXPORT std::map<u128::U128, int> factor(u128::U128 x, int& error);
+CALCULUS_EXPORT std::map<bignum::u128::U128, int> factor(bignum::u128::U128 x, int& error);
 
 }
 

@@ -5,6 +5,7 @@
 #include "decimal.h"
 #include "qobject.h"
 #include <iostream>
+#include "i128.hpp"
 
 /**
  * @brief Класс "Работник", живущий в отдельном потоке и вызывающий библиотечную функцию расчета.
@@ -32,13 +33,13 @@ public slots:
         bool exact_sqrt = false;
         auto start = std::chrono::high_resolution_clock::now();
         if (operation == calculus::FACTOR) {
-            auto f = calculus::factor(operands[0].IntegerPart(), error_code);
+            auto f = calculus::factor(operands[0].IntegerPart().unsigned_part(), error_code);
             v.clear();
             dec_n::Decimal p;
             dec_n::Decimal q;
             for (auto [p_, q_] : f) {
-                p.SetDecimal(p_, u128::U128{0});
-                q.SetDecimal(u128::U128{static_cast<u128::ULOW>(q_), 0}, u128::U128{0});
+                p.SetDecimal(p_, bignum::i128::I128{0});
+                q.SetDecimal(bignum::i128::I128{static_cast<bignum::i128::ULOW>(q_), 0}, bignum::u128::U128{0});
                 v.push_back(p);
                 v.push_back(q);
             }

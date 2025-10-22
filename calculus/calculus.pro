@@ -22,8 +22,10 @@ HEADERS += \
     random_gen.h \
     sign.h \
     singular.h \
-    solver.h \
-    u128.h \
+    i128.hpp \
+    u128.hpp \
+    ulow.hpp \
+    defines.h \
     u128_utils.h
 
 # Default rules for deployment.

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "u128.h"
+#include "u128.hpp"
 #include <atomic>
 #include <chrono>
 #include <map>        // std::map
@@ -9,7 +9,6 @@
 #include <tuple>      // std::ignore, std::tie
 #include <utility>    // std::pair
 #include <functional> // std::function
-#include "solver.h"   // GaussJordan
 
 #include "random_gen.h"
 
@@ -36,6 +35,8 @@ public:
 namespace utils
 {
 
+using namespace bignum::u128;
+
 static auto get_random_u32x4(int64_t offset) {
     const int64_t since_epoch_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>
@@ -56,43 +57,37 @@ struct RandomGenerator {
 };
 
 inline U128 get_random_value() {
-    U128 result;
     static RandomGenerator g_prng2;
-    result.mLow = g_prng2.mGenerator.next_u64();
-    result.mHigh = g_prng2.mGenerator.next_u64();
+    U128 result { g_prng2.mGenerator.next_u64(), g_prng2.mGenerator.next_u64()};
     g_prng2.mGenerator.next_u64();
     g_prng2.mGenerator.next_u64();
     return result;
 }
 
 inline U128 get_random_half_value() {
-    U128 result;
     static RandomGenerator g_prng1;
-    result.mLow = g_prng1.mGenerator.next_u64();
-    result.mHigh = 0;
+    U128 result {g_prng1.mGenerator.next_u64(), 0};
     g_prng1.mGenerator.next_u64();
     return result;
 }
 
 inline U128 int_power(ULOW x, int y)
 {
-    u128::U128 result{1};
+    U128 result{1};
     for (int i = 1; i <= y; ++i)
-    {
         result = result * x;
-    }
     return result;
 }
 
 /**
-         * @brief Количество цифр числа.
-         * @param x Число.
-         * @return Количество цифр, минимум 1.
-         */
+ * @brief Количество цифр числа.
+ * @param x Число.
+ * @return Количество цифр, минимум 1.
+ */
 inline int num_of_digits(U128 x)
 {
     int i = 0;
-    while (!x.is_zero())
+    while (x != U128{0})
     {
         x = x.div10();
         i++;
@@ -101,21 +96,17 @@ inline int num_of_digits(U128 x)
 }
 
 /**
-         * НОД.
-         */
+ * НОД.
+ */
 inline U128 gcd(U128 x, U128 y)
 {
-    if (x.is_singular())
-        return x;
-    if (y.is_singular())
-        return y;
     if (x == y)
     {
         return x;
     }
     if (x > y)
     {
-        while (!y.is_zero())
+        while (y != U128{0})
         {
             const U128 y_copy = y;
             y = (x / y).second;
@@ -125,7 +116,7 @@ inline U128 gcd(U128 x, U128 y)
     }
     else
     {
-        while (!x.is_zero())
+        while (x != U128{0})
         {
             const U128 x_copy = x;
             x = (y / x).second;
@@ -136,96 +127,82 @@ inline U128 gcd(U128 x, U128 y)
 }
 
 /**
-         * Целочисленный квадратный корень.
-         * @param exact Точно ли прошло извлечение корня.
-         */
-inline U128 isqrt(U128 x, bool &exact)
+ * @brief Целочисленный квадратный корень числа, sqrt(x).
+ * @param exact Точно ли прошло извлечение корня.
+ */
+inline U128 isqrt(const U128& x, bool &exact)
 {
     exact = false;
-    if (x.is_singular())
+    if (x == U128{0})
     {
+        exact = true;
         return x;
     }
-    const U128 c{ULOW(1) << U128::mHalfWidth, 0};
-    U128 result;
-    x = x.abs();
-    if (x >= U128{0, 1})
+    const auto bits = x.bit_length();
+    U128 result = U128{1} << (bits / 2);
+    U128 reg_x[] {x, U128{0}}; // Регистр сдвига.
+    constexpr auto TWO = ULOW{2};
+    for (;;) // Метод Ньютона.
     {
-        result = c;
-    }
-    else
-    {
-        result = U128{ULOW(1) << (U128::mHalfWidth / 2), 0};
-    }
-    U128 prevprev = -U128{1};
-    U128 prev = x;
-    for (;;)
-    {
-        prevprev = prev;
-        prev = result;
-        const auto [tmp, remainder] = x / result;
-        std::tie(result, std::ignore) = (result + tmp) / 2;
-        if (result.is_zero())
+        reg_x[1] = reg_x[0];
+        reg_x[0] = result;
+        const auto &[quotient, remainder] = x / result;
+        std::tie(result, std::ignore) = (result + quotient) / TWO;
+        if (result == reg_x[0])
         {
-            exact = true;
+            exact = remainder == 0 && quotient == result;
             return result;
         }
-        if (result == prev)
-        {
-            exact = (tmp == prev) && remainder.is_zero(); // Нет остатка от деления.
-            return result;
-        }
-        if (result == prevprev)
-        {
-            return prev;
-        }
+        if (result == reg_x[1])
+            return reg_x[0];
     }
 }
 
 /**
-         * @brief Является ли заданное число квадратичным вычетом.
-         * @param x Тестируемое число.
-         * @param p Простой модуль.
-         * @return Да/нет.
-         */
-inline bool is_quadratiq_residue(U128 x, U128 p)
+ * @brief Целочисленный квадратный корень числа, sqrt(x).
+ */
+inline U128 isqrt(const U128& x)
 {
-    // y^2 = x mod p
-    auto [_, r1] = x / p;
-    for (U128 y{0}; y < p; y.inc())
+    [[maybe_unused]] bool exact;
+    return isqrt(x, exact);
+}
+
+/**
+ * @brief Является ли число x квадратичным вычетом по модулю p.
+ */
+inline bool is_quadratic_residue(const U128& x, const U128& p)
+{
+    assert(p != U128{0});
+    const auto& [_, rx] = x / p;
+    U128 y2 = 0;
+    for (U128 y = 0; y < p; y.inc())
     {
-        U128 sq = y * y;
-        auto [_, r2] = sq / p;
-        if (r2 == r1)
+        if (const auto& [_, ry2] = y2 / p; ry2 == rx)
             return true;
+        y2 += (y + y + U128{1});
     }
     return false;
 }
 
 /**
-         * @brief Возвращает корень квадратный из заданного числа
-         * по заданному модулю.
-         * @param x Число.
-         * @param p Простой модуль.
-         * @return Два значения корня.
-         */
-inline std::pair<U128, U128> sqrt_mod(U128 x, U128 p)
+ * @brief Квадратный корень числа x по модулю p.
+ */
+inline std::pair<U128, U128> sqrt_mod(const U128& x, const U128& p)
 {
-    // return  sqrt(x) mod p
+    assert(p != U128{0});
     U128 result[2];
     int idx = 0;
-    const auto [_, r1] = x / p;
-    for (U128 y{0}; y < p; y.inc())
+    const auto& [_, rx] = x / p;
+    U128 y2 = 0;
+    for (U128 y = 0; y < p; y.inc())
     {
-        U128 sq = y * y;
-        auto [_, r2] = sq / p;
-        if (r2 == r1)
+        if (const auto& [_, ry2] = y2 / p; ry2 == rx)
             result[idx++] = y;
+        y2 += (y + y + U128{1});
+        if (idx == 2) break;
     }
     if (idx == 1)
-    { // Если не был установлен второй корень.
         result[1] = result[0];
-    }
     return std::make_pair(result[0], result[1]);
 }
 
@@ -238,7 +215,7 @@ inline bool is_prime(U128 x)
     while (d < x_sqrt)
     {
         auto [_, remainder] = x / d;
-        is_ok &= !remainder.is_zero();
+        is_ok &= remainder != U128{0};
         d.inc();
     }
     return is_ok;
@@ -262,7 +239,7 @@ public:
             for (const auto &p : mPrimes)
             {
                 U128 rem = (last_prime / p).second;
-                if (rem.is_zero())
+                if (rem == U128{0})
                 {
                     is_prime = false;
                     break;
@@ -281,16 +258,16 @@ private:
 };
 
 /**
-         * @brief Делит первое число на второе до "упора".
-         * @param x Делимое.
-         * @param q Делитель.
-         * @return Пара {Делитель, количество успешных делений}
-         */
+ * @brief Делит первое число на второе до "упора".
+ * @param x Делимое.
+ * @param q Делитель.
+ * @return Пара {Делитель, количество успешных делений}
+ */
 inline std::pair<U128, int> div_by_q(U128 &x, ULOW q)
 {
     auto [tmp, remainder] = x / q;
     int i = 0;
-    while (remainder.is_zero())
+    while (remainder == U128{0})
     {
         i++;
         x = tmp;
@@ -321,24 +298,24 @@ inline std::pair<U128, U128> ferma_method(U128 x)
     const auto &k_upper = x_sqrt;
     for (auto k = U128{2};; k.inc())
     {
-        if (!(k.mLow & 65535) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
+        if (((k.low() & 65535) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
             break;
         if (k > k_upper)
         {
             return std::make_pair(x, U128{1}); // x - простое число.
         }
-        if (k.mLow % 2)
+        if ((k.low() & 1) == 1)
         { // Проверка с другой стороны: ускоряет поиск.
             // Основано на равенстве, следующем из метода Ферма: индекс k = (F^2 + x) / (2F) - floor(sqrt(x)).
             // Здесь F - кандидат в множители, x - раскладываемое число.
             const auto &N1 = k * k + x;
-            if ((N1.mLow % 2) == 0)
+            if ((N1.low() & 1) == 0)
             {
                 auto [q1, remainder] = N1 / (k + k); // Здесь k как некоторый множитель F.
-                if (remainder.is_zero() && (q1 > x_sqrt))
+                if ((remainder == 0) && (q1 > x_sqrt))
                 {
                     auto [q2, remainder] = x / k;
-                    if (remainder.is_zero()) // На всякий случай оставим.
+                    if (remainder == 0) // На всякий случай оставим.
                         return std::make_pair(k, q2);
                 }
             }
@@ -360,19 +337,14 @@ inline std::pair<U128, U128> ferma_method(U128 x)
 inline std::map<U128, int> factor(U128 x)
 {
     Globals::SetStop(false);
-    if (x.is_zero())
+    if (x == 0)
     {
         return {{x, 1}};
     }
-    if (x.is_unit())
+    if (x == 1)
     {
         return {{x, 1}};
     }
-    if (x.is_singular())
-    {
-        return {{x, 1}};
-    }
-    x = x.abs();
     std::map<U128, int> result{};
     { // Обязательное для метода Ферма деление на 2.
         const auto& [p, i] = div_by_q(x, 2);
@@ -417,194 +389,9 @@ inline std::map<U128, int> factor(U128 x)
     return result;
 }
 
-/**
-         * @brief Разложить на простые множители методом квадратичного решета.
-         * @param x Число.
-         * @param sieve_size Размер решета, больше нуля.
-         * @param factor_base Фактор-база (количество простых чисел-базисов), больше нуля.
-         * @return Результат разложения.
-         */
-inline std::map<U128, int> factor_qs(U128 x, unsigned int sieve_size, unsigned int factor_base)
-{
-    std::map<U128, int> result{};
-    if (sieve_size == 0 || factor_base == 0)
-    {
-        return result;
-    }
-    auto find_a_divisor = [sieve_size, factor_base](U128 x) -> U128
-    {
-        if (x.is_zero())
-            return x;
-        if (x.is_unit())
-            return x;
-        std::vector<U128> base;
-        PrimesGenerator pg;
-        for (; base.size() < factor_base;)
-        {
-            const U128 &p = pg.next();
-            if (is_quadratiq_residue(x, p))
-            {
-                base.push_back(p);
-            }
-        }
-        bool is_exact;
-        U128 x_sqrt = isqrt(x, is_exact);
-        if (!is_exact)
-        {
-            x_sqrt.inc();
-        }
-        std::vector<U128> sieve(sieve_size);
-        U128 ii{0, 0};
-        for (unsigned int i = 0; i < sieve.size(); ++i)
-        {
-            sieve[i] = (ii + x_sqrt) * (ii + x_sqrt) - x;
-            ii.inc();
-        }
-        std::vector<U128> sieve_original = sieve;
-        for (const U128 &modulo : base)
-        {
-            auto [root_1, root_2] = sqrt_mod(x, modulo);
-            root_1 -= x_sqrt;
-            root_2 -= x_sqrt;
-            if (root_1.is_negative())
-            {
-                U128 delta_1 = (root_1.abs() / modulo).first;
-                root_1 += delta_1 * modulo;
-            }
-            if (root_1.is_negative())
-            {
-                root_1 += modulo;
-            }
-            if (root_2.is_negative())
-            {
-                U128 delta_2 = (root_2.abs() / modulo).first;
-                root_2 += delta_2 * modulo;
-            }
-            if (root_2.is_negative())
-            {
-                root_2 += modulo;
-            }
-            unsigned int idx = root_1.mLow;
-            while ((idx + 1) < sieve.size())
-            {
-                sieve[idx] = (sieve.at(idx) / modulo).first;
-                idx += modulo.mLow;
-            }
-            if (root_1 != root_2)
-            {
-                unsigned int idx = root_2.mLow;
-                while ((idx + 1) < sieve.size())
-                {
-                    sieve[idx] = (sieve.at(idx) / modulo).first;
-                    idx += modulo.mLow;
-                }
-            }
-        }
-        std::vector<unsigned int> indices_where_unit_sieve;
-        for (unsigned int i = 0; i < sieve.size(); ++i)
-        {
-            if (sieve.at(i).is_unit())
-            {
-                indices_where_unit_sieve.push_back(i);
-            }
-        }
-        sieve.clear();
-        std::vector<std::vector<int>> M;
-        std::vector<U128> sieve_reduced;
-        int idx = 0;
-        for (const auto &index : indices_where_unit_sieve)
-        {
-            M.push_back({});
-            const U128 &value = sieve_original.at(index);
-            sieve_reduced.push_back(value);
-            for (const U128 &modulo : base)
-            {
-                const auto &[_, r] = value / modulo;
-                M[idx].push_back(r.is_zero() ? 1 : 0);
-            }
-            idx++;
-        }
-        sieve_original.clear();
-        const std::vector<std::set<int>> &solved_indices = solver::GaussJordan(M);
-        M.clear();
-        for (const auto &indices : solved_indices)
-        {
-            U128 A{1};
-            std::map<U128, int> B_factors;
-            for (auto it = indices.begin(); it != indices.end(); it++)
-            {
-                const auto index = indices_where_unit_sieve.at(*it);
-                std::map<U128, int> sieve_factors;
-                {
-                    const auto &val = sieve_reduced.at(*it);
-                    for (const auto &modulo : base)
-                    {
-                        auto rem = (val / modulo).second;
-                        if (rem.is_zero())
-                        {
-                            sieve_factors[modulo]++;
-                        }
-                    }
-                }
-                A = A * (x_sqrt + U128{index, 0});
-                for (const auto &[prime, power] : sieve_factors)
-                {
-                    B_factors[prime] += power;
-                }
-                if (A.is_singular())
-                {
-                    continue;
-                }
-            }
-            for (auto &element : B_factors)
-            {
-                element.second /= 2;
-            }
-            U128 B{1};
-            for (const auto &[prime, power] : B_factors)
-            {
-                U128 tmp{1};
-                for (int i = 0; i < power; ++i)
-                    tmp = tmp * prime;
-                B = B * tmp;
-            }
-            const U128 &C = A - B;
-            const U128 &GCD = gcd(C, x);
-            if (GCD < x && GCD > U128{1})
-            {
-                return GCD;
-            }
-        }
-        return x;
-    }; // find_a_divisor()
-    U128 y{1};
-    for (;;)
-    {
-        const auto &divisor1 = find_a_divisor(x);
-        const auto &divisor2 = find_a_divisor(y);
-        if (divisor1.is_unit() && divisor2.is_unit())
-            break;
-        if (divisor2 == y && !divisor2.is_unit())
-        {
-            result[divisor2]++;
-        }
-        if (divisor1 == x && !divisor1.is_unit())
-        {
-            result[divisor1]++;
-            y = U128{1};
-        }
-        else
-        {
-            y = divisor1;
-        }
-        x = (x / divisor1).first;
-    }
-    return result;
-}
-
 inline U128 get_by_digit(int digit)
 {
-    return U128{static_cast<u128::ULOW>(digit), 0};
+    return U128{static_cast<ULOW>(digit), 0};
 }
 
 } // namespace utils
