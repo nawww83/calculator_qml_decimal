@@ -122,10 +122,10 @@ U128 pollard_minus_p(const U128& x, std::optional<U128> limit)
     if (x < 4) return x;
     const bool has_limit = limit.has_value();
     const U128 limit_val = has_limit ? *limit : 0;
-    U128 a = 2;
+    U128 q {2};
     for ( U128 i = 0; ; i.inc()) {
-        int_power_mod(a, i + 2, x);
-        const auto& d = gcd(a - 1, x);
+        int_power_mod(q, i + 2, x);
+        const auto& d = gcd(q - 1, x);
         if (d > 1)
             return d;
         if (((i.low() & 256) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 256 отсчетов.
@@ -134,6 +134,38 @@ U128 pollard_minus_p(const U128& x, std::optional<U128> limit)
             break;
     }
     return x; // По какой-то причине не раскладывается.
+}
+
+U128 ro_pollard(const U128& n, std::optional<U128> limit)
+{
+    if (n < 4) return n;
+    const bool has_limit = limit.has_value();
+    const U128 limit_val = has_limit ? *limit : 0;
+    U128 q1 {2};
+    auto y1 = q1;
+    U128 d1 {1};
+    U128 i{0};
+    while (d1 == 1) {
+        mult_mod(q1, q1, n);
+        add_mod(q1, 3, n);
+        //
+        mult_mod(y1, y1, n);
+        add_mod(y1, 3, n);
+        //
+        mult_mod(y1, y1, n);
+        add_mod(y1, 3, n);
+        //
+        d1 = q1 >= y1 ? gcd(q1 - y1, n) : gcd(y1 - q1, n);
+        if (((i.low() & 256) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 256 отсчетов.
+            break;
+        if (has_limit && i >= limit_val)
+            break;
+        i.inc();
+    }
+    if (d1 != n)
+        return d1;
+    else
+        return n;
 }
 
 std::map<U128, int> factor(U128 x)
@@ -172,23 +204,52 @@ std::map<U128, int> factor(U128 x)
         result[x]++;
         return result;
     }
-    // Пробуем метод Полларда p-1, но для сравнительно небольшого числа итераций.
+    // Пробуем метод Полларда.
+    U128 iters;
     std::list<U128> pollard_factors;
-    U128 iters = 256'000u;
+    iters = isqrt(x);
+    iters = isqrt(iters);
     for (;;)
     {
+        if (is_prime(x, 64)) {
+            result[x]++;
+            x = U128{1};
+            break;
+        }
+        const auto& d = ro_pollard(x, iters);
+        if (d != x && d != 1) {
+            pollard_factors.push_back(d);
+            const auto& [q, r] = x / d;
+            assert(r == 0);
+            x = q;
+            iters = isqrt(x);
+            iters = isqrt(iters);
+            continue;
+        }
+        break;
+    }
+    iters = isqrt(x);
+    iters = isqrt(iters);
+    for (;;)
+    {
+        if (is_prime(x, 64)) {
+            result[x]++;
+            x = U128{1};
+            break;
+        }
         const auto& d = pollard_minus_p(x, iters);
         if (d != x && d != 1) {
             pollard_factors.push_back(d);
             const auto& [q, r] = x / d;
             assert(r == 0);
             x = q;
-            iters >>= 1;
+            iters = isqrt(x);
+            iters = isqrt(iters);
             continue;
         }
         break;
     }
-    if (x != 1)
+    if (x > 1)
         pollard_factors.push_back(x);
     // Применяем метод Ферма рекурсивно.
     std::function<void(U128)> ferma_recursive;

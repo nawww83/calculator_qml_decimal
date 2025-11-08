@@ -82,6 +82,21 @@ inline U128 int_power(ULOW x, int y)
 }
 
 /**
+ * @brief Сложение двух чисел по заданному модулю.
+ * @param x Основание степени. Сюда кладется результат (x + y) mod m.
+ * @param y Степень.
+ * @param m Модуль.
+ */
+inline void add_mod(U128& x, const U128& y, const U128& m)
+{
+    assert(m != 0);
+    using namespace bignum::ubig;
+    using U256 = UBig<U128, 256>;
+    const auto& z = U256{x} + U256{y};
+    x = (z / m).second;
+}
+
+/**
  * @brief Умножение двух чисел по заданному модулю.
  * @param x Основание степени. Сюда кладется результат (x*y) mod m.
  * @param y Степень.
@@ -267,6 +282,13 @@ std::pair<U128, int> div_by_q(U128 &x, const U128& q);
  * @return Множитель.
  */
 U128 pollard_minus_p(const U128& x, std::optional<U128> limit );
+
+/**
+ * @brief Алгоритм ро Полларда.
+ * @param n Факторизуемое число.
+ * @return Множитель.
+ */
+U128 ro_pollard(const U128& n);
 
 /**
  * @brief Метод факторизации Ферма.
