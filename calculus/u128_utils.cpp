@@ -1,15 +1,16 @@
 #include "u128_utils.h"
 
 #include <functional> // std::function
+#include <list> // std::list
 
 namespace u128::utils
 {
 
-std::pair<U128, int> div_by_q(U128 &x, ULOW q)
+std::pair<U128, int> div_by_q(U128 &x, const U128& q)
 {
     auto [tmp, remainder] = x / q;
     int i = 0;
-    while (remainder == U128{0})
+    while (remainder == 0)
     {
         i++;
         x = tmp;
@@ -20,19 +21,19 @@ std::pair<U128, int> div_by_q(U128 &x, ULOW q)
 
 bool miller_test(U128 d, U128 n)
 {
-    U128 a = get_random_value();
+    U128 x = get_random_value();
     {
         U128 tmp;
-        std::tie(tmp, a) = a / (n - 3);
+        std::tie(tmp, x) = x / (n - 3);
     }
-    a += 2;
-    U128 x = int_power_mod(a, d, n);
+    x += 2;
+    int_power_mod(x, d, n);
     if ((x == 1) || (x == (n - 1)))
         return true;
 
     while (d != (n - 1))
     {
-        x = int_power_mod(x, 2, n);
+        int_power_mod(x, 2, n);
         d *= U128{2};
         if (x == 1)
             return false;
@@ -50,7 +51,7 @@ bool is_prime(U128 x, int k)
         return true;
     if ((x & 1) == 0)
         return false;
-    U128 d = x - 1;
+    U128 d {x - 1};
     while ((d & 1) == 0)
         d >>= 1;
     for (int i = 0; i < k; ++i) {
@@ -85,9 +86,7 @@ std::pair<U128, U128> ferma_method(U128 x)
         if (((k.low() & 65535) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
             break;
         if (k > k_upper)
-        {
             return std::make_pair(x, U128{1}); // x - простое число.
-        }
         if ((k.low() & 1) == 1)
         { // Проверка с другой стороны: ускоряет поиск.
             // Основано на равенстве, следующем из метода Ферма: индекс k = (F^2 + x) / (2F) - floor(sqrt(x)).
@@ -118,22 +117,37 @@ std::pair<U128, U128> ferma_method(U128 x)
     return std::make_pair(x, U128{1}); // По какой-то причине не раскладывается.
 }
 
+U128 pollard_minus_p(const U128& x, std::optional<U128> limit)
+{
+    if (x < 4) return x;
+    const bool has_limit = limit.has_value();
+    const U128 limit_val = has_limit ? *limit : 0;
+    U128 a = 2;
+    for ( U128 i = 0; ; i.inc()) {
+        int_power_mod(a, i + 2, x);
+        const auto& d = gcd(a - 1, x);
+        if (d > 1)
+            return d;
+        if (((i.low() & 256) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 256 отсчетов.
+            break;
+        if (has_limit && i >= limit_val)
+            break;
+    }
+    return x; // По какой-то причине не раскладывается.
+}
+
 std::map<U128, int> factor(U128 x)
 {
     Globals::SetStop(false);
     if (x == 0)
-    {
         return {{x, 1}};
-    }
     if (x == 1)
-    {
         return {{x, 1}};
-    }
     std::map<U128, int> result{};
     { // Обязательное для метода Ферма деление на 2.
         const auto& [p, i] = div_by_q(x, 2);
         if (i > 0)
-            result[p] = i;
+            result[p] += i;
         if (x == U128{1})
             return result;
     }
@@ -143,14 +157,39 @@ std::map<U128, int> factor(U128 x)
     {
         const auto& [p, successes] = div_by_q(x, divisor);
         if (successes > 0)
-            result[p] = successes;
+            result[p] += successes;
         if (x == U128{1})
             return result;
         divisor += 2;
-        while (!is_prime(divisor, 64)) {
+        for (;;) {
+            const auto& [d1, d2] = ferma_method(divisor);
+            if (d1 == divisor || d2 == divisor)
+                break;
             divisor += 2;
         }
     }
+    if (is_prime(x, 64)) {
+        result[x]++;
+        return result;
+    }
+    // Пробуем метод Полларда p-1, но для сравнительно небольшого числа итераций.
+    std::list<U128> pollard_factors;
+    U128 iters = 256'000u;
+    for (;;)
+    {
+        const auto& d = pollard_minus_p(x, iters);
+        if (d != x && d != 1) {
+            pollard_factors.push_back(d);
+            const auto& [q, r] = x / d;
+            assert(r == 0);
+            x = q;
+            iters >>= 1;
+            continue;
+        }
+        break;
+    }
+    if (x != 1)
+        pollard_factors.push_back(x);
     // Применяем метод Ферма рекурсивно.
     std::function<void(U128)> ferma_recursive;
     ferma_recursive = [&ferma_recursive, &result](U128 x) -> void
@@ -173,7 +212,8 @@ std::map<U128, int> factor(U128 x)
         ferma_recursive(a);
         ferma_recursive(b);
     };
-    ferma_recursive(x);
+    for (const auto& fac : pollard_factors)
+        ferma_recursive(fac);
     Globals::SetStop(false);
     return result;
 }

@@ -565,8 +565,8 @@ public:
     }
 
     /**
-         * @brief
-         */
+     * @brief
+     */
     std::pair<U128, U128> operator/=(const U128 &Y)
     {
         U128 remainder;
@@ -575,24 +575,24 @@ public:
     }
 
     /**
-         * @brief Нижняя половина числа.
-         */
+     * @brief Нижняя половина числа.
+     */
     ULOW low() const
     {
         return mLow;
     }
 
     /**
-         * @brief Верхняя половина числа.
-         */
+     * @brief Верхняя половина числа.
+     */
     ULOW high() const
     {
         return mHigh;
     }
 
     /**
-         * @brief Количество битов, требуемое для представления числа.
-         */
+     * @brief Количество битов, требуемое для представления числа.
+     */
     u64 bit_length() const
     {
         U128 X = *this;
@@ -656,88 +656,8 @@ public:
     }
 
     /**
-         * @brief
-         * @return (x + y) mod m.
-         */
-    static U128 add_mod(const U128& x, const U128& y, const U128& m)
-    {
-        assert( m != 0 );
-        if (m == 1)
-            return 0;
-        U128 summ {x + y};
-        if (auto is_overflow = summ < std::min(x, y); is_overflow) {
-            const auto& [_, r_rec] = generic::reciprocal_and_extend<U128>(m);
-            summ += r_rec;
-        }
-        const auto& [_, r] = summ / m;
-        return r;
-    }
-
-    /**
-         * @brief
-         * @return (x * w) mod m, w = 2^64 - половина ширины 128-битного числа.
-         */
-    static U128 shift_left_half_mod(const U128& x, const U128& m)
-    {
-        U128 result = x;
-        for ( U128 w {0, 1}; w != 1; w >>= 1 ) {
-            result = add_mod(result, result, m); // x <-- (2*x) mod m.
-        }
-        return result;
-    }
-
-    /**
-         * @brief Умножение двух чисел по заданному модулю.
-         * @return (x*y) mod m.
-         */
-    static U128 mult_mod(const ULOW& x, const ULOW& y, const U128& m)
-    {
-        assert( m != 0 );
-        if (m == 1)
-            return 0;
-        const U128 ac = mult64(x, y);
-        const auto& [_, r] = ac / m;
-        return r;
-    }
-
-    /**
-         * @brief Умножение двух чисел по заданному модулю.
-         * @return (x*y) mod m.
-         */
-    static U128 mult_mod(const U128& x, const ULOW& y, const U128& m)
-    {
-        if (x.high() == 0)
-            return mult_mod(x.low(), y, m);
-        // x*y = (a + w*b)c = ac + w*bc;
-        U128 ac = mult_mod(x.low(), y, m);
-        U128 bc = mult_mod(x.high(), y, m);
-        return add_mod(ac, shift_left_half_mod(bc, m), m);
-    }
-
-    /**
-         * @brief Умножение двух чисел по заданному модулю.
-         * @return (x*y) mod m.
-         */
-    static U128 mult_mod(const U128& x, const U128& y, const U128& m)
-    {
-        if (x.high() == 0 && y.high() == 0)
-            return mult_mod(x.low(), y.low(), m);
-        if (x.high() == 0)
-            return mult_mod(y, x.low(), m);
-        if (y.high() == 0)
-            return mult_mod(x, y.low(), m);
-        // x*y = (a + w*b)(c + w*d) = ac + w*(ad + bc) + w*w*bd = ac + w*[(ad + bc) + w*bd];
-        U128 ac = mult_mod(x.low(), y.low(), m);
-        U128 ad = mult_mod(x.low(), y.high(), m);
-        U128 bc = mult_mod(x.high(), y.low(), m);
-        U128 bd = mult_mod(x.high(), y.high(), m);
-        bd = shift_left_half_mod(bd, m);
-        return add_mod(ac, shift_left_half_mod(add_mod(add_mod(ad, bc, m), bd, m), m), m);
-    }
-
-    /**
-         * @brief Специальный метод деления на 10 для формирования строкового представления числа.
-         */
+     * @brief Специальный метод деления на 10 для формирования строкового представления числа.
+     */
     U128 div10() const
     {
         const U128 &X = *this;
@@ -756,8 +676,8 @@ public:
     }
 
     /**
-         * @brief Специальный метод нахождения остатка от деления на 10 для формирования строкового представления числа.
-         */
+     * @brief Специальный метод нахождения остатка от деления на 10 для формирования строкового представления числа.
+     */
     int mod10() const
     {
         const int multiplier_mod10 = ULOW::get_max_value().mod10() + 1;
@@ -765,8 +685,8 @@ public:
     }
 
     /**
-         * @brief Возвращает строковое представление числа.
-         */
+     * @brief Возвращает строковое представление числа.
+     */
     std::string value() const
     {
         std::string result;
@@ -785,13 +705,13 @@ public:
 
 private:
     /**
-         * @brief Младшая половина числа.
-         */
+     * @brief Младшая половина числа.
+     */
     ULOW mLow{0};
 
     /**
-         * @brief Старшая половина числа.
-         */
+     * @brief Старшая половина числа.
+     */
     ULOW mHigh{0};
 };
 

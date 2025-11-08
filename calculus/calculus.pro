@@ -29,6 +29,7 @@ HEADERS += \
     singular.h \
     i128.hpp \
     u128.hpp \
+    ubig.hpp \
     ulow.hpp \
     defines.h \
     u128_utils.h

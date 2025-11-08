@@ -1,10 +1,12 @@
 #pragma once
 
 #include "u128.hpp"
+#include "ubig.hpp"
 #include <_mingw_mac.h>
 #include <atomic>
 #include <chrono>
 #include <map>        // std::map
+#include <optional>   // std::optional
 #include <random>
 #include <tuple>      // std::ignore, std::tie
 #include <utility>    // std::pair
@@ -80,28 +82,39 @@ inline U128 int_power(ULOW x, int y)
 }
 
 /**
- * @brief int_power_mod
- * @param x
- * @param y
- * @param m != 0
- * @return (x^y) mod m
+ * @brief Умножение двух чисел по заданному модулю.
+ * @param x Основание степени. Сюда кладется результат (x*y) mod m.
+ * @param y Степень.
+ * @param m Модуль.
  */
-inline U128 int_power_mod(U128 x, U128 y, U128 m)
+inline void mult_mod(U128& x, const U128& y, const U128& m)
+{
+    assert(m != 0);
+    using namespace bignum::ubig;
+    using U256 = UBig<U128, 256>;
+    const U256& z = U256::mult_ext(x, y);
+    x = (z / m).second;
+}
+
+/**
+ * @brief Степень числа по заданному модулю.
+ * @param x Основание степени. Сюда кладется результат (x^y) mod m.
+ * @param y Степень.
+ * @param m Модуль.
+ */
+inline void int_power_mod(U128& x, const U128& y, const U128& m)
 {
     assert( m != 0 );
-    U128 result = 1;
-    while (y != 0)
+    U128 exponent = y;
+    U128 base = x;
+    x = 1;
+    while (exponent != 0)
     {
-        if ((y & 1) != 0)
-        {
-            result = U128::mult_mod(result, x, m);
-            y.dec();
-            continue;
-        }
-        x = U128::mult_mod(x, x, m);
-        y >>= 1;
+        if ((exponent & 1) == 1)
+            mult_mod(x, base, m);
+        exponent >>= 1;
+        mult_mod(base, base, m);
     }
-    return result;
 }
 
 bool miller_test(U128 d, U128 n);
@@ -114,7 +127,7 @@ bool miller_test(U128 d, U128 n);
 inline int num_of_digits(U128 x)
 {
     int i = 0;
-    while (x != U128{0})
+    while (x != 0)
     {
         x = x.div10();
         i++;
@@ -128,12 +141,10 @@ inline int num_of_digits(U128 x)
 inline U128 gcd(U128 x, U128 y)
 {
     if (x == y)
-    {
         return x;
-    }
     if (x > y)
     {
-        while (y != U128{0})
+        while (y != 0)
         {
             const U128 y_copy = y;
             y = (x / y).second;
@@ -143,7 +154,7 @@ inline U128 gcd(U128 x, U128 y)
     }
     else
     {
-        while (x != U128{0})
+        while (x != 0)
         {
             const U128 x_copy = x;
             x = (y / x).second;
@@ -160,14 +171,14 @@ inline U128 gcd(U128 x, U128 y)
 inline U128 isqrt(const U128& x, bool &exact)
 {
     exact = false;
-    if (x == U128{0})
+    if (x == 0)
     {
         exact = true;
         return x;
     }
     const auto bits = x.bit_length();
     U128 result = U128{1} << (bits / 2);
-    U128 reg_x[] {x, U128{0}}; // Регистр сдвига.
+    U128 reg_x[2] = {x, U128{0}}; // Регистр сдвига.
     constexpr auto TWO = ULOW{2};
     for (;;) // Метод Ньютона.
     {
@@ -247,10 +258,28 @@ bool is_prime(U128 x, int k);
  * @param q Делитель.
  * @return Пара {Делитель, Количество успешных делений}
  */
-std::pair<U128, int> div_by_q(U128 &x, ULOW q);
+std::pair<U128, int> div_by_q(U128 &x, const U128& q);
 
+/**
+ * @brief Алгоритм Полларда p-1.
+ * @param x Факторизуемое число.
+ * @param limit Максимальное количество итераций.
+ * @return Множитель.
+ */
+U128 pollard_minus_p(const U128& x, std::optional<U128> limit );
+
+/**
+ * @brief Метод факторизации Ферма.
+ * @param x Факторизуемое число.
+ * @return Два множителя.
+ */
 std::pair<U128, U128> ferma_method(U128 x);
 
+/**
+ * @brief Факторизация числа.
+ * @param x Факторизуемое число.
+ * @return Результат разложения на простые множители {a prime number, a non-negative power}.
+ */
 std::map<U128, int> factor(U128 x);
 
 } // namespace utils
