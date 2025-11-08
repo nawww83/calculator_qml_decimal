@@ -1,7 +1,11 @@
 CONFIG -= qt
 
+CONFIG += use_simd
+
 TEMPLATE = lib
 DEFINES += CALCULUS_LIBRARY
+
+QMAKE_CXXFLAGS += -msse4.1
 
 TARGET = calculus
 
@@ -12,7 +16,8 @@ include(..\config.pri)
 QMAKE_CXXFLAGS += -fwrapv
 
 SOURCES += \
-    calculus.cpp
+    calculus.cpp \
+    u128_utils.cpp
 
 HEADERS += \
     calculus_global.h \

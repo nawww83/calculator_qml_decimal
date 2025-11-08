@@ -349,11 +349,11 @@ class Decimal {
                 break;
             }
             mInteger = mInteger * ULOW{10};
-            if (auto tmp = mInteger + I128{static_cast<ULOW>(undigits(digit)), 0}; tmp.is_overflow()) {
+            if (auto tmp = mInteger + undigits(digit); tmp.is_overflow()) {
                 is_overflow = true;
                 break;
             }
-            mInteger = mInteger + I128{static_cast<ULOW>(undigits(digit)), 0};
+            mInteger = mInteger + undigits(digit);
             current_index++;
             digit = mStringRepresentation[current_index];
         } // while
@@ -368,7 +368,7 @@ class Decimal {
             return;
         current_index++;
         digit = mStringRepresentation[current_index];
-        mNominator = mNominator + u128::utils::get_by_digit( undigits(digit) );
+        mNominator = mNominator + undigits(digit);
         current_index++;
         digit = mStringRepresentation[current_index];
         const int length = mStringRepresentation.RealSize();
@@ -377,7 +377,7 @@ class Decimal {
             if (idx_width >= global.mWidth) // Слишком много цифр после запятой.
                 break;
             mNominator = mNominator * ULOW{10};
-            mNominator = mNominator + u128::utils::get_by_digit( undigits(digit) );
+            mNominator = mNominator + undigits(digit);
             current_index++;
             digit = mStringRepresentation[current_index];
             idx_width++;

@@ -113,7 +113,7 @@ public:
             x4 = gp4.get_cell(j2);
         }
     }
-    u64 next_u64() {
+    inline u64 next_u64() {
         u64 x = 0;
         for (int i=0; i<4; ++i) { // 16*4 bits
             gp1.next(x2);

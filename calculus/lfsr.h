@@ -83,7 +83,7 @@ public:
      * @param input Входной символ (по модулю p), который подается
      * на вход генератора.
      */
-    void next(SAMPLE input=0) {
+    inline void next(SAMPLE input=0) {
 #ifdef USE_SSE
         if constexpr (m > 4) {
             __m128i a = _mm_set1_epi16(m_state[m-1]);
@@ -128,7 +128,7 @@ public:
      * @param input Входной символ (по модулю p), который подается
      * на вход генератора.
      */
-    void back(SAMPLE inp=0) {
+    inline void back(SAMPLE inp=0) {
 #ifdef USE_SSE
         if constexpr (m > 4) {
             __m128i mask1 = _mm_slli_si128(_mm_set1_epi16(-1), 2);
@@ -294,11 +294,11 @@ public:
 #endif
     }
 
-    auto get_state() const {
+    inline auto get_state() const {
         return m_state;
     }
 
-    auto get_cell(int idx) const {
+    inline auto get_cell(int idx) const {
         return m_state[idx];
     }
 private:
@@ -360,7 +360,7 @@ public:
      * @param input Входной символ (по модулю p), который одинаково
      * подается на оба генератора.
      */
-    void next(u16 input=0) {
+    inline void next(u16 input=0) {
 #ifdef USE_SSE
         __m128i a = _mm_set1_epi16(m_state[3]);
         __m128i b = _mm_set1_epi16(m_state[3] ^ m_state[7]);
@@ -397,7 +397,7 @@ public:
      * @param inp1 Входной символ (по модулю p) первого генератора.
      * @param inp2 Входной символ (по модулю p) второго генератора.
      */
-    void next(u16 inp1, u16 inp2) {
+    inline void next(u16 inp1, u16 inp2) {
 #ifdef USE_SSE
         __m128i a = _mm_set1_epi16(m_state[3]);
         __m128i b = _mm_set1_epi16(m_state[3] ^ m_state[7]);
@@ -437,7 +437,7 @@ public:
      * @param inp1 Входной символ (по модулю p) первого генератора.
      * @param inp2 Входной символ (по модулю p) второго генератора.
      */
-    void back(u16 inp1, u16 inp2) {
+    inline void back(u16 inp1, u16 inp2) {
 #ifdef USE_SSE
         __m128i mask1 = _mm_slli_si128(_mm_set1_epi16(-1), 2);
         const __m128i mask2 = _mm_set_epi16(-1, -1, -1, 0, -1, -1, -1, -1);
