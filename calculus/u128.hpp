@@ -37,15 +37,14 @@ inline std::pair<U, U> reciprocal_and_extend(U x)
      * @param r_rec = 2^W mod m.
      */
 template <class U>
-inline U smart_remainder_adder(U &r, const U& delta, const U &m, const U &r_rec)
+inline U smart_remainder_adder(U &r, const U &delta, const U &m, const U &r_rec)
 {
-    assert(m != U{0});
-    auto [_, delta_m] = delta / m;
+    assert(m != 0);
+    const auto &delta_m = (delta / m).second;
     const U &summ = r + delta_m;
     const bool overflow = summ < std::min(r, delta_m);
     r = summ + (overflow ? r_rec : 0ull);
-    auto [__, r_m] = r / m;
-    r = r_m;
+    std::tie(std::ignore, r) = r / m;
     return overflow ? 1ull : (summ >= m ? 1ull : 0ull);
 }
 }
@@ -149,21 +148,15 @@ public:
     U128 operator<<(uint32_t shift) const
     {
         if (shift >= 128u)
-        {
-            return U128{0};
-        }
+            return 0;
         U128 result = *this;
         int ishift = shift;
         ULOW L{0};
-        if (ishift < 64)
-        {
-            L = ishift == 0 ? L : result.mLow >> (64 - ishift);
-        }
-        else
-        {
-            result.mHigh = std::exchange(result.mLow, 0);
-            ishift -= 64;
-        }
+        const bool change_L = ishift < 64 && ishift > 0;
+        const bool change_ishift = ishift >= 64;
+        L = change_L ? result.mLow >> (64 - ishift) : L;
+        result.mHigh = change_ishift ? std::exchange(result.mLow, 0) : result.mHigh;
+        ishift -= change_ishift ? 64 : 0;
         result.mLow <<= ishift;
         result.mHigh <<= ishift;
         result.mHigh |= L;
@@ -185,14 +178,12 @@ public:
     U128 operator>>(uint32_t shift) const
     {
         if (shift >= 128u)
-        {
-            return U128{0};
-        }
+            return 0;
         U128 result = *this;
         int ishift = shift;
         if (ishift < 64)
         {
-            ULOW mask = ULOW::get_max_value();
+            ULOW mask{ULOW::get_max_value()};
             mask <<= ishift;
             mask = ~mask;
             const auto &H = result.mHigh & mask;
@@ -366,10 +357,12 @@ public:
     U128 operator*(const U128 &Y) const
     {
         const U128 &X = *this;
+        if (Y.high() == 0)
+            return X * Y.low();
         // x*y = (a + w*b)(c + w*d) = ac + w*(ad + bc) + w*w*bd = (ac + w*(ad + bc)) mod 2^128;
-        const U128 ac = mult64(X.mLow, Y.mLow);
-        const U128 ad = mult64(X.mLow, Y.mHigh);
-        const U128 bc = mult64(X.mHigh, Y.mLow);
+        const U128 &ac = mult_ext(X.low(), Y.low());
+        const U128 &ad = mult_ext(X.low(), Y.high());
+        const U128 &bc = (X != Y) ? mult_ext(X.high(), Y.low()) : ad;
         U128 result = ad + bc;
         result <<= 64;
         result += ac;
@@ -391,10 +384,12 @@ public:
     U128 operator*(const ULOW &Y) const
     {
         const U128 &X = *this;
+        if (X.high() == 0)
+            return mult_ext(X.low(), Y);
         // x*y = (a + w*b)(c + w*0) = ac + w*(0 + bc) = (ac + w*bc) mod 2^128;
-        U128 result{mult64(X.mHigh, Y)};
+        U128 result{mult_ext(X.high(), Y)};
         result <<= 64;
-        result += mult64(X.mLow, Y);
+        result += mult_ext(X.low(), Y);
         return result;
     }
 
@@ -433,10 +428,10 @@ public:
     {
         assert(Y != 0);
         U128 X = *this;
-        if (Y == ULOW{1})
-        {
+        if (Y == 1)
             return {X, 0};
-        }
+        if (X.high() == 0)
+            return X.low() / Y;
 #ifdef USE_DIV_COUNTERS
         g_all_half_divs++;
         double loops = 0;
@@ -455,30 +450,25 @@ public:
             assert(loops < 128);
 #endif
             const bool x_has_high = X.high() != 0;
-            Q += x_has_high ? U128::mult64(X.high(), rcp.first) : 0ull;
+            Q += x_has_high ? U128::mult_ext(X.high(), rcp.first) : 0ull;
             Q += U128{(X.low() / Y).first};
-            const auto& carry = generic::smart_remainder_adder(R, X.low(), Y, rcp.second);
+            const auto &carry = generic::smart_remainder_adder(R, X.low(), Y, rcp.second);
             Q += carry;
-            X = X.high() != 0ull ? U128::mult64(X.high(), make_inverse ? rcp_compl : rcp.second) : 0ull;
-            if (X == U128{0})
+            X = X.high() != 0ull ? U128::mult_ext(X.high(), make_inverse ? rcp_compl : rcp.second) : 0ull;
+            if (X != 0)
             {
-                if (Q > X_old) // Коррекция знака.
-                {
-                    Q = -Q;
-                    R = Y - R; // mod Y
-                    if (R == Y)
-                    {
-                        Q.inc();
-                        R = 0;
-                    }
-                }
-                break;
+                Q = make_inverse ? -Q : Q;
+                R = make_inverse ? Y - R : R;
+                continue;
             }
-            if (make_inverse)
+            if (Q > X_old) // Коррекция знака.
             {
                 Q = -Q;
                 R = Y - R; // mod Y
+                Q += R == Y ? 1 : 0;
+                R = R == Y ? 0 : R;
             }
+            break;
         }
 #ifdef USE_DIV_COUNTERS
         g_hist[static_cast<uint64_t>(loops)]++;
@@ -510,6 +500,8 @@ public:
         assert(other != U128{0});
         const U128 &X = *this;
         const U128 &Y = other;
+        if (X < Y)
+            return {0, X};
         if (Y.mHigh == 0)
         {
             const auto &result = X / Y.low();
@@ -518,12 +510,11 @@ public:
         constexpr auto MAX_ULOW = ULOW::get_max_value();
         const auto &[Q, R] = X.high() / Y.high();
         const auto &Delta = MAX_ULOW - Y.low();
-        const U128 &DeltaQ = mult64(Delta, Q);
+        const U128 &DeltaQ = mult_ext(Delta, Q);
         const U128 &sum_1 = U128{0, R} + DeltaQ;
         U128 W1{sum_1 - U128{0, Q}};
         const bool make_inverse_1 = sum_1 < U128{0, Q};
-        if (make_inverse_1)
-            W1 = - W1;
+        W1 = make_inverse_1 ? -W1 : W1;
 #ifdef USE_DIV_COUNTERS
         g_all_divs++;
         double loops = 0;
@@ -532,8 +523,7 @@ public:
         const auto &W2 = MAX_ULOW - (Delta / C1).first;
         auto [Quotient, _] = W1 / W2;
         std::tie(Quotient, std::ignore) = Quotient / C1;
-        if (make_inverse_1)
-            Quotient = - Quotient;
+        Quotient = make_inverse_1 ? -Quotient : Quotient;
         U128 result = U128{Q} + Quotient - U128{make_inverse_1 ? 1ull : 0ull};
         const U128 &N = Y * result.mLow;
         U128 Error{X - N};
@@ -565,8 +555,8 @@ public:
     }
 
     /**
-     * @brief
-     */
+         * @brief
+         */
     std::pair<U128, U128> operator/=(const U128 &Y)
     {
         U128 remainder;
@@ -575,24 +565,24 @@ public:
     }
 
     /**
-     * @brief Нижняя половина числа.
-     */
+         * @brief Нижняя половина числа.
+         */
     ULOW low() const
     {
         return mLow;
     }
 
     /**
-     * @brief Верхняя половина числа.
-     */
+         * @brief Верхняя половина числа.
+         */
     ULOW high() const
     {
         return mHigh;
     }
 
     /**
-     * @brief Количество битов, требуемое для представления числа.
-     */
+         * @brief Количество битов, требуемое для представления числа.
+         */
     u64 bit_length() const
     {
         U128 X = *this;
@@ -627,7 +617,7 @@ public:
          * @brief Умножение двух 64-битных чисел с расширением до 128-битного числа.
          * @details Авторский алгоритм умножения. Обобщается на любую разрядность.
          */
-    static U128 mult64(ULOW x, ULOW y)
+    static U128 mult_ext(ULOW x, ULOW y)
     {
         constexpr int QUORTER_WIDTH = 32; // Четверть ширины 128-битного числа.
         constexpr ULOW MASK = (ULOW{1}() << QUORTER_WIDTH) - 1;
@@ -656,13 +646,38 @@ public:
     }
 
     /**
-     * @brief Специальный метод деления на 10 для формирования строкового представления числа.
-     */
+         * @brief Возведение в квадрат 64-битного числа с расширением до 128-битного числа.
+         */
+    static U128 square_ext(ULOW x)
+    {
+        constexpr int QUORTER_WIDTH = 32; // Четверть ширины 128-битного числа.
+        constexpr ULOW MASK = (ULOW{1}() << QUORTER_WIDTH) - 1;
+        const ULOW x_low = x & MASK;
+        const ULOW x_high = x >> QUORTER_WIDTH;
+        const ULOW t1 = x_low * x_low;
+        const ULOW t = t1 >> QUORTER_WIDTH;
+        const ULOW t21 = x_low * x_high;
+        const ULOW q = t21 >> QUORTER_WIDTH;
+        const ULOW p = t21 & MASK;
+        const ULOW t3 = x_high * x_high;
+        U128 result{t1};
+        const ULOW div = (q << 1) + (((p << 1) + t) >> QUORTER_WIDTH);
+        const auto p1 = t21 << QUORTER_WIDTH;
+        const ULOW mod = p1 << 1;
+        result.mLow += mod;
+        result.mHigh += div;
+        result.mHigh += t3;
+        return result;
+    }
+
+    /**
+         * @brief Специальный метод деления на 10 для формирования строкового представления числа.
+         */
     U128 div10() const
     {
         const U128 &X = *this;
         constexpr auto TEN = ULOW{10};
-        const auto& reciprocal = (ULOW::get_max_value() / TEN).first;
+        const auto &reciprocal = (ULOW::get_max_value() / TEN).first;
         auto [Q, R] = X.high() / TEN;
         ULOW N = R * reciprocal + (X.low() / TEN).first;
         U128 result{N, Q};
@@ -676,8 +691,8 @@ public:
     }
 
     /**
-     * @brief Специальный метод нахождения остатка от деления на 10 для формирования строкового представления числа.
-     */
+         * @brief Специальный метод нахождения остатка от деления на 10 для формирования строкового представления числа.
+         */
     int mod10() const
     {
         const int multiplier_mod10 = ULOW::get_max_value().mod10() + 1;
@@ -685,8 +700,8 @@ public:
     }
 
     /**
-     * @brief Возвращает строковое представление числа.
-     */
+         * @brief Возвращает строковое представление числа.
+         */
     std::string value() const
     {
         std::string result;
@@ -705,13 +720,13 @@ public:
 
 private:
     /**
-     * @brief Младшая половина числа.
-     */
+         * @brief Младшая половина числа.
+         */
     ULOW mLow{0};
 
     /**
-     * @brief Старшая половина числа.
-     */
+         * @brief Старшая половина числа.
+         */
     ULOW mHigh{0};
 };
 

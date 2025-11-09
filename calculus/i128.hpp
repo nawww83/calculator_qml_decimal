@@ -414,8 +414,8 @@ namespace bignum::i128
                 result.set_nan();
                 return result;
             }
-            I128 result{U128::mult64(X.mUnsigned.low(), Y)};
-            I128 tmp{U128::mult64(X.mUnsigned.high(), Y)};
+            I128 result{U128::mult_ext(X.mUnsigned.low(), Y)};
+            I128 tmp{U128::mult_ext(X.mUnsigned.high(), Y)};
             result += shl64(tmp);
             result.mSign = X.mSign();
             return result;

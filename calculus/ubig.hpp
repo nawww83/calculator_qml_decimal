@@ -12,7 +12,7 @@
 #include <algorithm> // std::min, std::max
 #include <tuple>     // std::pair, std::tie
 #include "defines.h" // DIGITS
-#include "u128.hpp" // bignum::generic::
+#include "u128.hpp"  // bignum::generic::
 
 namespace bignum::ubig
 {
@@ -92,21 +92,15 @@ public:
     UBig operator<<(uint32_t shift) const
     {
         if (shift >= WIDTH)
-        {
-            return UBig{0};
-        }
+            return 0;
         UBig result = *this;
         int ishift = shift;
         ULOW L{0};
-        if (ishift < WIDTH/2)
-        {
-            L = ishift == 0 ? L : result.mLow >> (WIDTH/2 - ishift);
-        }
-        else
-        {
-            result.mHigh = std::exchange(result.mLow, ULOW{0});
-            ishift -= WIDTH/2;
-        }
+        const bool change_L = ishift < WIDTH / 2 && ishift > 0;
+        const bool change_ishift = ishift >= WIDTH / 2;
+        L = change_L ? result.mLow >> (WIDTH / 2 - ishift) : L;
+        result.mHigh = change_ishift ? std::exchange(result.mLow, 0) : result.mHigh;
+        ishift -= change_ishift ? WIDTH / 2 : 0;
         result.mLow <<= ishift;
         result.mHigh <<= ishift;
         result.mHigh |= L;
@@ -128,25 +122,23 @@ public:
     UBig operator>>(uint32_t shift) const
     {
         if (shift >= WIDTH)
-        {
-            return UBig{0};
-        }
+            return 0;
         UBig result = *this;
         int ishift = shift;
-        if (ishift < WIDTH/2)
+        if (ishift < WIDTH / 2)
         {
-            ULOW mask = ULOW::get_max_value();
+            ULOW mask{ULOW::get_max_value()};
             mask <<= ishift;
             mask = ~mask;
             const auto &H = result.mHigh & mask;
             result.mLow >>= ishift;
             result.mHigh >>= ishift;
-            result.mLow |= ishift == 0 ? H : H << (WIDTH/2 - ishift);
+            result.mLow |= ishift == 0 ? H : H << (WIDTH / 2 - ishift);
         }
         else
         {
             result.mLow = std::exchange(result.mHigh, ULOW{0});
-            result.mLow >>= (ishift - WIDTH/2);
+            result.mLow >>= (ishift - WIDTH / 2);
         }
         return result;
     }
@@ -309,12 +301,14 @@ public:
     UBig operator*(const UBig &Y) const
     {
         const UBig &X = *this;
+        if (Y.high() == 0)
+            return X * Y.low();
         // x*y = (a + w*b)(c + w*d) = ac + w*(ad + bc) + w*w*bd = (ac + w*(ad + bc)) mod 2^128;
-        const UBig ac = mult_ext(X.mLow, Y.mLow);
-        const UBig ad = mult_ext(X.mLow, Y.mHigh);
-        const UBig bc = mult_ext(X.mHigh, Y.mLow);
+        const UBig &ac = mult_ext(X.low(), Y.low());
+        const UBig &ad = mult_ext(X.low(), Y.high());
+        const UBig &bc = (X != Y) ? mult_ext(X.high(), Y.low()) : ad;
         UBig result = ad + bc;
-        result <<= WIDTH/2;
+        result <<= WIDTH / 2;
         result += ac;
         return result;
     }
@@ -334,10 +328,12 @@ public:
     UBig operator*(const ULOW &Y) const
     {
         const UBig &X = *this;
+        if (X.high() == 0)
+            return mult_ext(X.low(), Y);
         // x*y = (a + w*b)(c + w*0) = ac + w*(0 + bc) = (ac + w*bc) mod 2^128;
-        UBig result{mult_ext(X.mHigh, Y)};
-        result <<= WIDTH/2;
-        result += mult_ext(X.mLow, Y);
+        UBig result{mult_ext(X.high(), Y)};
+        result <<= (WIDTH / 2);
+        result += mult_ext(X.low(), Y);
         return result;
     }
 
@@ -376,10 +372,10 @@ public:
     {
         assert(Y != 0);
         UBig X = *this;
-        if (Y == ULOW{1})
-        {
+        if (Y == 1)
             return {X, 0};
-        }
+        if (X.high() == 0)
+            return X.low() / Y;
         UBig Q{0};
         ULOW R = 0;
         auto rcp = bignum::generic::reciprocal_and_extend(Y);
@@ -392,28 +388,23 @@ public:
             const bool x_has_high = X.high() != 0;
             Q += x_has_high ? UBig::mult_ext(X.high(), rcp.first) : 0ull;
             Q += UBig{(X.low() / Y).first};
-            const auto& carry = bignum::generic::smart_remainder_adder(R, X.low(), Y, rcp.second);
+            const auto &carry = bignum::generic::smart_remainder_adder(R, X.low(), Y, rcp.second);
             Q += carry;
             X = X.high() != 0ull ? UBig::mult_ext(X.high(), make_inverse ? rcp_compl : rcp.second) : 0ull;
-            if (X == UBig{0})
+            if (X != 0)
             {
-                if (Q > X_old) // Коррекция знака.
-                {
-                    Q = -Q;
-                    R = Y - R; // mod Y
-                    if (R == Y)
-                    {
-                        Q.inc();
-                        R = 0;
-                    }
-                }
-                break;
+                Q = make_inverse ? -Q : Q;
+                R = make_inverse ? Y - R : R;
+                continue;
             }
-            if (make_inverse)
+            if (Q > X_old) // Коррекция знака.
             {
                 Q = -Q;
                 R = Y - R; // mod Y
+                Q += R == Y ? 1 : 0;
+                R = R == Y ? 0 : R;
             }
+            break;
         }
         return {Q, R};
     }
@@ -439,6 +430,8 @@ public:
         assert(other != UBig{0});
         const UBig &X = *this;
         const UBig &Y = other;
+        if (X < Y)
+            return {0, X};
         if (Y.mHigh == 0)
         {
             const auto &result = X / Y.mLow;
@@ -451,14 +444,12 @@ public:
         const UBig &sum_1 = UBig{0, R} + DeltaQ;
         UBig W1{sum_1 - UBig{0, Q}};
         const bool make_inverse_1 = sum_1 < UBig{0, Q};
-        if (make_inverse_1)
-            W1 = - W1;
+        W1 = make_inverse_1 ? -W1 : W1;
         const ULOW &C1 = (Y.mHigh < MAX_ULOW) ? Y.mHigh + ULOW{1} : MAX_ULOW;
         const ULOW &W2 = MAX_ULOW - (Delta / C1).first;
         auto [Quotient, _] = W1 / W2;
         std::tie(Quotient, std::ignore) = Quotient / C1;
-        if (make_inverse_1)
-            Quotient = - Quotient;
+        Quotient = make_inverse_1 ? -Quotient : Quotient;
         UBig result = UBig{Q} + Quotient - UBig{make_inverse_1 ? 1ull : 0ull};
         const UBig &N = Y * result.mLow;
         UBig Error{X - N};
@@ -535,7 +526,7 @@ public:
     static UBig mult_ext(ULOW x, ULOW y)
     {
         constexpr int QUORTER_WIDTH = WIDTH / 4; // Четверть ширины N-битного числа.
-        const ULOW& MASK = (ULOW{1} << QUORTER_WIDTH) - ULOW{1};
+        const ULOW &MASK = (ULOW{1} << QUORTER_WIDTH) - ULOW{1};
         const ULOW &x_low = x & MASK;
         const ULOW &y_low = y & MASK;
         const ULOW &x_high = x >> QUORTER_WIDTH;
@@ -561,13 +552,38 @@ public:
     }
 
     /**
+         * @brief Возведение в квадрат N/2-битного числа с расширением до N-битного числа.
+         */
+    static UBig square_ext(ULOW x)
+    {
+        constexpr int QUORTER_WIDTH = WIDTH / 4; // Четверть ширины N-битного числа.
+        const ULOW &MASK = (ULOW{1} << QUORTER_WIDTH) - ULOW{1};
+        const ULOW &x_low = x & MASK;
+        const ULOW &x_high = x >> QUORTER_WIDTH;
+        const ULOW &t1 = x_low * x_low;
+        const ULOW &t = t1 >> QUORTER_WIDTH;
+        const ULOW &t21 = x_low * x_high;
+        const ULOW &q = t21 >> QUORTER_WIDTH;
+        const ULOW &p = t21 & MASK;
+        const ULOW &t3 = x_high * x_high;
+        UBig result{t1};
+        const ULOW &div = (q + q) + ((p + p + t) >> QUORTER_WIDTH);
+        const auto &p1 = t21 << QUORTER_WIDTH;
+        const ULOW &mod = p1 + p1;
+        result.mLow += mod;
+        result.mHigh += div;
+        result.mHigh += t3;
+        return result;
+    }
+
+    /**
          * @brief Специальный метод деления на 10 для формирования строкового представления числа.
          */
     UBig div10() const
     {
         const UBig &X = *this;
         constexpr auto TEN = ULOW{10};
-        const auto& [reciprocal, _] = ULOW::get_max_value() / TEN;
+        const auto &[reciprocal, _] = ULOW::get_max_value() / TEN;
         auto [Q, R] = X.mHigh / TEN;
         ULOW N = R * reciprocal + (X.mLow / TEN).first;
         UBig result{N, Q};

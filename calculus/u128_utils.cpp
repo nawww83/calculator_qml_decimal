@@ -19,9 +19,9 @@ std::pair<U128, int> div_by_q(U128 &x, const U128& q)
     return std::make_pair(U128{q}, i);
 }
 
-bool miller_test(U128 d, U128 n)
+bool miller_test(U128 d, const U128& n)
 {
-    U128 x = get_random_value();
+    U128 x {get_random_value()};
     {
         U128 tmp;
         std::tie(tmp, x) = x / (n - 3);
@@ -34,7 +34,7 @@ bool miller_test(U128 d, U128 n)
     while (d != (n - 1))
     {
         int_power_mod(x, 2, n);
-        d *= U128{2};
+        d <<= 1;
         if (x == 1)
             return false;
         if (x == (n - 1))
@@ -76,28 +76,28 @@ std::pair<U128, U128> ferma_method(U128 x)
         bool is_exact;
         auto y_sqrt = isqrt(y, is_exact);
         const auto delta = x_sqrt + x_sqrt + U128{3, 0};
-        y = y + delta;
+        y += delta;
         if (is_exact)
             return std::make_pair(x_sqrt + U128{1} - y_sqrt, x_sqrt + U128{1} + y_sqrt);
     }
     const auto &k_upper = x_sqrt;
-    for (auto k = U128{2};; k.inc())
+    for (U128 k = 2;; k.inc())
     {
-        if (((k.low() & 65535) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
+        if (((k & 65535) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
             break;
         if (k > k_upper)
             return std::make_pair(x, U128{1}); // x - простое число.
-        if ((k.low() & 1) == 1)
+        if ((k & 1) == 1)
         { // Проверка с другой стороны: ускоряет поиск.
             // Основано на равенстве, следующем из метода Ферма: индекс k = (F^2 + x) / (2F) - floor(sqrt(x)).
             // Здесь F - кандидат в множители, x - раскладываемое число.
             const auto &N1 = k * k + x;
             if ((N1.low() & 1) == 0)
             {
-                auto [q1, remainder] = N1 / (k + k); // Здесь k как некоторый множитель F.
+                const auto& [q1, remainder] = N1 / (k + k); // Здесь k как некоторый множитель F.
                 if ((remainder == 0) && (q1 > x_sqrt))
                 {
-                    auto [q2, remainder] = x / k;
+                    const auto& [q2, remainder] = x / k;
                     if (remainder == 0) // На всякий случай оставим.
                         return std::make_pair(k, q2);
                 }
@@ -106,9 +106,9 @@ std::pair<U128, U128> ferma_method(U128 x)
         if (const auto &r = y.mod10(); (r != 1 && r != 9)) // Просеиваем заведомо лишние.
             continue;
         bool is_exact;
-        const auto y_sqrt = isqrt(y, is_exact);
-        const auto delta = (x_sqrt + x_sqrt) + (k + k) + U128{1};
-        y = y + delta;
+        const auto& y_sqrt = isqrt(y, is_exact);
+        const auto& delta = (x_sqrt + x_sqrt) + (k + k) + U128{1};
+        y += delta;
         if (!is_exact)
             continue;
         const auto first_multiplier = x_sqrt + k - y_sqrt;
@@ -128,7 +128,7 @@ U128 pollard_minus_p(const U128& x, std::optional<U128> limit)
         const auto& d = gcd(q - 1, x);
         if (d > 1)
             return d;
-        if (((i.low() & 256) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 256 отсчетов.
+        if (((i & 256) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 256 отсчетов.
             break;
         if (has_limit && i >= limit_val)
             break;
@@ -146,17 +146,11 @@ U128 ro_pollard(const U128& n, std::optional<U128> limit)
     U128 d1 {1};
     U128 i{0};
     while (d1 == 1) {
-        mult_mod(q1, q1, n);
-        add_mod(q1, 3, n);
-        //
-        mult_mod(y1, y1, n);
-        add_mod(y1, 3, n);
-        //
-        mult_mod(y1, y1, n);
-        add_mod(y1, 3, n);
-        //
+        square_add_mod(q1, 3, n);
+        square_add_mod(y1, 3, n);
+        square_add_mod(y1, 3, n);
         d1 = q1 >= y1 ? gcd(q1 - y1, n) : gcd(y1 - q1, n);
-        if (((i.low() & 256) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 256 отсчетов.
+        if (((i & 256) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 256 отсчетов.
             break;
         if (has_limit && i >= limit_val)
             break;

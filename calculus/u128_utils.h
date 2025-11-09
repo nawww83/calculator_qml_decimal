@@ -112,6 +112,22 @@ inline void mult_mod(U128& x, const U128& y, const U128& m)
 }
 
 /**
+ * @brief Возведение в квадрат с суммированием по заданному модулю.
+ * @param x Число, возводимое в квадрат. Сюда кладется результат (x^2 + y) mod m.
+ * @param y Аддитивная компонента.
+ * @param m Модуль.
+ */
+inline void square_add_mod(U128& x, const U128& y, const U128& m)
+{
+    assert(m != 0);
+    using namespace bignum::ubig;
+    using U256 = UBig<U128, 256>;
+    U256 z { U256::square_ext(x) };
+    z = U256{(z / m).second} + U256{y};
+    x = y == 0 ? z.low() : (z / m).second;
+}
+
+/**
  * @brief Степень числа по заданному модулю.
  * @param x Основание степени. Сюда кладется результат (x^y) mod m.
  * @param y Степень.
@@ -128,11 +144,11 @@ inline void int_power_mod(U128& x, const U128& y, const U128& m)
         if ((exponent & 1) == 1)
             mult_mod(x, base, m);
         exponent >>= 1;
-        mult_mod(base, base, m);
+        square_add_mod(base, 0, m);
     }
 }
 
-bool miller_test(U128 d, U128 n);
+bool miller_test(U128 d, const U128 &n);
 
 /**
  * @brief Количество цифр числа.
@@ -155,28 +171,13 @@ inline int num_of_digits(U128 x)
  */
 inline U128 gcd(U128 x, U128 y)
 {
-    if (x == y)
-        return x;
-    if (x > y)
+    while (y != 0)
     {
-        while (y != 0)
-        {
-            const U128 y_copy = y;
-            y = (x / y).second;
-            x = y_copy;
-        }
-        return x;
+        const auto& [_, r] = x / y;
+        x = y;
+        y = r;
     }
-    else
-    {
-        while (x != 0)
-        {
-            const U128 x_copy = x;
-            x = (y / x).second;
-            y = x_copy;
-        }
-        return y;
-    }
+    return x;
 }
 
 /**
