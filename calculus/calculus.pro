@@ -5,7 +5,7 @@ CONFIG += use_simd
 TEMPLATE = lib
 DEFINES += CALCULUS_LIBRARY
 
-QMAKE_CXXFLAGS += -msse4.1
+QMAKE_CXXFLAGS += -msse4.2
 
 TARGET = calculus
 

@@ -93,7 +93,7 @@ inline void add_mod(U128& x, const U128& y, const U128& m)
     using namespace bignum::ubig;
     using U256 = UBig<U128, 256>;
     const auto& z = U256{x} + U256{y};
-    x = (z / m).second;
+    x = (z / m).second.low();
 }
 
 /**
@@ -108,7 +108,7 @@ inline void mult_mod(U128& x, const U128& y, const U128& m)
     using namespace bignum::ubig;
     using U256 = UBig<U128, 256>;
     const U256& z = U256::mult_ext(x, y);
-    x = (z / m).second;
+    x = (z / m).second.low();
 }
 
 /**
@@ -124,7 +124,7 @@ inline void square_add_mod(U128& x, const U128& y, const U128& m)
     using U256 = UBig<U128, 256>;
     U256 z { U256::square_ext(x) };
     z = U256{(z / m).second} + U256{y};
-    x = y == 0 ? z.low() : (z / m).second;
+    x = y == 0 ? z.low() : (z / m).second.low();
 }
 
 /**

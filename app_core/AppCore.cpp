@@ -451,6 +451,8 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
             mCurrentOperation = OperationEnums::CLEAR_ALL;
             mState = StateEnums::RESETTED;
             emit setEnableFactorButton(true);
+            // bignum::u128::U128 value = u128::utils::get_random_value();
+            // process(OperationEnums::FACTOR, QString::fromStdString( value.value() )); // temporary loop for debug factorization.
         } else {
             // Показать результат в поле ввода, если нажата "Enter".
             if (state_is_the_equal || mState == StateEnums::RESETTED) {

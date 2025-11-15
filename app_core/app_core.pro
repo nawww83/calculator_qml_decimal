@@ -4,7 +4,7 @@ CONFIG += c++20
 CONFIG += console
 CONFIG += use_simd
 
-QMAKE_CXXFLAGS += -msse4.1
+QMAKE_CXXFLAGS += -msse4.2
 
 TARGET = calculator
 
