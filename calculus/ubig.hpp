@@ -372,7 +372,7 @@ public:
                 Y_sc <<= n_bits;
                 Q_sc <<= n_bits;
             }
-            if ((Y_sc + Y_sc) <= X)
+            if (Y_sc <= (X - Y_sc)) // use the subtraction due to possible overflow.
             {
                 Y_sc <<= 1;
                 Q_sc <<= 1;
