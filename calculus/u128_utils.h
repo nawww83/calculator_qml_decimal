@@ -89,11 +89,10 @@ inline U128 int_power(ULOW x, int y)
  */
 inline void add_mod(U128& x, const U128& y, const U128& m)
 {
-    assert(m != 0);
     using namespace bignum::ubig;
     using U256 = UBig<U128, 256>;
     const auto& z = U256{x} + U256{y};
-    x = (z / m).second.low();
+    x = z % m;
 }
 
 /**
@@ -104,11 +103,10 @@ inline void add_mod(U128& x, const U128& y, const U128& m)
  */
 inline void mult_mod(U128& x, const U128& y, const U128& m)
 {
-    assert(m != 0);
     using namespace bignum::ubig;
     using U256 = UBig<U128, 256>;
     const U256& z = U256::mult_ext(x, y);
-    x = (z / m).second.low();
+    x = z % m;
 }
 
 /**
@@ -119,12 +117,16 @@ inline void mult_mod(U128& x, const U128& y, const U128& m)
  */
 inline void square_add_mod(U128& x, const U128& y, const U128& m)
 {
-    assert(m != 0);
     using namespace bignum::ubig;
     using U256 = UBig<U128, 256>;
     U256 z { U256::square_ext(x) };
-    z = U256{(z / m).second} + U256{y};
-    x = y == 0 ? z.low() : (z / m).second.low();
+    if (x < U128::get_max_value()) {
+        z += U256{y};
+        x = z % m;
+    } else {
+        z = U256{z % m} + U256{y};
+        x = z % m;
+    }
 }
 
 /**
@@ -135,7 +137,6 @@ inline void square_add_mod(U128& x, const U128& y, const U128& m)
  */
 inline void int_power_mod(U128& x, const U128& y, const U128& m)
 {
-    assert( m != 0 );
     U128 exponent = y;
     U128 base = x;
     x = 1;
@@ -226,7 +227,6 @@ inline U128 isqrt(const U128& x)
  */
 inline bool is_quadratic_residue(const U128& x, const U128& p)
 {
-    assert(p != 0);
     const auto& [_, rx] = x / p;
     U128 y2 = 0;
     for (U128 y = 0; y < p; y.inc())
@@ -243,7 +243,6 @@ inline bool is_quadratic_residue(const U128& x, const U128& p)
  */
 inline std::pair<U128, U128> sqrt_mod(const U128& x, const U128& p)
 {
-    assert(p != 0);
     U128 result[2];
     int idx = 0;
     const auto& [_, rx] = x / p;

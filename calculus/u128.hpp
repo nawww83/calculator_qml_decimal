@@ -7,7 +7,6 @@
 
 #include <cstdint>   // uint64_t
 #include <cassert>   // assert
-#include <iostream>
 #include <string>    // std::string
 #include <utility>   // std::exchange
 #include <algorithm> // std::min, std::max
@@ -18,8 +17,8 @@
 namespace bignum::generic
 {
 /**
-     * @brief Вычисляет 2^W / x: частное Q и остаток R. Здесь W - битовая ширина числа U.
-     */
+ * @brief Вычисляет 2^W / x: частное Q и остаток R. Здесь W - битовая ширина числа U.
+ */
 template <class U>
 inline std::pair<U, U> reciprocal_and_extend(U x)
 {
@@ -28,20 +27,20 @@ inline std::pair<U, U> reciprocal_and_extend(U x)
     const auto i = x.countl_zero();
     x <<= i;
     auto [Q, R] = (-x) / x_old;
-    Q += (U{1ull} << i);
+    Q += (U{1} << i);
     return {Q, R};
 }
 
 /**
-     * @brief r = (r + delta) mod m
-     * Возвращает 1, если остаток при сложении был больше или равен модулю m; иначе возвращает ноль.
-     * @param r_rec = 2^W mod m.
-     */
+ * @brief r = (r + delta) mod m
+ * Возвращает 1, если остаток при сложении был больше или равен модулю m; иначе возвращает ноль.
+ * @param r_rec = 2^W mod m.
+ */
 template <class U>
 inline U smart_remainder_adder(U &r, const U &delta, const U &m, const U &r_rec)
 {
     assert(m != 0);
-    const auto &delta_m = (delta / m).second;
+    const auto &delta_m = delta % m;
     const U &summ = r + delta_m;
     const bool overflow = summ < std::min(r, delta_m);
     r = summ + (overflow ? r_rec : 0ull);
@@ -137,6 +136,12 @@ public:
             return 0;
         U128 result = *this;
         int ishift = shift;
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_value = (static_cast<unsigned __int128>(result.mHigh()) << 64) | result.mLow();
+        u128_value <<= ishift;
+        // Преобразование результата обратно в структуру
+        return {static_cast<u64>(u128_value & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(u128_value >> 64)};
+#else
         ULOW L{0};
         const bool change_L = ishift < 64 && ishift > 0;
         const bool change_ishift = ishift >= 64;
@@ -147,6 +152,7 @@ public:
         result.mHigh <<= ishift;
         result.mHigh |= L;
         return result;
+#endif
     }
 
     /**
@@ -167,6 +173,12 @@ public:
             return 0;
         U128 result = *this;
         int ishift = shift;
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_value = (static_cast<unsigned __int128>(result.mHigh()) << 64) | result.mLow();
+        u128_value >>= ishift;
+        // Преобразование результата обратно в структуру
+        return {static_cast<u64>(u128_value & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(u128_value >> 64)};
+#else
         if (ishift < 64)
         {
             ULOW mask{ULOW::get_max_value()};
@@ -183,6 +195,7 @@ public:
             result.mLow >>= (ishift - 64);
         }
         return result;
+#endif
     }
 
     /**
@@ -195,8 +208,8 @@ public:
     }
 
     /**
-         * @brief Оператор побитового И.
-         */
+     * @brief Оператор побитового И.
+     */
     U128 operator&(const U128 &mask) const
     {
         U128 result = *this;
@@ -206,8 +219,8 @@ public:
     }
 
     /**
-         * @brief Оператор побитового И.
-         */
+     * @brief Оператор побитового И.
+     */
     U128 &operator&=(const U128 &mask)
     {
         *this = *this & mask;
@@ -270,11 +283,19 @@ public:
          */
     U128 operator+(const U128 &Y) const
     {
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_X = (static_cast<unsigned __int128>(mHigh()) << 64) | mLow();
+        unsigned __int128 u128_Y = (static_cast<unsigned __int128>(Y.mHigh()) << 64) | Y.mLow();
+        u128_X += u128_Y;
+        // Преобразование результата обратно в структуру
+        return {static_cast<u64>(u128_X & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(u128_X >> 64)};
+#else
         const U128 &X = *this;
         U128 result{X.mLow + Y.mLow, X.mHigh + Y.mHigh};
         const auto &carry = ULOW{result.mLow < std::min(X.mLow, Y.mLow) ? 1ull : 0ull};
         result.mHigh += carry;
         return result;
+#endif
     }
 
     /**
@@ -291,9 +312,17 @@ public:
          */
     U128 operator-(const U128 &Y) const
     {
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_X = (static_cast<unsigned __int128>(mHigh()) << 64) | mLow();
+        unsigned __int128 u128_Y = (static_cast<unsigned __int128>(Y.mHigh()) << 64) | Y.mLow();
+        u128_X -= u128_Y;
+        // Преобразование результата обратно в структуру
+        return {static_cast<u64>(u128_X & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(u128_X >> 64)};
+#else
         const U128 &X = *this;
         if (X >= Y) return subtract_if_lhs_more(X, Y);
         return subtract_if_lhs_more(U128::get_max_value(), Y) + 1 + X;
+#endif
     }
 
     /**
@@ -338,8 +367,15 @@ public:
          */
     U128 operator*(const U128 &Y) const
     {
-        const U128 &X = *this;
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_X = (static_cast<unsigned __int128>(mHigh()) << 64) | mLow();
+        unsigned __int128 u128_Y = (static_cast<unsigned __int128>(Y.mHigh()) << 64) | Y.mLow();
+        u128_X *= u128_Y;
+        // Преобразование результата обратно в структуру
+        return {static_cast<u64>(u128_X & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(u128_X >> 64)};
+#else
         // x*y = (a + w*b)(c + w*d) = ac + w*(ad + bc) + w*w*bd = (ac + w*(ad + bc)) mod 2^128;
+        const U128 &X = *this;
         const U128 &ac = mult_ext(X.low(), Y.low());
         const U128 &ad = mult_ext(X.low(), Y.high());
         const U128 &bc = (X != Y) ? mult_ext(X.high(), Y.low()) : ad;
@@ -347,6 +383,7 @@ public:
         result <<= 64;
         result += ac;
         return result;
+#endif
     }
 
     /**
@@ -363,9 +400,17 @@ public:
          */
     U128 operator*(const ULOW &Y) const
     {
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_X = (static_cast<unsigned __int128>(mHigh()) << 64) | mLow();
+        unsigned __int128 u128_Y = Y();
+        u128_X *= u128_Y;
+        // Преобразование результата обратно в структуру
+        return {static_cast<u64>(u128_X & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(u128_X >> 64)};
+#else
         const U128 &X = *this;
         // x*y = (a + w*b)(c + w*0) = ac + w*(0 + bc) = (ac + w*bc) mod 2^128;
         return (U128{mult_ext(X.high(), Y)} << 64) + mult_ext(X.low(), Y);
+#endif
     }
 
     /**
@@ -394,41 +439,47 @@ public:
     T &operator*=(const T &) = delete;
 
     /**
-         * @brief Оператор деления.
-         * @return Частное от деления и остаток.
-         */
+     * @brief Оператор деления.
+     * @return Частное от деления и остаток.
+     */
     std::pair<U128, U128> operator/(const U128 &other) const
     {
         assert(other != 0);
-        U128 X{*this};
+        U128 X = *this;
         const auto &Y = other;
         U128 Q{0};
-        auto div_helper = [&X, &Y, &Q]() -> void
-        {
-            if (X < Y)
+        #if defined(__SIZEOF_INT128__)
+            U128 R;
+            Q = divide_u128<true, true>(X, Y, &R);
+            return {Q, R};
+        #else
+            auto div_helper = [&X, &Y, &Q]() -> void
+            {
+                if (X < Y)
+                    return;
+                U128 Q_sc{1};
+                auto Y_sc{Y};
+                const int n_bits = X.bit_length() - Y.bit_length() - 1;
+                if (n_bits > 0)
+                {
+                    Y_sc <<= n_bits;
+                    Q_sc <<= n_bits;
+                }
+                if (Y_sc <= (X - Y_sc)) // use the subtraction due to possible overflow.
+                {
+                    Y_sc <<= 1;
+                    Q_sc <<= 1;
+                }
+                Q += Q_sc;
+                X -= Y_sc;
                 return;
-            U128 Q_sc{1};
-            auto Y_sc{Y};
-            const int n_bits = X.bit_length() - Y.bit_length() - 1;
-            if (n_bits > 0)
+            };
+            for (; X >= Y;)
             {
-                Y_sc <<= n_bits;
-                Q_sc <<= n_bits;
+                div_helper();
             }
-            if (Y_sc <= (X - Y_sc)) // use the subtraction due to possible overflow.
-            {
-                Y_sc <<= 1;
-                Q_sc <<= 1;
-            }
-            Q += Q_sc;
-            X -= Y_sc;
-            return;
-        };
-        for (; X >= Y;)
-        {
-            div_helper();
-        }
-        return {Q, X};
+            return {Q, X};
+        #endif
     }
 
     /**
@@ -439,6 +490,27 @@ public:
         U128 remainder;
         std::tie(*this, remainder) = *this / Y;
         return std::make_pair(*this, remainder);
+    }
+
+    U128 operator%(const U128& other) const
+    {
+#if defined(__SIZEOF_INT128__)
+        U128 R;
+        divide_u128<false, true>(*this, other, &R);
+        return R;
+#else
+        const auto& [_, R] = *this / other;
+        return R;
+#endif
+    }
+
+    /**
+         * @brief
+         */
+    U128& operator%=(const U128 &Y)
+    {
+        *this = *this % Y;
+        return *this;
     }
 
     /**
@@ -478,7 +550,13 @@ public:
          */
     static constexpr U128 get_max_value()
     {
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 max_val = 0;
+        max_val -= 1;
+        return U128{static_cast<u64>( max_val & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(max_val >> 64)};
+#else
         return U128{ULOW::get_max_value(), ULOW::get_max_value()};
+#endif
     }
 
     /**
@@ -487,6 +565,12 @@ public:
          */
     static U128 mult_ext(ULOW x, ULOW y)
     {
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_x = x();
+        unsigned __int128 u128_y = y();
+        auto z = u128_x * u128_y;
+        return U128{static_cast<u64>( z & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(z >> 64)};
+#else
         constexpr int QUORTER_WIDTH = 32; // Четверть ширины 128-битного числа.
         constexpr ULOW MASK = (ULOW{1}() << QUORTER_WIDTH) - 1;
         const ULOW x_low = x & MASK;
@@ -511,6 +595,7 @@ public:
         result.mHigh += div;
         result.mHigh += t3;
         return result;
+#endif
     }
 
     /**
@@ -518,6 +603,11 @@ public:
          */
     static U128 square_ext(ULOW x)
     {
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_x = x();
+        auto z = u128_x * u128_x;
+        return U128{static_cast<u64>( z & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(z >> 64)};
+#else
         constexpr int QUORTER_WIDTH = 32; // Четверть ширины 128-битного числа.
         constexpr ULOW MASK = (ULOW{1}() << QUORTER_WIDTH) - 1;
         const ULOW x_low = x & MASK;
@@ -536,6 +626,7 @@ public:
         result.mHigh += div;
         result.mHigh += t3;
         return result;
+#endif
     }
 
     /**
@@ -543,6 +634,13 @@ public:
          */
     U128 div10() const
     {
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_dividend = (static_cast<unsigned __int128>(mHigh()) << 64) | mLow();
+        unsigned __int128 u128_divisor = 10ull;
+        unsigned __int128 quotient;
+        quotient = u128_dividend / u128_divisor;
+        return U128{static_cast<u64>( quotient & 0xFFFFFFFFFFFFFFFFULL), static_cast<u64>(quotient >> 64)};
+#else
         const U128 &X = *this;
         constexpr auto TEN = ULOW{10};
         const auto &reciprocal = (ULOW::get_max_value() / TEN).first;
@@ -556,6 +654,7 @@ public:
             result += U128{N, Q};
         }
         return result;
+#endif
     }
 
     /**
@@ -563,8 +662,14 @@ public:
          */
     int mod10() const
     {
+#if defined(__SIZEOF_INT128__)
+        unsigned __int128 u128_dividend = (static_cast<unsigned __int128>(mHigh()) << 64) | mLow();
+        unsigned __int128 u128_divisor = 10ull;
+        return u128_dividend % u128_divisor;
+#else
         const int multiplier_mod10 = ULOW::get_max_value().mod10() + 1;
         return (mLow.mod10() + multiplier_mod10 * mHigh.mod10()) % 10;
+#endif
     }
 
     /**
@@ -588,18 +693,60 @@ public:
 
 private:
     /**
-         * @brief Младшая половина числа.
-         */
+     * @brief Младшая половина числа.
+     */
     ULOW mLow{0};
 
     /**
-         * @brief Старшая половина числа.
-         */
+     * @brief Старшая половина числа.
+     */
     ULOW mHigh{0};
 
     static U128 subtract_if_lhs_more(const U128& X, const U128& Y)
     {
         return U128{X.mLow - Y.mLow, X.mHigh - Y.mHigh - (X.mLow < Y.mLow)};
+    }
+
+    /**
+     * @brief Функция деления двух 128-битных чисел, поддерживается Clang/GCC.
+     * @param dividend
+     * @param divisor
+     * @param remainder_out
+     * @return
+     */
+    template <bool make_quotient = true, bool make_remainder = true>
+    static U128 divide_u128(const U128& dividend, const U128& divisor, U128* remainder_out)
+    {
+        #if defined(__SIZEOF_INT128__)
+            unsigned __int128 u128_dividend = (static_cast<unsigned __int128>(dividend.mHigh()) << 64) | dividend.mLow();
+            unsigned __int128 u128_divisor = (static_cast<unsigned __int128>(divisor.mHigh()) << 64) | divisor.mLow();
+            U128 result;
+            unsigned __int128 quotient;
+            unsigned __int128 remainder;
+            if constexpr (make_remainder) {
+                if constexpr (!make_quotient) {
+                    remainder = u128_dividend % u128_divisor;
+                    remainder_out->mLow = static_cast<u64>(remainder & 0xFFFFFFFFFFFFFFFFULL);
+                    remainder_out->mHigh = static_cast<u64>(remainder >> 64);
+                }
+                if constexpr (make_quotient) {
+                    quotient = u128_dividend / u128_divisor;
+                    remainder = u128_dividend % u128_divisor;
+                    result.mLow = static_cast<u64>(quotient & 0xFFFFFFFFFFFFFFFFULL);
+                    result.mHigh = static_cast<u64>(quotient >> 64);
+                    remainder_out->mLow = static_cast<u64>(remainder & 0xFFFFFFFFFFFFFFFFULL);
+                    remainder_out->mHigh = static_cast<u64>(remainder >> 64);
+                }
+            }
+            if constexpr (!make_remainder && make_quotient) {
+                quotient = u128_dividend / u128_divisor;
+                result.mLow = static_cast<u64>(quotient & 0xFFFFFFFFFFFFFFFFULL);
+                result.mHigh = static_cast<u64>(quotient >> 64);
+            }
+            return result;
+        #else
+            static_assert(1 == 0 && "Компилятором не поддерживается деление 128-битных чисел.");
+        #endif
     }
 };
 
