@@ -443,8 +443,8 @@ namespace bignum::i128
             I128 result = X * Y.mUnsigned.low();
             if (result.is_singular())
                 return result;
-            result.mSign = X.mSign ^ Y.mSign;
             result += shl64(X * Y.mUnsigned.high());
+            result.mSign = X.mSign ^ Y.mSign;
             return result;
         }
 

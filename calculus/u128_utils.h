@@ -6,7 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <map>        // std::map
-#include <optional>   // std::optional
+#include <optional>
 #include <random>
 #include <tuple>      // std::ignore, std::tie
 #include <utility>    // std::pair
@@ -37,6 +37,10 @@ namespace utils
 {
 
 using namespace bignum::u128;
+
+struct TripleU128 {
+    U128 mCell[3];
+};
 
 struct RandomGenerator {
 
@@ -73,6 +77,32 @@ inline U128 get_random_half_value() {
     return result;
 }
 
+/**
+ * @brief Sieve of Eratosthenes.
+ * @param n
+ * @return
+ */
+inline std::vector<unsigned> primes(unsigned n) {
+    std::vector<unsigned> ps;
+    ps.reserve(n);
+    std::vector<uint8_t> b(n + 1, uint8_t(1));
+    for (unsigned p = 2; p < n + 1; ++p) {
+        if (b.at(p) != 0) {
+            ps.push_back(p);
+            for (unsigned i = p; i < n + 1; i += p) {
+                b[i] = 0;
+            }
+        }
+    }
+    return ps;
+}
+
+/**
+ * @brief int_power
+ * @param x
+ * @param y
+ * @return
+ */
 inline U128 int_power(ULOW x, int y)
 {
     U128 result{1};
@@ -83,8 +113,8 @@ inline U128 int_power(ULOW x, int y)
 
 /**
  * @brief Сложение двух чисел по заданному модулю.
- * @param x Основание степени. Сюда кладется результат (x + y) mod m.
- * @param y Степень.
+ * @param x Сюда кладется результат (x + y) mod m.
+ * @param y.
  * @param m Модуль.
  */
 inline void add_mod(U128& x, const U128& y, const U128& m)
@@ -96,9 +126,22 @@ inline void add_mod(U128& x, const U128& y, const U128& m)
 }
 
 /**
+ * @brief Вычитание двух чисел по заданному модулю.
+ * @param x Сюда кладется результат (x - y) mod m.
+ * @param y.
+ * @param m Модуль.
+ */
+inline void sub_mod(U128& x, const U128& y, const U128& m)
+{
+    const bool is_normal = x >= y;
+    const auto& z = is_normal ? x - y : y - x;
+    x = is_normal ? z % m : m - (z % m);
+}
+
+/**
  * @brief Умножение двух чисел по заданному модулю.
- * @param x Основание степени. Сюда кладется результат (x*y) mod m.
- * @param y Степень.
+ * @param x Сюда кладется результат (x*y) mod m.
+ * @param y.
  * @param m Модуль.
  */
 inline void mult_mod(U128& x, const U128& y, const U128& m)
@@ -106,6 +149,19 @@ inline void mult_mod(U128& x, const U128& y, const U128& m)
     using namespace bignum::ubig;
     using U256 = UBig<U128, 256>;
     const U256& z = U256::mult_ext(x, y);
+    x = z % m;
+}
+
+/**
+ * @brief Возведение в квадрат по заданному модулю.
+ * @param x Число, возводимое в квадрат. Сюда кладется результат (x^2) mod m.
+ * @param m Модуль.
+ */
+inline void square_mod(U128& x, const U128& m)
+{
+    using namespace bignum::ubig;
+    using U256 = UBig<U128, 256>;
+    U256 z { U256::square_ext(x) };
     x = z % m;
 }
 
@@ -126,6 +182,26 @@ inline void square_add_mod(U128& x, const U128& y, const U128& m)
     } else {
         z = U256{z % m} + U256{y};
         x = z % m;
+    }
+}
+
+/**
+ * @brief Умножение двух чисел с суммированием по заданному модулю.
+ * @param x Число, возводимое в квадрат. Сюда кладется результат (x*y + z) mod m.
+ * @param y Аддитивная компонента.
+ * @param m Модуль.
+ */
+inline void mult_add_mod(U128& x, const U128& y, const U128& z, const U128& m)
+{
+    using namespace bignum::ubig;
+    using U256 = UBig<U128, 256>;
+    U256 w { U256::mult_ext(x, y) };
+    if (x < U128::get_max_value() || y < U128::get_max_value()) {
+        w += U256{z};
+        x = w % m;
+    } else {
+        w = U256{w % m} + U256{z};
+        x = w % m;
     }
 }
 
@@ -170,11 +246,12 @@ inline int num_of_digits(U128 x)
 /**
  * НОД.
  */
-inline U128 gcd(U128 x, U128 y)
+template <typename T>
+inline T gcd(T x, T y)
 {
     while (y != 0)
     {
-        const auto& [_, r] = x / y;
+        const auto& r = x % y;
         x = y;
         y = r;
     }
@@ -227,11 +304,11 @@ inline U128 isqrt(const U128& x)
  */
 inline bool is_quadratic_residue(const U128& x, const U128& p)
 {
-    const auto& [_, rx] = x / p;
+    const auto& rx = x % p;
     U128 y2 = 0;
     for (U128 y = 0; y < p; y.inc())
     {
-        if (const auto& [_, ry2] = y2 / p; ry2 == rx)
+        if (const auto& ry2 = y2 % p; ry2 == rx)
             return true;
         y2 += (y + y + U128{1});
     }
@@ -245,11 +322,11 @@ inline std::pair<U128, U128> sqrt_mod(const U128& x, const U128& p)
 {
     U128 result[2];
     int idx = 0;
-    const auto& [_, rx] = x / p;
+    const auto& rx = x % p;
     U128 y2 = 0;
     for (U128 y = 0; y < p; y.inc())
     {
-        if (const auto& [_, ry2] = y2 / p; ry2 == rx)
+        if (const auto& ry2 = y2 % p; ry2 == rx)
             result[idx++] = y;
         y2 += (y + y + U128{1});
         if (idx == 2) break;
@@ -258,6 +335,45 @@ inline std::pair<U128, U128> sqrt_mod(const U128& x, const U128& p)
         result[1] = result[0];
     return std::make_pair(result[0], result[1]);
 }
+
+/**
+ * @brief Возвращает величину, обратную a по модулю m.
+ * @param a Входное число.
+ * @param m Модуль.
+ * @param success Флаг успешности нахождения обратной величины.
+ * @return Обратная к a величина, y, так, что y*a = 1 mod m.
+ */
+U128 modular_inverse(U128 a, U128 m, bool& success);
+
+/**
+ * @brief Addition in Elliptic curve modulo m space.
+ * @param p
+ * @param q
+ * @param a
+ * @param b
+ * @param m
+ * @return
+ */
+TripleU128 elliptic_add(const TripleU128& p, const TripleU128& q, const U128& a, const U128& b, const U128& m);
+
+/**
+ * @brief Multiplication (repeated addition and doubling).
+ * @param k
+ * @param p
+ * @param a
+ * @param b
+ * @param m
+ * @return
+ */
+TripleU128 elliptic_mul(U128 k, TripleU128 p, const U128& a, const U128& b, const U128& m);
+
+/**
+ * @brief lenstra
+ * @param n
+ * @param limit (~100000)
+ * @return
+ */
+std::optional<U128> lenstra(const U128& n, unsigned int limit);
 
 /**
  * @brief Является ли число простым.
@@ -276,26 +392,18 @@ bool is_prime(U128 x, int k);
 std::pair<U128, int> div_by_q(U128 &x, const U128& q);
 
 /**
- * @brief Алгоритм Полларда p-1.
+ * @brief Метод факторизации Ферма.
  * @param x Факторизуемое число.
- * @param limit Максимальное количество итераций.
- * @return Множитель.
+ * @return Два множителя.
  */
-U128 pollard_minus_p(const U128& x, std::optional<U128> limit );
+std::pair<U128, U128> ferma_method(U128 x);
 
 /**
  * @brief Алгоритм ро Полларда.
  * @param n Факторизуемое число.
  * @return Множитель.
  */
-U128 ro_pollard(const U128& n);
-
-/**
- * @brief Метод факторизации Ферма.
- * @param x Факторизуемое число.
- * @return Два множителя.
- */
-std::pair<U128, U128> ferma_method(U128 x);
+U128 ro_pollard(const U128& n, std::optional<U128> limit);
 
 /**
  * @brief Факторизация числа.

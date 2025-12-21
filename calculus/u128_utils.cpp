@@ -1,31 +1,28 @@
 #include "u128_utils.h"
-
-#include <functional> // std::function
-#include <list> // std::list
+#include <list>
+#include <functional>
+#include "i128.hpp"
 
 namespace u128::utils
 {
 
 std::pair<U128, int> div_by_q(U128 &x, const U128& q)
 {
-    auto [tmp, remainder] = x / q;
+    auto [quotient, remainder] = x / q;
     int i = 0;
     while (remainder == 0)
     {
         i++;
-        x = tmp;
-        std::tie(tmp, remainder) = x / q;
+        x = quotient;
+        std::tie(quotient, remainder) = x / q;
     }
     return std::make_pair(U128{q}, i);
 }
 
 bool miller_test(U128 d, const U128& n)
 {
-    U128 x {get_random_value()};
-    {
-        U128 tmp;
-        std::tie(tmp, x) = x / (n - 3);
-    }
+    U128 x = get_random_value();
+    x = x % (n - 3);
     x += 2;
     int_power_mod(x, d, n);
     if ((x == 1) || (x == (n - 1)))
@@ -117,47 +114,33 @@ std::pair<U128, U128> ferma_method(U128 x)
     return std::make_pair(x, U128{1}); // По какой-то причине не раскладывается.
 }
 
-U128 pollard_minus_p(const U128& x, std::optional<U128> limit)
-{
-    if (x < 4) return x;
-    const bool has_limit = limit.has_value();
-    const U128 limit_val = has_limit ? *limit : 0;
-    U128 q {2};
-    for ( U128 i = 0; ; i.inc()) {
-        int_power_mod(q, i + 2, x);
-        const auto& d = gcd(q - 1, x);
-        if (d > 1)
-            return d;
-        if (((i & 256) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 256 отсчетов.
-            break;
-        if (has_limit && i >= limit_val)
-            break;
-    }
-    return x; // По какой-то причине не раскладывается.
-}
-
 U128 ro_pollard(const U128& n, std::optional<U128> limit)
 {
     if (n < 4) return n;
     const bool has_limit = limit.has_value();
     const U128 limit_val = has_limit ? *limit : 0;
-    U128 q1 {2};
-    auto y1 = q1;
-    U128 d1 {1};
+    U128 x = get_random_value();
+    x = x % (n - 1);
+    x += 1;
+    auto y {x};
+    U128 d {1};
     U128 i{0};
-    while (d1 == 1) {
-        square_add_mod(q1, 3, n);
-        square_add_mod(y1, 3, n);
-        square_add_mod(y1, 3, n);
-        d1 = q1 >= y1 ? gcd(q1 - y1, n) : gcd(y1 - q1, n);
+    U128 c = get_random_value();
+    c = c % (n - 1);
+    c += 1;
+    while (d == 1) {
+        square_add_mod(x, c, n);
+        square_add_mod(y, c, n);
+        square_add_mod(y, c, n);
+        d = x >= y ? gcd(x - y, n) : gcd(y - x, n);
         if (((i & 256) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 256 отсчетов.
             break;
         if (has_limit && i >= limit_val)
             break;
         i.inc();
     }
-    if (d1 != n)
-        return d1;
+    if (d != n)
+        return d;
     else
         return n;
 }
@@ -165,12 +148,13 @@ U128 ro_pollard(const U128& n, std::optional<U128> limit)
 std::map<U128, int> factor(U128 x)
 {
     Globals::SetStop(false);
+
     if (x == 0)
         return {{x, 1}};
     if (x == 1)
         return {{x, 1}};
     std::map<U128, int> result{};
-    { // Обязательное для метода Ферма деление на 2.
+    { // Обязательное деление на 2.
         const auto& [p, i] = div_by_q(x, 2);
         if (i > 0)
             result[p] += i;
@@ -198,53 +182,54 @@ std::map<U128, int> factor(U128 x)
         result[x]++;
         return result;
     }
-    // Пробуем метод Полларда.
-    U128 iters;
-    std::list<U128> pollard_factors;
-    iters = isqrt(x);
-    iters = isqrt(iters);
+    std::list<U128> found_factors;
+
+    // // Пробуем метод Полларда.
+    // U128 iters;
+    // iters = isqrt(x);
+    // iters = isqrt(iters);
+    // for (;;)
+    // {
+    //     if (is_prime(x, 64)) {
+    //         result[x]++;
+    //         x = U128{1};
+    //         break;
+    //     }
+    //     const auto& d = ro_pollard(x, iters);
+    //     if (d != x && d != 1) {
+    //         found_factors.push_back(d);
+    //         const auto& [q, r] = x / d;
+    //         assert(r == 0);
+    //         x = q;
+    //         iters = isqrt(x);
+    //         iters = isqrt(iters);
+    //         continue;
+    //     }
+    //     break;
+    // }
+
+    // Пробуем метод Ленстра.
     for (;;)
     {
+        if (Globals::LoadStop()) break;
         if (is_prime(x, 64)) {
             result[x]++;
             x = U128{1};
             break;
         }
-        const auto& d = ro_pollard(x, iters);
-        if (d != x && d != 1) {
-            pollard_factors.push_back(d);
-            const auto& [q, r] = x / d;
+        const auto limit = 100'000ull;
+        const auto& f = lenstra(x, limit);
+        if (f.has_value() && f.value() > 1 && f.value() < x) {
+            found_factors.push_back(f.value());
+            const auto& [q, r] = x / f.value();
             assert(r == 0);
             x = q;
-            iters = isqrt(x);
-            iters = isqrt(iters);
-            continue;
         }
-        break;
     }
-    iters = isqrt(x);
-    iters = isqrt(iters);
-    for (;;)
-    {
-        if (is_prime(x, 64)) {
-            result[x]++;
-            x = U128{1};
-            break;
-        }
-        const auto& d = pollard_minus_p(x, iters);
-        if (d != x && d != 1) {
-            pollard_factors.push_back(d);
-            const auto& [q, r] = x / d;
-            assert(r == 0);
-            x = q;
-            iters = isqrt(x);
-            iters = isqrt(iters);
-            continue;
-        }
-        break;
-    }
+
     if (x > 1)
-        pollard_factors.push_back(x);
+        found_factors.push_back(x);
+
     // Применяем метод Ферма рекурсивно.
     std::function<void(U128)> ferma_recursive;
     ferma_recursive = [&ferma_recursive, &result](U128 x) -> void
@@ -267,10 +252,166 @@ std::map<U128, int> factor(U128 x)
         ferma_recursive(a);
         ferma_recursive(b);
     };
-    for (const auto& fac : pollard_factors)
+    for (const auto& fac : found_factors)
         ferma_recursive(fac);
+
     Globals::SetStop(false);
     return result;
+}
+
+U128 modular_inverse(U128 a, U128 m, bool &success)
+{
+    using namespace bignum::i128;
+    const I128 m0 = m;
+    I128 y = 0;
+    I128 x = 1;
+    success = false;
+    if (m == 1)
+        return 0;
+    while (a > 1) {
+        if (m == 0)
+            return U128{};
+        // q is quotient
+        const I128 q = (a / m).first;
+        I128 temp = m;
+        // m is remainder now, process same as Euclid's algorithm
+        m = a % m;
+        a = temp.unsigned_part();
+        temp = y;
+        // Update y and x
+        y = x - q * y;
+        x = temp;
+    }
+
+    // Make x positive
+    if (x < 0)
+        x += m0;
+
+    success = true;
+    return x.unsigned_part();
+}
+
+TripleU128 elliptic_add(const TripleU128& p, const TripleU128& q, const U128& a, const U128& /*b*/, const U128& m) {
+    if (p.mCell[2] == 0) {
+        return q;
+    }
+    if (q.mCell[2] == 0) {
+        return p;
+    }
+    U128 num;
+    U128 denom;
+    if (p.mCell[0] == q.mCell[0]) {
+        {
+            U128 sum1 = p.mCell[1];
+            add_mod(sum1, q.mCell[1], m);
+            if (sum1 == 0) {
+                return TripleU128{0, 1, 0}; // Infinity.
+            }
+        }
+        {
+            num = p.mCell[0];
+            square_mod(num, m);
+            mult_add_mod(num, 3, a, m);
+            denom = p.mCell[1];
+            mult_mod(denom, 2, m);
+        }
+    } else {
+        num = q.mCell[1];
+        sub_mod(num, p.mCell[1], m);
+        denom = q.mCell[0];
+        sub_mod(denom, p.mCell[0], m);
+    }
+    bool is_ok;
+    U128 inv = modular_inverse(denom, m, is_ok);
+    if (!is_ok) {
+        return TripleU128{0, 0, denom}; // Failure.
+    }
+    U128 inv_num = inv;
+    mult_mod(inv_num, num, m);
+    U128 z = inv_num;
+    square_mod(z, m);
+    sub_mod(z, p.mCell[0], m);
+    sub_mod(z, q.mCell[0], m);
+    U128 w = p.mCell[0];
+    sub_mod(w, z, m);
+    mult_mod(w, inv_num, m);
+    sub_mod(w, p.mCell[1], m);
+    return TripleU128{z, w, 1};
+}
+
+TripleU128 elliptic_mul(U128 k, TripleU128 p, const U128 &a, const U128 &b, const U128 &m)
+{
+    TripleU128 r{0, 1, 0}; // Infinity.
+    while (k != 0) {
+        if (p.mCell[2] > 1) {
+            return p;
+        }
+        if ((k % 2) == 1) {
+            r = elliptic_add(p, r, a, b, m);
+        }
+        k /= 2;
+        p = elliptic_add(p, p, a, b, m);
+    }
+    return r;
+}
+
+std::optional<U128> lenstra(const U128 &n, unsigned limit)
+{
+    using namespace bignum::ubig;
+    using U256 = UBig<U128, 256>;
+    using U512 = UBig<U256, 512>;
+    const U512 n_ext = U256{n};
+    U512 g = n_ext;
+    TripleU128 q;
+    U128 a;
+    U128 b;
+    while (g == n_ext) {
+        U128 q1 = get_random_value();
+        q1 %= n;
+        U128 q2 = get_random_value();
+        q2 %= n;
+        q.mCell[0] = q1;
+        q.mCell[1] = q2;
+        q.mCell[2] = 1;
+        a = get_random_value();
+        a %= n;
+        U128 q1sq = q.mCell[1];
+        square_mod(q1sq, n);
+        U128 q0qubic = q.mCell[0];
+        square_mod(q0qubic, n);
+        mult_mod(q0qubic, q.mCell[0], n);
+        U128 aq0 = a;
+        mult_mod(aq0, q.mCell[0], n);
+        sub_mod(q1sq, q0qubic, n);
+        sub_mod(q1sq, aq0, n);
+        b = q1sq;
+        const U256 a4 = U256::mult_ext(4, a);
+        U512 a4_3 = U512::mult_ext(a4, U256::square_ext(a));
+        const U256 c27 = 27;
+        U512 b27_2 = U512::mult_ext(c27, U256::square_ext(b));
+        U512 poly = a4_3 + b27_2;
+        g = gcd(poly, n_ext);
+        if (Globals::LoadStop() ) // Проверка на стоп.
+            return {};
+    }
+    if (g > 1) {
+        return g.low().low();
+    }
+    const U128 limit_ext {limit};
+    for (const auto& p : primes(limit)) {
+        const U128 p_ext {p};
+        auto pp = p_ext;
+        while (pp < limit_ext) {
+            q = elliptic_mul(p_ext, q, a, b, n);
+            if (q.mCell[2] > 1) {
+                return gcd(q.mCell[2], n);
+            }
+            pp *= p_ext;
+        }
+        if (Globals::LoadStop() ) // Проверка на стоп.
+            return {};
+    }
+    return std::nullopt;
 }
 
 }
