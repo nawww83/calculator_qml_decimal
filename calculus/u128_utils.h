@@ -70,6 +70,18 @@ inline U128 get_random_value() {
     return result;
 }
 
+/**
+ * @brief Случайное число на отрезке [a, b].
+ * @param a
+ * @param b
+ * @return
+ */
+inline U128 get_random_value_ab(const U128& a, const U128& b) {
+    assert(b >= a);
+    const U128& m = b - a + 1;
+    return m != 0 ? a + (get_random_value() % m) : get_random_value();
+}
+
 inline U128 get_random_half_value() {
     static RandomGenerator g_prng;
     U128 result {g_prng.mGenerator.next_u64(), 0};

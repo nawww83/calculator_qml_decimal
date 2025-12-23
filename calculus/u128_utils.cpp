@@ -21,9 +21,7 @@ std::pair<U128, int> div_by_q(U128 &x, const U128& q)
 
 bool miller_test(U128 d, const U128& n)
 {
-    U128 x = get_random_value();
-    x = x % (n - 3);
-    x += 2;
+    U128 x = get_random_value_ab(2, n - 2);
     int_power_mod(x, d, n);
     if ((x == 1) || (x == (n - 1)))
         return true;
@@ -119,9 +117,7 @@ U128 ro_pollard(const U128& n, std::optional<U128> limit)
     if (n < 4) return n;
     const bool has_limit = limit.has_value();
     const U128 limit_val = has_limit ? *limit : 0;
-    U128 x = get_random_value();
-    x = x % (n - 1);
-    x += 1;
+    U128 x = get_random_value_ab(1, n - 1);
     auto y {x};
     U128 d {1};
     U128 i{0};
@@ -208,7 +204,7 @@ std::map<U128, int> factor(U128 x)
     //     break;
     // }
 
-    // Пробуем метод Ленстра.
+    // Пробуем метод Ленстры.
     for (;;)
     {
         if (Globals::LoadStop()) break;
@@ -271,22 +267,15 @@ U128 modular_inverse(U128 a, U128 m, bool &success)
     while (a > 1) {
         if (m == 0)
             return U128{};
-        // q is quotient
         const I128 q = (a / m).first;
         I128 temp = m;
-        // m is remainder now, process same as Euclid's algorithm
         m = a % m;
         a = temp.unsigned_part();
         temp = y;
-        // Update y and x
         y = x - q * y;
         x = temp;
     }
-
-    // Make x positive
-    if (x < 0)
-        x += m0;
-
+    x += x < 0 ? m0 : 0;
     success = true;
     return x.unsigned_part();
 }
@@ -304,9 +293,8 @@ TripleU128 elliptic_add(const TripleU128& p, const TripleU128& q, const U128& a,
         {
             U128 sum1 = p.mCell[1];
             add_mod(sum1, q.mCell[1], m);
-            if (sum1 == 0) {
+            if (sum1 == 0)
                 return TripleU128{0, 1, 0}; // Infinity.
-            }
         }
         {
             num = p.mCell[0];
@@ -315,7 +303,9 @@ TripleU128 elliptic_add(const TripleU128& p, const TripleU128& q, const U128& a,
             denom = p.mCell[1];
             mult_mod(denom, 2, m);
         }
-    } else {
+    }
+    else
+    {
         num = q.mCell[1];
         sub_mod(num, p.mCell[1], m);
         denom = q.mCell[0];
@@ -323,9 +313,8 @@ TripleU128 elliptic_add(const TripleU128& p, const TripleU128& q, const U128& a,
     }
     bool is_ok;
     U128 inv = modular_inverse(denom, m, is_ok);
-    if (!is_ok) {
+    if (!is_ok)
         return TripleU128{0, 0, denom}; // Failure.
-    }
     U128 inv_num = inv;
     mult_mod(inv_num, num, m);
     U128 z = inv_num;
@@ -343,12 +332,10 @@ TripleU128 elliptic_mul(U128 k, TripleU128 p, const U128 &a, const U128 &b, cons
 {
     TripleU128 r{0, 1, 0}; // Infinity.
     while (k != 0) {
-        if (p.mCell[2] > 1) {
+        if (p.mCell[2] > 1)
             return p;
-        }
-        if ((k % 2) == 1) {
+        if ((k % 2) == 1)
             r = elliptic_add(p, r, a, b, m);
-        }
         k /= 2;
         p = elliptic_add(p, p, a, b, m);
     }
@@ -365,47 +352,40 @@ std::optional<U128> lenstra(const U128 &n, unsigned limit)
     TripleU128 q;
     U128 a;
     U128 b;
-    while (g == n_ext) {
-        U128 q1 = get_random_value();
-        q1 %= n;
-        U128 q2 = get_random_value();
-        q2 %= n;
-        q.mCell[0] = q1;
-        q.mCell[1] = q2;
+    while (g == n_ext)
+    {
+        q.mCell[0] = get_random_value_ab(0, n-1);
+        q.mCell[1] = get_random_value_ab(0, n-1);
         q.mCell[2] = 1;
-        a = get_random_value();
-        a %= n;
-        U128 q1sq = q.mCell[1];
-        square_mod(q1sq, n);
+        a = get_random_value_ab(0, n-1);
+        b = q.mCell[1];
+        square_mod(b, n);
         U128 q0qubic = q.mCell[0];
         square_mod(q0qubic, n);
         mult_mod(q0qubic, q.mCell[0], n);
         U128 aq0 = a;
         mult_mod(aq0, q.mCell[0], n);
-        sub_mod(q1sq, q0qubic, n);
-        sub_mod(q1sq, aq0, n);
-        b = q1sq;
-        const U256 a4 = U256::mult_ext(4, a);
-        U512 a4_3 = U512::mult_ext(a4, U256::square_ext(a));
-        const U256 c27 = 27;
-        U512 b27_2 = U512::mult_ext(c27, U256::square_ext(b));
-        U512 poly = a4_3 + b27_2;
+        sub_mod(b, q0qubic, n);
+        sub_mod(b, aq0, n);
+        const U256& a4 = U256::mult_ext(4, a);
+        const U512& a4_3 = U512::mult_ext(a4, U256::square_ext(a));
+        const U256& c27 = 27;
+        const U512& b27_2 = U512::mult_ext(c27, U256::square_ext(b));
+        const U512& poly = a4_3 + b27_2;
         g = gcd(poly, n_ext);
         if (Globals::LoadStop() ) // Проверка на стоп.
             return {};
     }
-    if (g > 1) {
+    if (g > 1)
         return g.low().low();
-    }
     const U128 limit_ext {limit};
     for (const auto& p : primes(limit)) {
         const U128 p_ext {p};
         auto pp = p_ext;
         while (pp < limit_ext) {
             q = elliptic_mul(p_ext, q, a, b, n);
-            if (q.mCell[2] > 1) {
+            if (q.mCell[2] > 1)
                 return gcd(q.mCell[2], n);
-            }
             pp *= p_ext;
         }
         if (Globals::LoadStop() ) // Проверка на стоп.
