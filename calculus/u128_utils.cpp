@@ -150,15 +150,50 @@ std::map<U128, int> factor(U128 x)
     if (x == 1)
         return {{x, 1}};
     std::map<U128, int> result{};
-    { // Обязательное деление на 2.
+    { // Обязательное деление на 2 перед методом Ленстры.
         const auto& [p, i] = div_by_q(x, 2);
         if (i > 0)
             result[p] += i;
         if (x == U128{1})
             return result;
     }
-    // Делим на первые простые числа, начиная с 3 и до некоторого небольшого предела.
-    ULOW divisor = 3;
+    { // Обязательное деление на 3 перед методом Ленстры.
+        const auto& [p, i] = div_by_q(x, 3);
+        if (i > 0)
+            result[p] += i;
+        if (x == U128{1})
+            return result;
+    }
+    // Проверяем не является ли число степенью единственного простого числа.
+    int last_p = 0;
+    U128 v {x};
+    for (;;) {
+        const U128 v_old = v;
+        for (int p = 2; p <= v.bit_length(); ++p)
+        {
+            const U128 vr = nroot(v, p);
+            const auto x_r = int_power_fast(vr, p);
+            if (v == x_r)
+            {
+                v = vr;
+                last_p = last_p == 0 ? p : last_p * p;
+                break;
+            }
+            if (vr < 2)
+                break;
+        }
+        if (v == v_old)
+            break;
+    }
+    if (last_p > 0)
+    {
+        assert(is_prime(v, 64));
+        result[v] += last_p;
+        return result;
+    }
+
+    // Делим на первые простые числа, начиная с 5 и до некоторого небольшого предела.
+    ULOW divisor = 5;
     for (; divisor < 65536u;)
     {
         const auto& [p, successes] = div_by_q(x, divisor);
@@ -178,6 +213,7 @@ std::map<U128, int> factor(U128 x)
         result[x]++;
         return result;
     }
+
     std::list<U128> found_factors;
 
     // // Пробуем метод Полларда.

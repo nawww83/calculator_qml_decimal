@@ -43,7 +43,8 @@ inline std::pair<U, U> reciprocal_and_extend(U x)
     const auto x_old = x;
     const auto i = x.countl_zero();
     x <<= i;
-    auto [Q, R] = (-x) / x_old;
+    x = -x;
+    auto [Q, R] = i > 0 ? x / x_old : std::make_pair(x < x_old ? 0 : 1, x < x_old ? x : 0);
     Q += (U{1} << i);
     return {Q, R};
 }
