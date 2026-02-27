@@ -1,215 +1,96 @@
 #pragma once
 
-#include <cstdint> // uint64_t
-#include <bit>       // std::countl_zero
-#include <tuple>
-#include <utility>
+#include <cstdint>
+#include <bit>
+#include <utility>   // std::pair, std::tie
+#include <limits>    // std::numeric_limits
 
 namespace low64
 {
-    /**
-     * @brief Класс для хранения числа-половинки. В данном случае - 64-битное беззнаковое число.
-     * @details 
-     *  - Позволяет иметь общее имя ULOW вне зависимости от разрядности числа-половинки.
-     *  - Позволяет открыть оператор умножения (ULOW * Полное число), когда число-половинка находится слева полного числа.
+/**
+     * @brief Класс для хранения 64-битного беззнакового числа ("половинки").
      */
-    class ULOW
-    {
-    public:
-        /**
-         * @brief Конструктор по умолчанию.
+class ULOW
+{
+public:
+    // --- Конструкторы ---
+    constexpr ULOW() noexcept = default;
+    constexpr ULOW(uint64_t value) noexcept : mValue(value) {}
+
+    // --- Сравнение (C++20) ---
+    auto operator<=>(const ULOW&) const = default;
+
+    // --- Доступ к данным ---
+    [[nodiscard]] constexpr uint64_t operator()() const noexcept { return mValue; }
+    [[nodiscard]] constexpr uint64_t& operator()() noexcept { return mValue; }
+
+    // --- Унарные операторы ---
+    [[nodiscard]] constexpr ULOW operator~() const noexcept { return ULOW{~mValue}; }
+    [[nodiscard]] constexpr ULOW operator-() const noexcept { return ULOW{0ull - mValue}; }
+
+    // --- Бинарная арифметика и битовые операции ---
+    // Используем лаконичную форму для лучшей оптимизации NRVO
+    [[nodiscard]] constexpr ULOW operator<<(uint32_t s) const noexcept { return ULOW{mValue << s}; }
+    [[nodiscard]] constexpr ULOW operator>>(uint32_t s) const noexcept { return ULOW{mValue >> s}; }
+
+    constexpr ULOW& operator<<=(uint32_t s) noexcept { mValue <<= s; return *this; }
+    constexpr ULOW& operator>>=(uint32_t s) noexcept { mValue >>= s; return *this; }
+
+    [[nodiscard]] constexpr ULOW operator&(const ULOW& rhs) const noexcept { return ULOW{mValue & rhs.mValue}; }
+    [[nodiscard]] constexpr ULOW operator|(const ULOW& rhs) const noexcept { return ULOW{mValue | rhs.mValue}; }
+    [[nodiscard]] constexpr ULOW operator^(const ULOW& rhs) const noexcept { return ULOW{mValue ^ rhs.mValue}; }
+
+    constexpr ULOW& operator&=(const ULOW& rhs) noexcept { mValue &= rhs.mValue; return *this; }
+    constexpr ULOW& operator|=(const ULOW& rhs) noexcept { mValue |= rhs.mValue; return *this; }
+    constexpr ULOW& operator^=(const ULOW& rhs) noexcept { mValue ^= rhs.mValue; return *this; }
+
+    [[nodiscard]] constexpr ULOW operator+(const ULOW& rhs) const noexcept { return ULOW{mValue + rhs.mValue}; }
+    [[nodiscard]] constexpr ULOW operator-(const ULOW& rhs) const noexcept { return ULOW{mValue - rhs.mValue}; }
+    [[nodiscard]] constexpr ULOW operator*(const ULOW& rhs) const noexcept { return ULOW{mValue * rhs.mValue}; }
+
+    constexpr ULOW& operator+=(const ULOW& rhs) noexcept { mValue += rhs.mValue; return *this; }
+    constexpr ULOW& operator-=(const ULOW& rhs) noexcept { mValue -= rhs.mValue; return *this; }
+    constexpr ULOW& operator*=(const ULOW& rhs) noexcept { mValue *= rhs.mValue; return *this; }
+
+    // --- Деление и остаток ---
+    [[nodiscard]] constexpr std::pair<ULOW, ULOW> operator/(const ULOW& rhs) const noexcept {
+        return { ULOW{mValue / rhs.mValue}, ULOW{mValue % rhs.mValue} };
+    }
+
+    constexpr std::pair<ULOW, ULOW> operator/=(const ULOW& rhs) noexcept {
+        auto res = *this / rhs;
+        *this = res.first;
+        return res;
+    }
+
+    // --- Взаимодействие с внешними типами (UBig) ---
+    /**
+         * @brief Оператор умножения (ULOW * UBig).
+         * Использует концепт C++20, чтобы не перехватывать лишние типы.
          */
-        explicit constexpr ULOW() = default;
-        
-        /**
-         * @brief Конструктор с параметром.
-         */
-        constexpr ULOW(uint64_t value) : mValue(value) {}
+    template <typename T>
+        requires requires(T t, ULOW u) { t * u; }
+    [[nodiscard]] constexpr T operator*(const T& rhs) const {
+        return rhs * (*this);
+    }
 
-        /**
-         * @brief
-         */
-        auto operator<=>(const ULOW&) const = default; 
+    template <typename T>
+    T& operator*=(const T&) = delete;
 
-        /**
-         * @brief Оператор доступа к числу.
-         */
-        uint64_t operator()() const
-        {
-            return mValue;
-        }
+    // --- Утилиты ---
+    [[nodiscard]] constexpr int countl_zero() const noexcept {
+        return std::countl_zero(mValue);
+    }
 
-        /**
-         * @brief Оператор доступа к числу.
-         */
-        constexpr uint64_t &operator()()
-        {
-            return mValue;
-        }
+    [[nodiscard]] constexpr int mod10() const noexcept {
+        return static_cast<int>(mValue % 10ull);
+    }
 
-        /**
-         * @brief Оператор инверсии битов.
-         */
-        ULOW operator~() const
-        {
-            ULOW result = *this;
-            result.mValue = ~result.mValue;
-            return result;
-        }
+    static constexpr ULOW get_max_value() noexcept {
+        return ULOW{std::numeric_limits<uint64_t>::max()};
+    }
 
-        /**
-         * @brief Оператор минус.
-         */
-        ULOW operator-() const
-        {
-            ULOW result = *this;
-            result.mValue = -result.mValue;
-            return result;
-        }
-
-        ULOW operator<<(uint32_t shift) const
-        {
-            ULOW result = *this;
-            result.mValue <<= shift;
-            return result;
-        }
-
-        ULOW& operator<<=(uint32_t shift)
-        {
-            *this = *this << shift;
-            return *this;
-        }
-
-        ULOW operator>>(uint32_t shift) const
-        {
-            ULOW result = *this;
-            result.mValue >>= shift;
-            return result;
-        }
-
-        ULOW& operator>>=(uint32_t shift)
-        {
-            *this = *this >> shift;
-            return *this;
-        }
-
-        ULOW operator&(const ULOW& rhs) const {
-            ULOW result = *this;
-            result.mValue &= rhs.mValue;
-            return result;
-        }
-
-        ULOW& operator&=(const ULOW& rhs) {
-            *this = *this & rhs;
-            return *this;
-        }
-
-        ULOW operator|(const ULOW& rhs) const {
-            ULOW result = *this;
-            result.mValue |= rhs.mValue;
-            return result;
-        }
-
-        ULOW& operator|=(const ULOW& rhs) {
-            *this = *this | rhs;
-            return *this;
-        }
-
-        ULOW operator^(const ULOW& rhs) const {
-            ULOW result = *this;
-            result.mValue ^= rhs.mValue;
-            return result;
-        }
-
-        ULOW& operator^=(const ULOW& rhs) {
-            *this = *this ^ rhs;
-            return *this;
-        }
-
-        ULOW operator+(const ULOW& rhs) const {
-            ULOW result = *this;
-            result.mValue += rhs.mValue;
-            return result;
-        }
-
-        ULOW& operator+=(const ULOW& rhs) {
-            *this = *this + rhs;
-            return *this;
-        }
-
-        ULOW operator-(const ULOW& rhs) const {
-            ULOW result = *this;
-            result.mValue -= rhs.mValue;
-            return result;
-        }
-
-        ULOW& operator-=(const ULOW& rhs) {
-            *this = *this - rhs;
-            return *this;
-        }
-
-        ULOW operator*(const ULOW& rhs) const {
-            ULOW result = *this;
-            result.mValue *= rhs.mValue;
-            return result;
-        }
-
-        ULOW& operator*=(const ULOW& rhs) {
-            *this = *this * rhs;
-            return *this;
-        }
-
-        std::pair<ULOW, ULOW> operator/(const ULOW& rhs) const {
-            return std::make_pair(mValue / rhs.mValue, mValue % rhs.mValue);
-        }
-
-        std::pair<ULOW, ULOW> operator/=(const ULOW& rhs) {
-            ULOW remainder;
-            std::tie(*this, remainder) = *this / rhs;
-            return std::make_pair(*this, remainder);
-        }
-
-        /**
-         * @brief Оператор умножения. Позволяет перемножать половинчатые числа, расположенные слева от полного числа.
-         */
-        template <typename T>
-        T operator*(const T &rhs) const
-        {
-            T result = rhs * *this;
-            return result;
-        }
-
-        /**
-         * @brief
-         */
-        template <typename T>
-        T &operator*=(const T &) = delete;
-
-        /**
-         * @brief
-         */
-        int countl_zero() const
-        {
-            return std::countl_zero(mValue);
-        }
-
-        int mod10() const
-        {
-            return static_cast<int>(mValue % 10ull);
-        }
-
-        /**
-         * @brief
-         */
-        static constexpr ULOW get_max_value()
-        {
-            return ULOW{-1ull};
-        }
-
-    private:
-        /**
-         * @brief Непосредственно число.
-         */
-        uint64_t mValue{0};
-    };
+private:
+    uint64_t mValue{0};
+};
 }

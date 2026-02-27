@@ -180,7 +180,7 @@ void AppCore::process(int requested_operation, QString input_value)
         bignum::u128::U128 value;
         switch (requested_operation) {
         case OperationEnums::MAX_INT_VALUE:
-            value = bignum::u128::U128::get_max_value();
+            value = bignum::u128::U128::max();
             break;
         case OperationEnums::RANDINT:
             value = u128::utils::get_random_value();
@@ -193,7 +193,7 @@ void AppCore::process(int requested_operation, QString input_value)
         }
         if (mState == StateEnums::RESETTED)
             emit clearTempResult();
-        emit setInput(QString::fromStdString(value.value()));
+        emit setInput(QString::fromStdString(value.toString()));
         return;
     }
     // По введенной строке сконструировать число Decimal.
@@ -437,8 +437,8 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
                 if (i % 2)
                     prime = el.IntegerPart();
                 else {
-                    const std::string& power_str = el.IntegerPart().unsigned_part().value();
-                    const std::string& prime_str = prime.value();
+                    const std::string& power_str = el.IntegerPart().unsigned_part().toString();
+                    const std::string& prime_str = prime.toString();
                     deb.noquote().nospace() << QString::fromStdString({prime_str.data(), prime_str.size()}) << "^" << power_str;
                     if (i == res.size()) {
                         ;

@@ -39,7 +39,7 @@ public slots:
             dec_n::Decimal q;
             for (auto [p_, q_] : f) {
                 p.SetDecimal(p_, bignum::i128::I128{0});
-                q.SetDecimal(bignum::i128::I128{static_cast<bignum::i128::ULOW>(q_), 0}, bignum::u128::U128{0});
+                q.SetDecimal(bignum::i128::I128{static_cast<bignum::u128::u64>(q_), 0}, bignum::u128::U128{0});
                 v.push_back(p);
                 v.push_back(q);
             }

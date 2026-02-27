@@ -8,7 +8,6 @@
 #include <map>        // std::map
 #include <optional>
 #include <random>
-#include <tuple>      // std::ignore, std::tie
 #include <utility>    // std::pair
 
 #include "random_gen.h"
@@ -115,7 +114,7 @@ inline std::vector<unsigned> primes(unsigned n) {
  * @param y
  * @return
  */
-inline U128 int_power(ULOW x, int y)
+inline U128 int_power(u64 x, int y)
 {
     U128 result{1};
     for (int i = 1; i <= y; ++i)
@@ -131,9 +130,9 @@ inline U128 int_power(ULOW x, int y)
  */
 inline void add_mod(U128& x, const U128& y, const U128& m)
 {
-    using namespace bignum::ubig;
-    using U256 = UBig<U128, 256>;
-    const auto& z = U256{x} + U256{y};
+    using namespace bignum;
+    using U256 = UBig<U128>;
+    auto z = U256{x} + U256{y};
     x = z % m;
 }
 
@@ -158,8 +157,8 @@ inline void sub_mod(U128& x, const U128& y, const U128& m)
  */
 inline void mult_mod(U128& x, const U128& y, const U128& m)
 {
-    using namespace bignum::ubig;
-    using U256 = UBig<U128, 256>;
+    using namespace bignum;
+    using U256 = UBig<U128>;
     const U256& z = U256::mult_ext(x, y);
     x = z % m;
 }
@@ -171,8 +170,8 @@ inline void mult_mod(U128& x, const U128& y, const U128& m)
  */
 inline void square_mod(U128& x, const U128& m)
 {
-    using namespace bignum::ubig;
-    using U256 = UBig<U128, 256>;
+    using namespace bignum;
+    using U256 = UBig<U128>;
     U256 z { U256::square_ext(x) };
     x = z % m;
 }
@@ -185,10 +184,10 @@ inline void square_mod(U128& x, const U128& m)
  */
 inline void square_add_mod(U128& x, const U128& y, const U128& m)
 {
-    using namespace bignum::ubig;
-    using U256 = UBig<U128, 256>;
+    using namespace bignum;
+    using U256 = UBig<U128>;
     U256 z { U256::square_ext(x) };
-    if (x < U128::get_max_value()) {
+    if (x < U128::max()) {
         z += U256{y};
         x = z % m;
     } else {
@@ -205,10 +204,10 @@ inline void square_add_mod(U128& x, const U128& y, const U128& m)
  */
 inline void mult_add_mod(U128& x, const U128& y, const U128& z, const U128& m)
 {
-    using namespace bignum::ubig;
-    using U256 = UBig<U128, 256>;
+    using namespace bignum;
+    using U256 = UBig<U128>;
     U256 w { U256::mult_ext(x, y) };
-    if (x < U128::get_max_value() || y < U128::get_max_value()) {
+    if (x < U128::max() || y < U128::max()) {
         w += U256{z};
         x = w % m;
     } else {
@@ -238,63 +237,115 @@ inline void int_power_mod(U128& x, const U128& y, const U128& m)
 }
 
 /**
- * @brief Быстрый алгоритм вычисления целочисленной степени числа.
- * @details Предполагается, что переполнения не будет, т.е. расчет идет по модулю 2^128.
- * @param x
- * @param y
- * @return
+ * @brief Быстрое возведение в степень x^y mod 2^128.
+ * Использует алгоритм бинарного возведения в квадрат.
  */
-inline U128 int_power_fast(const U128& x, unsigned y)
+inline U128 int_power_fast(U128 x, unsigned y) noexcept
 {
-    U128 exponent {y};
-    U128 base = x;
-    U128 result = 1;
-    while (exponent != 0)
-    {
-        if ((exponent & 1) == 1)
-            result *= base;
-        exponent >>= 1;
-        base *= base;
+    if (y == 0) return U128{1};
+    if (x == 0) return U128{0};
+    if (x == 1) return U128{1};
+    if (x == 2) return (y < 128) ? (U128{1} << y) : U128{0};
+
+    U128 result{1};
+    for (;;) {
+        if (y & 1) result *= x;
+        y >>= 1;
+        if (y == 0) break;
+        x *= x;
     }
     return result;
 }
 
+/**
+ * @brief Целочисленный квадратный корень sqrt(x).
+ * @param exact Возвращает true, если x — полный квадрат.
+ */
+inline U128 isqrt(const U128& x, bool& exact)
+{
+    if (x == 0) {
+        exact = true;
+        return 0;
+    }
+
+    // Начальное приближение: 2^(ceil(bits/2))
+    U128 x0 = U128{1} << ((x.bit_width() + 1) / 2);
+    U128 x1;
+
+    for (;;) {
+        U128 remainder;
+        // ОПТИМИЗАЦИЯ: Получаем частное и остаток за один проход
+        U128 quotient = U128::divide<true, true>(x, x0, &remainder);
+
+        x1 = (x0 + quotient) >> 1;
+
+        // В целочисленном методе Ньютона x1 >= x0 означает сходимость к floor(sqrt)
+        if (x1 >= x0) {
+            exact = (x0 * x0 == x);
+            return x0;
+        }
+        x0 = x1;
+    }
+}
+
+// Перегрузка для удобства
+inline U128 isqrt(const U128& x) {
+    bool dummy;
+    return isqrt(x, dummy);
+}
 
 /**
- * @brief Целочисленный корень m-й степени из числа.
- * @param m Степень корня.
+ * @brief Целочисленный корень m-й степени из x.
  */
 inline U128 nroot(const U128& x, unsigned m)
 {
-    assert(m > 0);
-    if (x < 2)
-        return x;
-    if (m == 1)
-        return x;
-    int d = x.bit_length() / m; // m > 1
-    const int r = x.bit_length() % m;
-    d = r == 0 ? d : d + 1; // ceil(bit_length(x) / m)
-    auto result = U128{1} << d; // Начальное приближение (сверху).
-    U128 m_ext {m};
-    U128 old_result = result;
-    for (;;) // Метод Ньютона.
-    {
-        const auto power = int_power_fast(result, m - 1);
-        if (power < result) // Переполнение
-        {
-            result = result - (result / m_ext).first;
+    if (m == 0) return 0;
+    if (x <= 1 || m == 1) return x;
+    if (m >= 128) return (x > 0) ? U128{1} : U128{0};
+    if (m == 2) return isqrt(x);
+
+    // 1. Начальное приближение "сверху"
+    // Берем 2^(ceil(bit_width / m))
+    uint32_t target_bits = (x.bit_width() + m - 1) / m;
+    U128 x0 = U128{1} << target_bits;
+
+    // Страховка: если 2^target_bits оказался больше x
+    if (x0 > x) x0 = x;
+
+    U128 m_val{m};
+    [[maybe_unused]] U128 m_minus_1 = m_val - 1;
+
+    for (;;) {
+        U128 p = int_power_fast(x0, m - 1);
+        U128 quotient = (p == 0) ? U128{0} : (x / p);
+
+        // Стандартная формула Ньютона: x1 = ((m-1)*x0 + quotient) / m
+        // Чтобы избежать переполнения (m-1)*x0, считаем через разность:
+        U128 x1;
+        if (x0 > quotient) {
+            // Идем вниз: x1 = x0 - (x0 - quotient) / m
+            U128 diff = (x0 - quotient) / m_val;
+
+            // КРИТИЧЕСКИЙ МОМЕНТ: если diff == 0, но x0 > quotient,
+            // это не значит, что мы на месте. Это значит, что шаг < 1.
+            // В целых числах нам нужно принудительно сделать шаг -1.
+            if (diff == 0) x1 = x0 - 1;
+            else x1 = x0 - diff;
+        } else {
+            // Если x0 <= quotient, мы либо нашли корень, либо зашли снизу.
+            // Метод Ньютона сверху вниз гарантирует, что x0 >= floor(root).
+            return x0;
         }
-        else
-        {
-            result = (((m_ext - 1) * result + (x / power).first) / m_ext).first;
-        }
-        if (result >= old_result) { // Условие простое благодаря выбору начального приближения сверху.
-            result = old_result;
-            break;
-        }
-        old_result = result;
+
+        // Если x1 перелетел через корень (стал слишком маленьким)
+        // или если мы начали расти — останавливаемся.
+        if (x1 >= x0) return x0;
+
+        // Проверка: не стал ли x1^m меньше x?
+        // Если стал — значит x1 и есть наш floor(root).
+        // Но проще довериться сходимости и сделать еще одну итерацию.
+        x0 = x1;
     }
-    return result;
 }
 
 bool miller_test(U128 d, const U128 &n);
@@ -309,7 +360,7 @@ inline int num_of_digits(U128 x)
     int i = 0;
     while (x != 0)
     {
-        x = x.div10();
+        x /= 10u;
         i++;
     }
     return i + (i == 0);
@@ -323,7 +374,7 @@ inline T gcd(T x, T y)
 {
     while (y != 0)
     {
-        const auto& r = x % y;
+        const auto r = (x % y);
         x = y;
         y = r;
     }
@@ -331,54 +382,13 @@ inline T gcd(T x, T y)
 }
 
 /**
- * @brief Целочисленный квадратный корень числа, sqrt(x).
- * @param exact Точно ли прошло извлечение корня.
- */
-inline U128 isqrt(const U128& x, bool &exact)
-{
-    exact = false;
-    if (x == 0)
-    {
-        exact = true;
-        return x;
-    }
-    const auto bits = x.bit_length();
-    U128 result = U128{1} << (bits / 2);
-    U128 reg_x[2] = {x, U128{0}}; // Регистр сдвига.
-    constexpr auto TWO = ULOW{2};
-    for (;;) // Метод Ньютона.
-    {
-        reg_x[1] = reg_x[0];
-        reg_x[0] = result;
-        const auto &[quotient, remainder] = x / result;
-        std::tie(result, std::ignore) = (result + quotient) / TWO;
-        if (result == reg_x[0])
-        {
-            exact = remainder == 0 && quotient == result;
-            return result;
-        }
-        if (result == reg_x[1])
-            return reg_x[0];
-    }
-}
-
-/**
- * @brief Целочисленный квадратный корень числа, sqrt(x).
- */
-inline U128 isqrt(const U128& x)
-{
-    [[maybe_unused]] bool exact;
-    return isqrt(x, exact);
-}
-
-/**
  * @brief Является ли число x квадратичным вычетом по модулю p.
  */
 inline bool is_quadratic_residue(const U128& x, const U128& p)
 {
-    const auto& rx = x % p;
+    const auto rx = x % p;
     U128 y2 = 0;
-    for (U128 y = 0; y < p; y.inc())
+    for (U128 y = 0; y < p; y++)
     {
         if (const auto& ry2 = y2 % p; ry2 == rx)
             return true;
@@ -396,7 +406,7 @@ inline std::pair<U128, U128> sqrt_mod(const U128& x, const U128& p)
     int idx = 0;
     const auto& rx = x % p;
     U128 y2 = 0;
-    for (U128 y = 0; y < p; y.inc())
+    for (U128 y = 0; y < p; y++)
     {
         if (const auto& ry2 = y2 % p; ry2 == rx)
             result[idx++] = y;

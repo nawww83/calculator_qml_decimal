@@ -300,21 +300,17 @@ class Decimal {
         }
         U128 ru = r.unsigned_part();
         for (int i = 0; ru != 0 ; i++) {
-            const auto mod10 = ru.mod10();
-            if (mod10 < 0)
-                break;
+            const auto mod10 = (ru % 10u).low();
             mStringRepresentation[required_length - global.mWidth - 1 - separator_length - i] = DIGITS[mod10];
-            ru = ru.div10();
+            ru /= 10u;
         }
         if (separator_length > 0)
             mStringRepresentation[required_length - 1 - global.mWidth] = chars::separator;
         U128 fraction_u = fraction.unsigned_part();
         for (int i = 0; i < global.mWidth; i++) {
-            const auto mod10 = fraction_u.mod10();
-            if (mod10 < 0) // Сингулярный fraction автоматически не отобразится.
-                break;
+            const auto mod10 = (fraction_u % 10u).low();
             mStringRepresentation[required_length - 1 - i] = DIGITS[mod10];
-            fraction_u = fraction_u.div10();
+            fraction_u /= 10u;
         }
     }
 
@@ -344,11 +340,11 @@ class Decimal {
         digit = mStringRepresentation[current_index];
         bool is_overflow = false;
         while ((digit != chars::separator && digit != chars::alternative_separator) && digit != chars::null) {
-            if (const auto tmp = mInteger * ULOW{10}; tmp.is_overflow()) {
+            if (const auto tmp = mInteger * u64{10}; tmp.is_overflow()) {
                 is_overflow = true;
                 break;
             }
-            mInteger = mInteger * ULOW{10};
+            mInteger = mInteger * u64{10};
             if (auto tmp = mInteger + undigits(digit); tmp.is_overflow()) {
                 is_overflow = true;
                 break;
@@ -376,14 +372,14 @@ class Decimal {
         while (current_index < length) {
             if (idx_width >= global.mWidth) // Слишком много цифр после запятой.
                 break;
-            mNominator = mNominator * ULOW{10};
+            mNominator = mNominator * u64{10};
             mNominator = mNominator + undigits(digit);
             current_index++;
             digit = mStringRepresentation[current_index];
             idx_width++;
         }
         while (idx_width < global.mWidth) { // Добавление нулей. Например 4,5 => 4,50 при width = 2.
-            mNominator = mNominator * ULOW{10};
+            mNominator = mNominator * u64{10};
             mNominator = mNominator + I128{0};
             idx_width++;
         }
@@ -659,7 +655,7 @@ public:
             return result;
         }
         const bool all_integers = mNominator.is_zero() && other.mNominator.is_zero();
-        auto fraction_part = integer_part * ULOW{0};
+        auto fraction_part = integer_part * u64{0};
         if (all_integers) {
             result.SetDecimal(integer_part, fraction_part);
             return result;

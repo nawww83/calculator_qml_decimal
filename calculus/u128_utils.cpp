@@ -8,13 +8,15 @@ namespace u128::utils
 
 std::pair<U128, int> div_by_q(U128 &x, const U128& q)
 {
-    auto [quotient, remainder] = x / q;
+    auto quotient = x / q;
+    auto remainder = x % q;
     int i = 0;
     while (remainder == 0)
     {
         i++;
         x = quotient;
-        std::tie(quotient, remainder) = x / q;
+        quotient = x / q;
+        remainder = x % q;
     }
     return std::make_pair(U128{q}, i);
 }
@@ -76,7 +78,7 @@ std::pair<U128, U128> ferma_method(U128 x)
             return std::make_pair(x_sqrt + U128{1} - y_sqrt, x_sqrt + U128{1} + y_sqrt);
     }
     const auto &k_upper = x_sqrt;
-    for (U128 k = 2;; k.inc())
+    for (U128 k = 2;; k++)
     {
         if (((k & 65535) == 0) && Globals::LoadStop() ) // Проверка на стоп через каждые 65536 отсчетов.
             break;
@@ -86,23 +88,25 @@ std::pair<U128, U128> ferma_method(U128 x)
         { // Проверка с другой стороны: ускоряет поиск.
             // Основано на равенстве, следующем из метода Ферма: индекс k = (F^2 + x) / (2F) - floor(sqrt(x)).
             // Здесь F - кандидат в множители, x - раскладываемое число.
-            const auto &N1 = k * k + x;
+            const auto N1 = k * k + x;
             if ((N1.low() & 1) == 0)
             {
-                const auto& [q1, remainder] = N1 / (k + k); // Здесь k как некоторый множитель F.
+                const auto q1 = N1 / (k + k); // Здесь k как некоторый множитель F.
+                const auto remainder = N1 % (k + k);
                 if ((remainder == 0) && (q1 > x_sqrt))
                 {
-                    const auto& [q2, remainder] = x / k;
+                    const auto q2 = x / k;
+                    const auto remainder = x % k;
                     if (remainder == 0) // На всякий случай оставим.
                         return std::make_pair(k, q2);
                 }
             }
         }
-        if (const auto &r = y.mod10(); (r != 1 && r != 9)) // Просеиваем заведомо лишние.
+        if (const auto r = (y % 10u).low(); (r != 1 && r != 9)) // Просеиваем заведомо лишние.
             continue;
         bool is_exact;
-        const auto& y_sqrt = isqrt(y, is_exact);
-        const auto& delta = (x_sqrt + x_sqrt) + (k + k) + U128{1};
+        const auto y_sqrt = isqrt(y, is_exact);
+        const auto delta = (x_sqrt + x_sqrt) + (k + k) + U128{1};
         y += delta;
         if (!is_exact)
             continue;
@@ -133,7 +137,7 @@ U128 ro_pollard(const U128& n, std::optional<U128> limit)
             break;
         if (has_limit && i >= limit_val)
             break;
-        i.inc();
+        i++;
     }
     if (d != n)
         return d;
@@ -169,7 +173,7 @@ std::map<U128, int> factor(U128 x)
     U128 v {x};
     for (;;) {
         const U128 v_old = v;
-        for (int p = 2; p <= v.bit_length(); ++p)
+        for (unsigned p = 2; p <= v.bit_width(); ++p)
         {
             const U128 vr = nroot(v, p);
             const auto x_r = int_power_fast(vr, p);
@@ -193,7 +197,7 @@ std::map<U128, int> factor(U128 x)
     }
 
     // Делим на первые простые числа, начиная с 5 и до некоторого небольшого предела.
-    ULOW divisor = 5;
+    u64 divisor = 5;
     for (; divisor < 65536u;)
     {
         const auto& [p, successes] = div_by_q(x, divisor);
@@ -253,7 +257,8 @@ std::map<U128, int> factor(U128 x)
         const auto& f = lenstra(x, limit);
         if (f.has_value() && f.value() > 1 && f.value() < x) {
             found_factors.push_back(f.value());
-            const auto& [q, r] = x / f.value();
+            const auto q = x / f.value();
+            const auto r = x % f.value();
             assert(r == 0);
             x = q;
         }
@@ -303,7 +308,7 @@ U128 modular_inverse(U128 a, U128 m, bool &success)
     while (a > 1) {
         if (m == 0)
             return U128{};
-        const I128 q = (a / m).first;
+        const I128 q = a / m;
         I128 temp = m;
         m = a % m;
         a = temp.unsigned_part();
@@ -380,9 +385,9 @@ TripleU128 elliptic_mul(U128 k, TripleU128 p, const U128 &a, const U128 &b, cons
 
 std::optional<U128> lenstra(const U128 &n, unsigned limit)
 {
-    using namespace bignum::ubig;
-    using U256 = UBig<U128, 256>;
-    using U512 = UBig<U256, 512>;
+    using namespace bignum;
+    using U256 = UBig<U128>;
+    using U512 = UBig<U256>;
     const U512 n_ext = U256{n};
     U512 g = n_ext;
     TripleU128 q;
@@ -403,11 +408,11 @@ std::optional<U128> lenstra(const U128 &n, unsigned limit)
         mult_mod(aq0, q.mCell[0], n);
         sub_mod(b, q0qubic, n);
         sub_mod(b, aq0, n);
-        const U256& a4 = U256::mult_ext(4, a);
-        const U512& a4_3 = U512::mult_ext(a4, U256::square_ext(a));
-        const U256& c27 = 27;
-        const U512& b27_2 = U512::mult_ext(c27, U256::square_ext(b));
-        const U512& poly = a4_3 + b27_2;
+        const U256 a4 = U256::mult_ext(4, a);
+        const U512 a4_3 = U512::mult_ext(a4, U256::square_ext(a));
+        const U256 c27 = 27;
+        const U512 b27_2 = U512::mult_ext(c27, U256::square_ext(b));
+        const U512 poly = a4_3 + b27_2;
         g = gcd(poly, n_ext);
         if (Globals::LoadStop() ) // Проверка на стоп.
             return {};
