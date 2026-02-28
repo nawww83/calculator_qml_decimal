@@ -37,10 +37,6 @@ namespace utils
 
 using namespace bignum::u128;
 
-struct TripleU128 {
-    U128 mCell[3];
-};
-
 struct RandomGenerator {
 
     static auto get_random_u32x4(int64_t offset) {
@@ -94,14 +90,27 @@ inline U128 get_random_half_value() {
  * @return
  */
 inline std::vector<unsigned> primes(unsigned n) {
+    if (n < 2) return {};
+
     std::vector<unsigned> ps;
-    ps.reserve(n);
-    std::vector<uint8_t> b(n + 1, uint8_t(1));
-    for (unsigned p = 2; p < n + 1; ++p) {
-        if (b.at(p) != 0) {
+    // Оценка количества простых (n/ln n) для reserve
+    ps.reserve(n / 6);
+
+    // Используем вектор bool (или uint8_t) только для нечетных чисел
+    std::vector<uint8_t> is_prime(n + 1, 1);
+
+    ps.push_back(2);
+
+    // Идем только по нечетным
+    for (unsigned p = 3; p <= n; p += 2) {
+        if (is_prime[p]) {
             ps.push_back(p);
-            for (unsigned i = p; i < n + 1; i += p) {
-                b[i] = 0;
+
+            // Начинаем с p*p, шаг 2*p (чтобы попадать только на нечетные)
+            if (1ULL * p * p <= n) {
+                for (unsigned i = p * p; i <= n; i += 2 * p) {
+                    is_prime[i] = 0;
+                }
             }
         }
     }
@@ -145,7 +154,7 @@ inline void add_mod(U128& x, const U128& y, const U128& m)
 inline void sub_mod(U128& x, const U128& y, const U128& m)
 {
     const bool is_normal = x >= y;
-    const auto& z = is_normal ? x - y : y - x;
+    const auto z = is_normal ? x - y : y - x;
     x = is_normal ? z % m : m - (z % m);
 }
 
@@ -159,7 +168,7 @@ inline void mult_mod(U128& x, const U128& y, const U128& m)
 {
     using namespace bignum;
     using U256 = UBig<U128>;
-    const U256& z = U256::mult_ext(x, y);
+    const U256 z = U256::mult_ext(x, y);
     x = (z / m).second;
 }
 
@@ -425,37 +434,6 @@ inline std::pair<U128, U128> sqrt_mod(const U128& x, const U128& p)
 }
 
 /**
- * @brief Возвращает величину, обратную a по модулю m.
- * @param a Входное число.
- * @param m Модуль.
- * @param success Флаг успешности нахождения обратной величины.
- * @return Обратная к a величина, y, так, что y*a = 1 mod m.
- */
-U128 modular_inverse(U128 a, U128 m, bool& success);
-
-/**
- * @brief Addition in Elliptic curve modulo m space.
- * @param p
- * @param q
- * @param a
- * @param b
- * @param m
- * @return
- */
-TripleU128 elliptic_add(const TripleU128& p, const TripleU128& q, const U128& a, const U128& b, const U128& m);
-
-/**
- * @brief Multiplication (repeated addition and doubling).
- * @param k
- * @param p
- * @param a
- * @param b
- * @param m
- * @return
- */
-TripleU128 elliptic_mul(U128 k, TripleU128 p, const U128& a, const U128& b, const U128& m);
-
-/**
  * @brief lenstra
  * @param n
  * @param limit (~100000)
@@ -470,6 +448,9 @@ std::optional<U128> lenstra(const U128& n, unsigned int limit);
  * @return Да/нет. Если "да", то существует некоторая вероятность ошибки, зависящая от k.
  */
 bool is_prime(U128 x, int k);
+
+
+U128 modular_inverse(U128 a, U128 m, bool &success);
 
 /**
  * @brief Делит первое число на второе до "упора".
@@ -499,6 +480,7 @@ U128 ro_pollard(const U128& n, std::optional<U128> limit);
  * @return Результат разложения на простые множители {a prime number, a non-negative power}.
  */
 std::map<U128, int> factor(U128 x);
+
 
 } // namespace utils
 

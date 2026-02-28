@@ -17,12 +17,14 @@ QMAKE_CXXFLAGS += -fwrapv
 
 SOURCES += \
     calculus.cpp \
+    ecm_factorizer.cpp \
     u128_utils.cpp
 
 HEADERS += \
     calculus_global.h \
     calculus.h \
     decimal.h \
+    ecm_factorizer.h \
     lfsr.h \
     random_gen.h \
     sign.h \
