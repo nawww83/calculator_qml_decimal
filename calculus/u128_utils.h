@@ -133,7 +133,7 @@ inline void add_mod(U128& x, const U128& y, const U128& m)
     using namespace bignum;
     using U256 = UBig<U128>;
     auto z = U256{x} + U256{y};
-    x = z % m;
+    x = (z / m).second;
 }
 
 /**
@@ -160,7 +160,7 @@ inline void mult_mod(U128& x, const U128& y, const U128& m)
     using namespace bignum;
     using U256 = UBig<U128>;
     const U256& z = U256::mult_ext(x, y);
-    x = z % m;
+    x = (z / m).second;
 }
 
 /**
@@ -173,7 +173,7 @@ inline void square_mod(U128& x, const U128& m)
     using namespace bignum;
     using U256 = UBig<U128>;
     U256 z { U256::square_ext(x) };
-    x = z % m;
+    x = (z / m).second;
 }
 
 /**
@@ -189,10 +189,10 @@ inline void square_add_mod(U128& x, const U128& y, const U128& m)
     U256 z { U256::square_ext(x) };
     if (x < U128::max()) {
         z += U256{y};
-        x = z % m;
+        x = (z / m).second;
     } else {
-        z = U256{z % m} + U256{y};
-        x = z % m;
+        z = U256{(z / m).second} + U256{y};
+        x = (z / m).second;
     }
 }
 
@@ -209,10 +209,10 @@ inline void mult_add_mod(U128& x, const U128& y, const U128& z, const U128& m)
     U256 w { U256::mult_ext(x, y) };
     if (x < U128::max() || y < U128::max()) {
         w += U256{z};
-        x = w % m;
+        x = (w / m).second;
     } else {
-        w = U256{w % m} + U256{z};
-        x = w % m;
+        w = U256{(w / m).second} + U256{z};
+        x = (w / m).second;
     }
 }
 
@@ -372,9 +372,15 @@ inline int num_of_digits(U128 x)
 template <typename T>
 inline T gcd(T x, T y)
 {
+    T r;
     while (y != 0)
     {
-        const auto r = (x % y);
+        if constexpr (requires { { x / y } -> std::same_as<std::pair<T, T>>; }) {
+            r = (x / y).second;
+        }
+        else {
+            r = (x % y);
+        }
         x = y;
         y = r;
     }

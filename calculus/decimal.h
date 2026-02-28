@@ -7,6 +7,7 @@
 #include <algorithm> // std::clamp
 #include "i128.hpp"    // I128
 #include "u128_utils.h"
+#include "defines.h"
 
 namespace dec_n {
 
