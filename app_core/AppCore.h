@@ -1,10 +1,13 @@
 #pragma once
 
+#include "controller.h"
 #include "decimal.h"
 #include <QElapsedTimer>
+#include "observers.h"
 #include "types.h"
 #include <QString>
 #include <QVariant>
+#include <QSemaphore>
 
 namespace dec_n { class Decimal; }
 
@@ -196,7 +199,21 @@ protected:
     void DoWork(dec_n::Decimal value, int operation);
 
 private:
-    Q_DISABLE_COPY(AppCore);\
+    Q_DISABLE_COPY(AppCore);
+
+    // Порядок объявления важен: семафоры и буферы должны быть выше обсерверов
+    QSemaphore m_reqFree{tp::BUFFER_SIZE};
+    QSemaphore m_reqUsed{0};
+    QSemaphore m_resFree{tp::BUFFER_SIZE};
+    QSemaphore m_resUsed{0};
+
+    QVector<tp::Request> m_requests;
+    QVector<tp::Result> m_results;
+
+    // Объекты управления
+    Controller m_controller;
+    std::unique_ptr<ro::RequestObserver> m_reqObs;
+    std::unique_ptr<ro::ResultObserver> m_resObs;
 
     QElapsedTimer mTimers[tp::BUFFER_SIZE]; // Массив таймеров по размеру буфера запросов
 };

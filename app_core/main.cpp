@@ -4,6 +4,7 @@
 #include "AppCore.h"
 #include <QQmlContext>
 #include <QSettings>
+#include <QTimer>
 #include <cassert>
 
 
@@ -367,7 +368,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef Q_OS_WIN
-    system("chcp 65001 > null"); // Устанавливает кодировку UTF-8 для консоли
+    system("chcp 65001 > nul"); // Устанавливает кодировку UTF-8 для консоли
 #endif
 
     QGuiApplication app(argc, argv);
@@ -389,8 +390,12 @@ int main(int argc, char *argv[])
     qDebug() << "Test...";
     const bool quiet = true;
     AppCore.change_decimal_width(3, quiet);
-    run_unit_tests();
-    qDebug() << "Test is Ok!";
+
+    // Захватываем AppCore по ссылке явно
+    QTimer::singleShot(0, &AppCore, [&](){
+        run_unit_tests();
+        qDebug() << "Test is Ok!";
+    });
 #endif
 
     auto ctx = engine.rootContext();
@@ -402,6 +407,9 @@ int main(int argc, char *argv[])
         if (!obj)
             QCoreApplication::exit(-1);
     }, Qt::QueuedConnection);
+
+    app.processEvents();
+
     engine.load(url);
 
     QSettings settings("MyHome", "DecimalCalculator");

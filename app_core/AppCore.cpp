@@ -1,15 +1,15 @@
 #include "AppCore.h"
 
-#include <QSemaphore>
 #include <QRegularExpression>
 #include <QTime>
-#include "observers.h"
 
 #include "u128.hpp"
 #include "i128.hpp"
 
 #include <QSettings>
+#include <memory>
 #include <QDebug>
+#include <QTimer>
 
 /**
  * @brief Модификаторы строк.
@@ -21,34 +21,6 @@ namespace modifiers {
     static const auto red     = "\033[1;31m"; // Ошибки и критические сбои
     static const auto reset   = "\033[0m";    // Обязательный сброс в конце строки
 }
-
-/**
- * @brief Семафоры запросов и ответов.
- */
-QSemaphore requests_free(tp::BUFFER_SIZE);
-QSemaphore requests_used(0);
-QSemaphore results_free(tp::BUFFER_SIZE);
-QSemaphore results_used(0);
-
-/**
- * @brief Буферы запросов и ответов.
- */
-QVector<tp::Request> requests(tp::BUFFER_SIZE);
-QVector<tp::Result> results(tp::BUFFER_SIZE);
-
-/**
- * @brief Контроллер.
- */
-Controller controller;
-
-/**
- * @brief Наблюдатели очередей запросов и ответов.
- */
-ro::RequestObserver reqObs(requests,
-                           &requests_used, &requests_free,
-                           &controller);
-ro::ResultObserver resObs(results,
-                          &results_used, &results_free);
 
 /**
  * @brief Возвращает описание ошибки по коду ошибки.
@@ -86,29 +58,53 @@ static constexpr auto description = [](int operation) -> QString {
     }
 };
 
-AppCore::AppCore(QObject *parent) : QObject(parent)
+AppCore::AppCore(QObject *parent)
+    : QObject(parent)
+    , m_requests(tp::BUFFER_SIZE)
+    , m_results(tp::BUFFER_SIZE)
 {
-    Reset();
+    // 1. Инициализация наблюдателей (теперь QApplication точно существует)
+    m_reqObs = std::make_unique<ro::RequestObserver>(
+        m_requests, &m_reqUsed, &m_reqFree, &m_controller
+        );
 
-    connect(&controller, &Controller::handle_results, this, &AppCore::handle_results);
-    connect(&resObs, &ro::ResultObserver::handleResults, this, &AppCore::handle_results_queue);
+    m_resObs = std::make_unique<ro::ResultObserver>(
+        m_results, &m_resUsed, &m_resFree
+        );
 
-    resObs.start();
-    reqObs.start();
+    // 2. Соединения сигналов
+    connect(&m_controller, &Controller::handle_results, this, &AppCore::handle_results);
+    connect(m_resObs.get(), &ro::ResultObserver::handleResults, this, &AppCore::handle_results_queue);
 
-    qDebug() << "Welcome!";
+    // 3. Безопасный запуск потоков через очередь событий
+    QMetaObject::invokeMethod(this, [this](){
+        m_resObs->start();
+        m_reqObs->start();
+        qDebug() << "Observers and Threads started successfully.";
+    }, Qt::QueuedConnection);
+
+    qDebug() << "AppCore initialized. Welcome!";
 }
 
 AppCore::~AppCore()
 {
-    emit controller.stop_calculation();
-    qDebug() << "~AppCore: stop all threads...";
-    reqObs.finish();
-    resObs.finish();
-    reqObs.wait();
-    resObs.wait();
-    controller.quit();
-    qDebug() << "~AppCore: quit!";
+    qDebug() << "~AppCore: Shutting down threads...";
+
+    // Сигнализируем контроллеру о немедленной остановке вычислений
+    emit m_controller.stop_calculation();
+
+    // Останавливаем наблюдателей
+    if (m_reqObs) m_reqObs->finish();
+    if (m_resObs) m_resObs->finish();
+
+    // Дожидаемся физического завершения
+    if (m_reqObs) m_reqObs->wait();
+    if (m_resObs) m_resObs->wait();
+
+    // Завершаем потоки внутри контроллера
+    m_controller.quit();
+
+    qDebug() << "~AppCore: Shutdown complete.";
 }
 
 void AppCore::Reset() {
@@ -174,9 +170,9 @@ void AppCore::DoWork(dec_n::Decimal value, int operation)
     // 4. Формирование вектора и отправка в очередь
     QVector<dec_n::Decimal> request_vector { mRegister[1], mRegister[0] };
 
-    requests_free.acquire();
-    requests[mRequestIdx] = { operation, request_vector };
-    requests_used.release();
+    m_reqFree.acquire();
+    m_requests[mRequestIdx] = { operation, request_vector };
+    m_reqUsed.release();
 }
 
 void AppCore::process(int requested_operation, QString input_value)
@@ -201,7 +197,7 @@ void AppCore::process(int requested_operation, QString input_value)
         emit clearTempResult();
         emit clearCurrentOperation();
         if (mCurrentOperation != OperationEnums::FACTOR) emit clearInputField();
-        emit controller.stop_calculation();
+        emit m_controller.stop_calculation();
         Reset();
         return;
     }
@@ -349,15 +345,15 @@ void AppCore::handle_results(int err, int operation, bool exact_sqrt, QVector<de
     }
 
     // 2. Управление индексами и семафорами
-    results_free.acquire();
+    m_resFree.acquire();
 
     mResultIdx = (mResultIdx + 1) % tp::BUFFER_SIZE;
 
     // Используем std::move, если QVector больше не нужен в этой области видимости,
     // чтобы не копировать глубокие данные Decimal.
-    results[mResultIdx] = { err, operation, exact_sqrt, std::move(res) };
+    m_results[mResultIdx] = { err, operation, exact_sqrt, std::move(res) };
 
-    results_used.release();
+    m_resUsed.release();
 }
 
 void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVector<dec_n::Decimal> res, int id)
@@ -387,22 +383,6 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
         emit showCurrentOperation(description(OperationEnums::SQRT) + suffix);
     }
 
-    // 3. ФАКТОРИЗАЦИЯ
-    // if (operation == OperationEnums::FACTOR) {
-    //     QStringList factors;
-    //     for (int i = 0; i + 1 < res.size(); i += 2) {
-    //         QString prime = QString::fromStdString(res[i].IntegerPart().toString());
-    //         QString power = QString::fromStdString(res[i + 1].IntegerPart().unsigned_part().toString());
-    //         factors << QString("%1^%2").arg(prime, power);
-    //     }
-
-    //     qDebug().noquote().nospace()
-    //         << meta << modifiers::blue << "<-- [Факторы]: {" << factors.join("; ") << "}" << modifiers::reset;
-
-    //     mCurrentOperation = OperationEnums::CLEAR_ALL;
-    //     mState = StateEnums::RESETTED;
-    //     emit setEnableFactorButton(true);
-    // }
     if (operation == OperationEnums::FACTOR) {
         // Вычисляем прошедшее время
         qint64 nanoseconds = mTimers[id].nsecsElapsed();
@@ -452,7 +432,7 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
 void AppCore::change_decimal_width(int width, bool quiet)
 {
     const bool is_changed = dec_n::Decimal::SetWidth(width);
-    emit controller.sync_decimal_width(width);
+    emit m_controller.sync_decimal_width(width);
     if (is_changed) {
         Reset();
         emit clearTempResult();
