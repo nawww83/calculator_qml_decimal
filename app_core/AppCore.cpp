@@ -155,6 +155,15 @@ void AppCore::DoWork(dec_n::Decimal value, int operation)
         // Аргументы операции (если это не рандом)
         if (operation != OperationEnums::RANDINT && operation != OperationEnums::RANDINT64) {
             auto sv1 = mRegister[1].ValueAsStringView();
+            if (operation == OperationEnums::FACTOR) { // Для факторизации нет смысла выводить дробную часть.
+                // Ищем позицию первого вхождения точки или запятой
+                size_t pos = sv1.find_first_of(".,");
+
+                // Если разделитель найден, обрезаем строку до этой позиции
+                if (pos != std::string_view::npos) {
+                    sv1 = sv1.substr(0, pos);
+                }
+            }
             debug << modifiers::gray << "x: " << modifiers::reset
                   << QString::fromUtf8(sv1.data(), static_cast<int>(sv1.size()));
 
