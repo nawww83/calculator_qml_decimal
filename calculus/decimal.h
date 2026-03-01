@@ -14,40 +14,8 @@ namespace dec_n {
 using namespace bignum::i128;
 
 constexpr int undigits(char d) {
-    switch (d) {
-    case '0':
-        return 0;
-        break;
-    case '1':
-        return 1;
-        break;
-    case '2':
-        return 2;
-        break;
-    case '3':
-        return 3;
-        break;
-    case '4':
-        return 4;
-        break;
-    case '5':
-        return 5;
-        break;
-    case '6':
-        return 6;
-        break;
-    case '7':
-        return 7;
-        break;
-    case '8':
-        return 8;
-        break;
-    case '9':
-        return 9;
-        break;
-    default:
-        return 0;
-    }
+    if (d >= '0' && d <= '9') return d - '0';
+    return 0;
 }
 
 namespace chars {
@@ -94,13 +62,10 @@ class Vector128 {
      */
     void FillData(const char* input, int size) {
         mRealSize = BoundSize(size);
-        for (int i = 0; i < mRealSize; ++i) {
-            mBuffer[i] = *input++;
-        }
-        for (int i = 0; i < MAX_SIZE - mRealSize; ++i) {
-            mBuffer[mRealSize + i] = chars::null;
-        }
-        mBuffer[MAX_SIZE] = chars::null;
+        // Копируем данные
+        std::copy_n(input, mRealSize, mBuffer.begin());
+        // Обнуляем оставшуюся часть (включая защитный ноль в конце)
+        std::fill(mBuffer.begin() + mRealSize, mBuffer.end(), chars::null);
     }
 public:
     /**
