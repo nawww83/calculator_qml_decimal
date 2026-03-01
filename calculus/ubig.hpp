@@ -403,7 +403,7 @@ public:
             return {*this, ULOW{0}};
         if (mHigh == ULOW{0})
         {
-            auto [q, r] = bignum::generic::div_rem(mLow, other);
+            auto [q, r] = divide_as_pair( mLow, other);
             return {UBig(q), r};
         }
 

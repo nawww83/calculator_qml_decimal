@@ -114,7 +114,7 @@ static ProjPoint projective_mul(U128 k, ProjPoint p, const U128& a, const U128& 
     return r;
 }
 
-std::optional<bignum::u128::U128> ecm::ECMFactorizer::factorize(const U128 &n)
+std::optional<U128> ecm::ECMFactorizer::factorize(const U128 &n)
 {
     // План стратегии: {B1, количество_попыток_на_этом_B1}
     struct Level { unsigned b1; int curves; };
@@ -133,7 +133,10 @@ std::optional<bignum::u128::U128> ecm::ECMFactorizer::factorize(const U128 &n)
         auto p1 = primes(B1);
         auto p2 = primes(B2);
 
+        if (u128::Globals::LoadStop()) break;
+
         for (int i = 0; i < level.curves; ++i) {
+            if (u128::Globals::LoadStop()) break;
             auto res = try_one_curve(n, B1, B2, p1, p2);
             if (res) return res;
         }
@@ -143,7 +146,7 @@ std::optional<bignum::u128::U128> ecm::ECMFactorizer::factorize(const U128 &n)
     return std::nullopt;
 }
 
-std::optional<bignum::u128::U128> ecm::ECMFactorizer::try_one_curve(const U128 &n, unsigned int B1, unsigned int B2, const std::vector<unsigned int> &p1, const std::vector<unsigned int> &p2)
+std::optional<U128> ecm::ECMFactorizer::try_one_curve(const U128 &n, unsigned int B1, unsigned int /*B2*/, const std::vector<unsigned int> &p1, const std::vector<unsigned int> &p2)
 {
     // Генерация параметров кривой Вейерштрасса и начальной точки
     U128 x0 = get_random_value_ab(1, n - 1);
@@ -175,7 +178,7 @@ std::optional<bignum::u128::U128> ecm::ECMFactorizer::try_one_curve(const U128 &
     return run_stage2(Q, n, a, B1, p2);
 }
 
-std::optional<bignum::u128::U128> ecm::ECMFactorizer::run_stage2(ProjPoint Q, const U128 &n, const U128 &a, unsigned int B1, const std::vector<unsigned int> &p2)
+std::optional<U128> ecm::ECMFactorizer::run_stage2(ProjPoint Q, const U128 &n, const U128 &a, unsigned int B1, const std::vector<unsigned int> &p2)
 {
     if (Q.is_inf()) return std::nullopt;
 

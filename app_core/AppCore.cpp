@@ -53,7 +53,7 @@ static constexpr auto description = [](int operation) -> QString {
         case OperationEnums::MAX_INT_VALUE: return QString::fromUtf8("Наибольшее целое число");
         case OperationEnums::RANDINT:       return QString::fromUtf8("Случайное число");
         case OperationEnums::RANDINT64:     return QString::fromUtf8("Случайное 64-битное число");
-        case OperationEnums::FACTOR:        return QString::fromUtf8("Разложить на простые множители целую часть числа");
+        case OperationEnums::FACTOR:        return QString::fromUtf8("Разложить на простые множители");
         default:                            return QString::fromUtf8("Неизвестная операция");
     }
 };
