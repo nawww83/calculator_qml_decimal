@@ -14,7 +14,7 @@ class Worker : public QObject
 {
     Q_OBJECT
 private:
-    QVector<dec_n::Decimal> v {dec_n::Decimal()};
+    QVector<dec_n::Decimal> mValue {dec_n::Decimal()};
 public:
     /**
      * @brief Конструктор.
@@ -34,19 +34,26 @@ public slots:
         auto start = std::chrono::high_resolution_clock::now();
         if (operation == calculus::FACTOR) {
             auto f = calculus::factor(operands[0].IntegerPart().unsigned_part(), error_code);
-            v.clear();
+            mValue.clear();
             dec_n::Decimal p;
             dec_n::Decimal q;
             for (auto [p_, q_] : f) {
                 p.SetDecimal(p_, bignum::i128::I128{0});
                 q.SetDecimal(bignum::i128::I128{static_cast<bignum::u128::u64>(q_), 0}, bignum::u128::U128{0});
-                v.push_back(p);
-                v.push_back(q);
+                mValue.push_back(p);
+                mValue.push_back(q);
             }
-        } else {
-            v.resize(1);
+        } else if (operation == calculus::RANDINT || operation == calculus::RANDINT64)
+        {
+            bool half = operation == calculus::RANDINT64;
+            auto val = calculus::get_random(half, error_code);
+            mValue.resize(1);
+            mValue[0].SetDecimal( val, 0 );
+        }
+        else {
+            mValue.resize(1);
             // Операнды копируются.
-            v[0] = doIt(operation, operands[0], operands[1], error_code, exact_sqrt);
+            mValue[0] = doIt(operation, operands[0], operands[1], error_code, exact_sqrt);
         }
         auto stop = std::chrono::high_resolution_clock::now();
         if (operation == OperationEnums::FACTOR) {
@@ -55,7 +62,7 @@ public slots:
             std::cout << "elapsed: " << duration.count() << " s" << std::endl;
             g_console_output_mutex.unlock();
         }
-        emit results_ready(error_code, operation, exact_sqrt, v);
+        emit results_ready(error_code, operation, exact_sqrt, mValue);
     }
 
     /**

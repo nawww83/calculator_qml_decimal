@@ -8,6 +8,12 @@ std::map<bignum::u128::U128, int> factor(bignum::u128::U128 x, int& error) {
     return u128::utils::factor(x);
 }
 
+bignum::u128::U128 get_random(bool half, int &error)
+{
+    error = NO_ERRORS;
+    return half ? u128::utils::get_random_half_value() :  u128::utils::get_random_value();
+}
+
 }
 
 dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error_code, bool& exact_sqrt)

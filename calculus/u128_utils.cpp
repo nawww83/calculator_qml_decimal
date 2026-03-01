@@ -1,9 +1,11 @@
 #include "u128_utils.h"
+#include "rand_u128.h"
+#include "i128.hpp"
+#include "ecm_factorizer.h"
+
 #include <list>
 #include <functional>
 #include <optional>
-#include "i128.hpp"
-#include "ecm_factorizer.h"
 
 namespace u128::utils
 {
@@ -298,6 +300,30 @@ std::map<U128, int> factor(U128 x)
         ferma_recursive(fac);
 
     Globals::SetStop(false);
+    return result;
+}
+
+U128 get_random_half_value()
+{
+    static u128_rand::RandomGenerator g_prng;
+    U128 result {g_prng.mGenerator.next_u64(), 0};
+    g_prng.mGenerator.next_u64();
+    return result;
+}
+
+U128 get_random_value_ab(const U128 &a, const U128 &b)
+{
+    assert(b >= a);
+    const U128& m = b - a + 1;
+    return m != 0 ? a + (get_random_value() % m) : get_random_value();
+}
+
+U128 get_random_value()
+{
+    static u128_rand::RandomGenerator g_prng;
+    U128 result { g_prng.mGenerator.next_u64(), g_prng.mGenerator.next_u64()};
+    g_prng.mGenerator.next_u64();
+    g_prng.mGenerator.next_u64();
     return result;
 }
 

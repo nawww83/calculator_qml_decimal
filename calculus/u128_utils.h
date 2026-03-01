@@ -4,13 +4,9 @@
 #include "ubig.hpp"
 #include <_mingw_mac.h>
 #include <atomic>
-#include <chrono>
-#include <map>        // std::map
+#include <map> // std::map
 #include <optional>
-#include <random>
-#include <utility>    // std::pair
-
-#include "random_gen.h"
+#include <utility> // std::pair
 
 namespace u128
 {
@@ -37,33 +33,8 @@ namespace utils
 
 using namespace bignum::u128;
 
-struct RandomGenerator {
 
-    static auto get_random_u32x4(int64_t offset) {
-        const int64_t since_epoch_ms =
-            std::chrono::duration_cast<std::chrono::milliseconds>
-            (std::chrono::system_clock::now().time_since_epoch()).count();
-        std::seed_seq g_rnd_sequence{since_epoch_ms & 255, (since_epoch_ms >> 8) & 255,
-                                     (since_epoch_ms >> 16) & 255, (since_epoch_ms >> 24) & 255, offset};
-        lfsr8::u32x4 st;
-        g_rnd_sequence.generate(st.begin(), st.end());
-        return st;
-    }
-
-    explicit RandomGenerator() {
-        lfsr8::u64 tmp;
-        mGenerator.seed(get_random_u32x4((lfsr8::u64)&tmp));
-    }
-    lfsr_rng_2::gens mGenerator;
-};
-
-inline U128 get_random_value() {
-    static RandomGenerator g_prng;
-    U128 result { g_prng.mGenerator.next_u64(), g_prng.mGenerator.next_u64()};
-    g_prng.mGenerator.next_u64();
-    g_prng.mGenerator.next_u64();
-    return result;
-}
+U128 get_random_value();
 
 /**
  * @brief Случайное число на отрезке [a, b].
@@ -71,18 +42,9 @@ inline U128 get_random_value() {
  * @param b
  * @return
  */
-inline U128 get_random_value_ab(const U128& a, const U128& b) {
-    assert(b >= a);
-    const U128& m = b - a + 1;
-    return m != 0 ? a + (get_random_value() % m) : get_random_value();
-}
+U128 get_random_value_ab(const U128& a, const U128& b);
 
-inline U128 get_random_half_value() {
-    static RandomGenerator g_prng;
-    U128 result {g_prng.mGenerator.next_u64(), 0};
-    g_prng.mGenerator.next_u64();
-    return result;
-}
+U128 get_random_half_value();
 
 /**
  * @brief Sieve of Eratosthenes.

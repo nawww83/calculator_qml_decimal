@@ -1,13 +1,13 @@
 CONFIG -= qt
 
 CONFIG += use_simd
+QMAKE_CXXFLAGS += -msse4.2
 
 TEMPLATE = lib
 DEFINES += CALCULUS_LIBRARY
 
-QMAKE_CXXFLAGS += -msse4.2
-
 TARGET = calculus
+win32:CONFIG(debug, debug|release): TARGET = calculusd  # Добавит 'd' в конце для Debug
 
 CONFIG += c++20
 
@@ -26,6 +26,7 @@ HEADERS += \
     decimal.h \
     ecm_factorizer.h \
     lfsr.h \
+    rand_u128.h \
     random_gen.h \
     sign.h \
     singular.h \

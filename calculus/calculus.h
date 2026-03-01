@@ -17,7 +17,11 @@ enum Ops {
     SQR,        // Квадрат числа.
     RECIPROC,   // Обратное число.
     NEG,        // Инверсия знака.
-    FACTOR      // Разложение на простые множители.
+    RANDINT,         // Случайное целое полноразрядное число.
+    RANDINT64,         // Случайное целое 64-битное число.
+    FACTOR,      // Разложение на простые множители.
+    SEPARATOR_IO, // Разделитель операций ввода
+    MAX_INT_VALUE,  // Получить наибольшее целое (положительное) число.
 };
 
 enum Errors {
@@ -34,6 +38,15 @@ enum Errors {
  * @return  Реузльтат операции: {простой множитель p, степень q}.
  */
 CALCULUS_EXPORT std::map<bignum::u128::U128, int> factor(bignum::u128::U128 x, int& error);
+
+
+/**
+ * @brief Получить случайное значение (128-битное).
+ * @param half Выдать половину разрядности (64 бита).
+ * @param error_code Код ошибки.
+ * @return Случайное число.
+ */
+CALCULUS_EXPORT bignum::u128::U128 get_random(bool half, int& error);
 
 }
 

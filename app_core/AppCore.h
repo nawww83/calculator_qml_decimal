@@ -4,6 +4,8 @@
 #include <QString>
 #include <QVariant>
 
+namespace dec_n { class Decimal; }
+
 Q_DECLARE_METATYPE(dec_n::Decimal);
 
 inline std::mutex g_console_output_mutex;
@@ -22,11 +24,11 @@ enum Operations {
     SQR,
     RECIPROC,
     NEGATION,
+    RANDINT,         // Случайное целое полноразрядное число.
+    RANDINT64,         // Случайное целое 64-битное число.
     FACTOR,         // Разложить на простые множители.
     SEPARATOR_IO, // Разделитель операций ввода
-    MAX_INT_VALUE,  // Получить наибольшее целое (положительное) число.
-    RANDINT,         // Случайное целое полноразрядное число.
-    RANDINT64         // Случайное целое 64-битное число.
+    MAX_INT_VALUE  // Получить наибольшее целое (положительное) число.
 };
 Q_ENUM_NS(Operations)
 }

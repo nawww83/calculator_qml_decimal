@@ -4,6 +4,7 @@
 #include "AppCore.h"
 #include <QQmlContext>
 #include <QSettings>
+#include <cassert>
 
 
 using namespace dec_n;

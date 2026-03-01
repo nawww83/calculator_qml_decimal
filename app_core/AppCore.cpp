@@ -6,6 +6,7 @@
 
 #include "u128.hpp"
 #include "i128.hpp"
+#include "u128_utils.h"
 
 #include <QSettings>
 #include <QDebug>
@@ -141,6 +142,13 @@ void AppCore::DoWork(dec_n::Decimal value, int operation) {
         requests[mRequestIdx] = {operation, v};
         requests_used.release();
     };
+    // Генерацию случайных чисел вынес в конвейер операций, поэтому так сложно.
+    // Чтобы убрать зависимость AppCore от интринсиков SIMD кастомного генератора случайных чисел.
+    if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64)
+    {
+        push_request();
+        return;
+    }
     switch (mState) {
         case StateEnums::EQUALS_LOOP:
             mRegister[1] = value;
@@ -182,12 +190,6 @@ void AppCore::process(int requested_operation, QString input_value)
         case OperationEnums::MAX_INT_VALUE:
             value = bignum::u128::U128::max();
             break;
-        case OperationEnums::RANDINT:
-            value = u128::utils::get_random_value();
-            break;
-        case OperationEnums::RANDINT64:
-            value = u128::utils::get_random_half_value();
-            break;
         default:
             break;
         }
@@ -213,6 +215,11 @@ void AppCore::process(int requested_operation, QString input_value)
         emit showTempResult(err_description(err), false);
         Reset();
         qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
+        return;
+    }
+    if (requested_operation == OperationEnums::RANDINT || requested_operation == OperationEnums::RANDINT64) {
+        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
+        DoWork(val, requested_operation);
         return;
     }
     //
@@ -403,8 +410,11 @@ void AppCore::process(int requested_operation, QString input_value)
 
 void AppCore::handle_results(int err, int operation, bool exact_sqrt, QVector<dec_n::Decimal> res)
 {
-    // Поместить результат в регистр для дальнейших операций (цепочка операций).
-    mRegister[1] = res.first();
+    if (operation != OperationEnums::RANDINT && operation != OperationEnums::RANDINT64)
+    {
+        // Поместить результат в регистр для дальнейших операций (цепочка операций).
+        mRegister[1] = res.first();
+    }
 
     auto push_result = [this, err, operation, exact_sqrt, res]() {
         results_free.acquire();
@@ -419,41 +429,54 @@ void AppCore::handle_results(int err, int operation, bool exact_sqrt, QVector<de
 void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVector<dec_n::Decimal> res, int id)
 {
     if (err == Errors::NO_ERRORS) {
-        QDebug deb(QtDebugMsg);
+        QDebug debug(QtDebugMsg);
         const bool state_is_the_equal =
             (mState == StateEnums::EQUALS_LOOP) ||
                                         (mState == StateEnums::OP_TO_EQUAL);
         if (operation == OperationEnums::SQRT) {
             emit showCurrentOperation(description(OperationEnums::SQRT) + QString::fromUtf8(exact_sqrt ? ": точно." : ": приближенно."));
         }
+        if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64)
+        {
+            std::string_view sv0 = res[0].ValueAsStringView().data();
+            emit setInput(QString::fromStdString({sv0.data(), sv0.size()}));
+            // Отобразить операцию в истории.
+            {
+                debug.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id << QString::fromUtf8(", результат: ") <<
+                    QString::fromStdString({sv0.data(), sv0.size()}) << modifiers::esc_colorization;
+            }
+            return;
+        }
         if (operation == OperationEnums::FACTOR) {
             // Отобразить операцию в истории.
-            deb.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id <<
+            debug.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id <<
                 QString::fromUtf8(", результат: ");
             bignum::i128::I128 prime;
-            deb.noquote().nospace() << "{";
-            for (int i = 0; const auto& el : res) {
+            debug.noquote().nospace() << "{";
+            for (int i = 0; const auto& el : std::as_const(res)) {
                 i++;
                 if (i % 2)
                     prime = el.IntegerPart();
                 else {
                     const std::string& power_str = el.IntegerPart().unsigned_part().toString();
                     const std::string& prime_str = prime.toString();
-                    deb.noquote().nospace() << QString::fromStdString({prime_str.data(), prime_str.size()}) << "^" << power_str;
+                    debug.noquote().nospace() << QString::fromStdString({prime_str.data(), prime_str.size()}) << "^" << power_str;
                     if (i == res.size()) {
                         ;
                     } else {
-                        deb.noquote().nospace() << "; ";
+                        debug.noquote().nospace() << "; ";
                     }
                 }
             }
-            deb.noquote().nospace() << "}" << modifiers::esc_colorization;
+            debug.noquote().nospace() << "}" << modifiers::esc_colorization;
             mCurrentOperation = OperationEnums::CLEAR_ALL;
             mState = StateEnums::RESETTED;
             emit setEnableFactorButton(true);
             // bignum::u128::U128 value = u128::utils::get_random_value();
             // process(OperationEnums::FACTOR, QString::fromStdString( value.value() )); // temporary loop for debug factorization.
-        } else {
+        }
+        else
+        {
             // Показать результат в поле ввода, если нажата "Enter".
             if (state_is_the_equal || mState == StateEnums::RESETTED) {
                 std::string_view sv = res[0].ValueAsStringView().data();
@@ -468,7 +491,7 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
             // Отобразить операцию в истории.
             {
                 std::string_view sv = res[0].ValueAsStringView();
-                deb.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id << QString::fromUtf8(", результат: ") <<
+                debug.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id << QString::fromUtf8(", результат: ") <<
                     QString::fromStdString({sv.data(), sv.size()}) << modifiers::esc_colorization;
             }
         }
