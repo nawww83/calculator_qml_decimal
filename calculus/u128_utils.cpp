@@ -199,8 +199,8 @@ std::map<U128, int> factor(U128 x)
         if (x == U128{1})
             return result;
     }
-    // Проверяем не является ли число степенью единственного простого числа.
-    int last_p = 0;
+    // Проверяем не является ли число степенью некоторого числа.
+    int last_p = 0; // Искомая степень.
     U128 v {x};
     for (;;) {
         const U128 v_old = v;
@@ -222,9 +222,11 @@ std::map<U128, int> factor(U128 x)
     }
     if (last_p > 0)
     {
-        assert(is_prime(v, 64));
-        result[v] += last_p;
-        return result;
+        x = v;
+        if (is_prime(x, 64)) {
+            result[x] += last_p;
+            return result;
+        }
     }
 
     // Делим на первые простые числа, начиная с 5 и до некоторого небольшого предела.
@@ -233,7 +235,7 @@ std::map<U128, int> factor(U128 x)
     {
         const auto& [p, successes] = div_by_q(x, divisor);
         if (successes > 0)
-            result[p] += successes;
+            result[p] += last_p == 0 ? successes : successes * last_p;
         if (x == U128{1})
             return result;
         divisor += 2;
@@ -245,7 +247,7 @@ std::map<U128, int> factor(U128 x)
         }
     }
     if (is_prime(x, 64)) {
-        result[x]++;
+        result[x] += last_p == 0 ? 1 : last_p;
         return result;
     }
 
@@ -257,7 +259,7 @@ std::map<U128, int> factor(U128 x)
     {
         if (Globals::LoadStop()) break;
         if (is_prime(x, 64)) {
-            result[x]++;
+            result[x] += last_p == 0 ? 1 : last_p;
             x = U128{1};
             break;
         }
@@ -276,21 +278,21 @@ std::map<U128, int> factor(U128 x)
 
     // Применяем метод Ферма рекурсивно.
     std::function<void(U128)> ferma_recursive;
-    ferma_recursive = [&ferma_recursive, &result](U128 x) -> void
+    ferma_recursive = [&ferma_recursive, &result, &last_p](U128 x) -> void
     {
         if (is_prime(x, 64)) {
-            result[x]++;
+            result[x] += last_p == 0 ? 1 : last_p;
             return;
         }
         const auto& [a, b] = ferma_method(x);
         if (a == U128{1})
         {
-            result[b]++;
+            result[b] += last_p == 0 ? 1 : last_p;
             return;
         }
         else if (b == U128{1})
         {
-            result[a]++;
+            result[a] += last_p == 0 ? 1 : last_p;
             return;
         }
         ferma_recursive(a);
