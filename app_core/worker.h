@@ -4,7 +4,6 @@
 #include "calculus.h"
 #include "decimal.h"
 #include "qobject.h"
-#include <iostream>
 #include "i128.hpp"
 
 /**
@@ -31,7 +30,6 @@ public slots:
     void do_work(int operation, QVector<dec_n::Decimal> operands) {
         int error_code;
         bool exact_sqrt = false;
-        auto start = std::chrono::high_resolution_clock::now();
         if (operation == calculus::FACTOR) {
             auto f = calculus::factor(operands[0].IntegerPart().unsigned_part(), error_code);
             mValue.clear();
@@ -54,13 +52,6 @@ public slots:
             mValue.resize(1);
             // Операнды копируются.
             mValue[0] = doIt(operation, operands[0], operands[1], error_code, exact_sqrt);
-        }
-        auto stop = std::chrono::high_resolution_clock::now();
-        if (operation == OperationEnums::FACTOR) {
-            auto duration = duration_cast<std::chrono::seconds>(stop - start);
-            g_console_output_mutex.lock();
-            std::cout << "elapsed: " << duration.count() << " s" << std::endl;
-            g_console_output_mutex.unlock();
         }
         emit results_ready(error_code, operation, exact_sqrt, mValue);
     }

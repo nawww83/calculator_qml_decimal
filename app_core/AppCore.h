@@ -1,6 +1,8 @@
 #pragma once
 
 #include "decimal.h"
+#include <QElapsedTimer>
+#include "types.h"
 #include <QString>
 #include <QVariant>
 
@@ -192,5 +194,10 @@ protected:
      * @param operation Введенная операция.
      */
     void DoWork(dec_n::Decimal value, int operation);
+
+private:
+    Q_DISABLE_COPY(AppCore);\
+
+    QElapsedTimer mTimers[tp::BUFFER_SIZE]; // Массив таймеров по размеру буфера запросов
 };
 

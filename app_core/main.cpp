@@ -366,6 +366,10 @@ int main(int argc, char *argv[])
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
 
+#ifdef Q_OS_WIN
+    system("chcp 65001 > null"); // Устанавливает кодировку UTF-8 для консоли
+#endif
+
     QGuiApplication app(argc, argv);
 
     qRegisterMetaType<QVector<dec_n::Decimal>>("QVector<dec_n::Decimal>");

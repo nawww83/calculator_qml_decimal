@@ -2,23 +2,24 @@
 
 #include <QSemaphore>
 #include <QRegularExpression>
+#include <QTime>
 #include "observers.h"
 
 #include "u128.hpp"
 #include "i128.hpp"
-#include "u128_utils.h"
 
 #include <QSettings>
 #include <QDebug>
 
 /**
- * @brief Модификаторы строк: зеленый, синий, красный и "отмена раскраски".
+ * @brief Модификаторы строк.
  */
 namespace modifiers {
-    static const auto green = "\033[32m";
-    static const auto bright_blue = "\033[94m";
-    static const auto red = "\033[31m";
-    static const auto esc_colorization = "\033[0m";
+    static const auto gray    = "\033[90m";   // Время, ID, метки x: и y:
+    static const auto green   = "\033[32m";   // Исходящие запросы (-->)
+    static const auto blue    = "\033[1;34m"; // Входящие ответы (<--)
+    static const auto red     = "\033[1;31m"; // Ошибки и критические сбои
+    static const auto reset   = "\033[0m";    // Обязательный сброс в конце строки
 }
 
 /**
@@ -118,397 +119,333 @@ void AppCore::Reset() {
     mState = StateEnums::RESETTED;
 }
 
-void AppCore::DoWork(dec_n::Decimal value, int operation) {
-    // Послать запрос в очередь.
-    auto push_request = [this, operation]() {
-        QVector<dec_n::Decimal> v {mRegister[1], mRegister[0]};
-        mRequestIdx = (mRequestIdx + 1) % tp::BUFFER_SIZE;
-        if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64)
-        {
-            qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
-                               << description(operation) << QString::fromUtf8("\tID запроса:") << mRequestIdx
-                               << modifiers::esc_colorization;
-        }
-        else if (operation < OperationEnums::SEPARATOR_OP_TYPE) {
-            std::string_view sv0 = mRegister[0].ValueAsStringView();
-            std::string_view sv1 = mRegister[1].ValueAsStringView();
-            qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
-                               << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
-                               << "y:" << QString::fromStdString({sv0.data(), sv0.size()}).toUtf8()
-                               << QString::fromUtf8("\tID запроса:") << mRequestIdx
-                     << modifiers::esc_colorization;
-        } else {
-            std::string_view sv1 = mRegister[1].ValueAsStringView();
-            qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
-                               << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
-                               << QString::fromUtf8("\tID запроса:") << mRequestIdx
-                               << modifiers::esc_colorization;
-        }
-        requests_free.acquire();
-        requests[mRequestIdx] = {operation, v};
-        requests_used.release();
-    };
-    // Генерацию случайных чисел вынес в конвейер операций, поэтому так сложно.
-    // Чтобы убрать зависимость AppCore от интринсиков SIMD кастомного генератора случайных чисел.
-    if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64)
-    {
-        push_request();
-        return;
-    }
-    switch (mState) {
-        case StateEnums::EQUALS_LOOP:
-            mRegister[1] = value;
-            push_request();
-            break;
-        case StateEnums::EQUAL_TO_OP:
-            mRegister[1] = value;
-            break;
+void AppCore::DoWork(dec_n::Decimal value, int operation)
+{
+    // 1. Предварительная настройка регистров (Логика состояний)
+    // Рандом не зависит от текущих значений в регистрах
+    if (operation != OperationEnums::RANDINT && operation != OperationEnums::RANDINT64) {
+        switch (mState) {
         case StateEnums::OP_LOOP:
         case StateEnums::OP_TO_EQUAL:
             mRegister[0] = value;
-            push_request();
             break;
+        case StateEnums::EQUAL_TO_OP:
+            mRegister[1] = value;
+            return; // Запрос не отправляется, только обновляем регистр
+        case StateEnums::EQUALS_LOOP:
         default:
             mRegister[1] = value;
-            push_request();
+            break;
+        }
     }
+
+    // 2. Инкремент индекса запроса
+    mRequestIdx = (mRequestIdx + 1) % tp::BUFFER_SIZE;
+
+    // СТАРТ ТАЙМЕРА для конкретного ID
+    mTimers[mRequestIdx].start();
+
+    // 3. Визуальное логирование (в едином стиле с ответом)
+    {
+        const QString timestamp = QTime::currentTime().toString("HH:mm:ss.zzz");
+        auto debug = qDebug().noquote().nospace();
+
+        // Метаданные: [Время] [ID] (Серый)
+        debug << modifiers::gray << timestamp << " [ID: " << mRequestIdx << "] " << modifiers::reset;
+
+        // Заголовок: --> [Запрос]: Название (Зеленый)
+        debug << modifiers::green << "--> [Запрос]: " << description(operation) << " " << modifiers::reset;
+
+        // Аргументы операции (если это не рандом)
+        if (operation != OperationEnums::RANDINT && operation != OperationEnums::RANDINT64) {
+            auto sv1 = mRegister[1].ValueAsStringView();
+            debug << modifiers::gray << "x: " << modifiers::reset
+                  << QString::fromUtf8(sv1.data(), static_cast<int>(sv1.size()));
+
+            // Если операция бинарная (ниже сепаратора), выводим y
+            if (operation < OperationEnums::SEPARATOR_OP_TYPE) {
+                auto sv0 = mRegister[0].ValueAsStringView();
+                debug << modifiers::gray << " y: " << modifiers::reset
+                      << QString::fromUtf8(sv0.data(), static_cast<int>(sv0.size()));
+            }
+        }
+    }
+
+    // 4. Формирование вектора и отправка в очередь
+    QVector<dec_n::Decimal> request_vector { mRegister[1], mRegister[0] };
+
+    requests_free.acquire();
+    requests[mRequestIdx] = { operation, request_vector };
+    requests_used.release();
 }
 
 void AppCore::process(int requested_operation, QString input_value)
 {
-    // Операция сброса|остановки вычислений.
-    if (requested_operation == OperationEnums::CLEAR_ALL) {
-        g_console_output_mutex.lock();
-        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-        g_console_output_mutex.unlock();
-        emit clearTempResult();
-        emit clearCurrentOperation();
-        if (mCurrentOperation != OperationEnums::FACTOR)
-            emit clearInputField();
-        emit controller.stop_calculation();
-        Reset();
-        return;
-    }
-    const bool current_is_io_operation = requested_operation > OperationEnums::SEPARATOR_IO;
-    if (current_is_io_operation) {
-        bignum::u128::U128 value;
-        switch (requested_operation) {
-        case OperationEnums::MAX_INT_VALUE:
-            value = bignum::u128::U128::max();
-            break;
-        default:
-            break;
-        }
-        if (mState == StateEnums::RESETTED)
-            emit clearTempResult();
-        emit setInput(QString::fromStdString(value.toString()));
-        return;
-    }
-    // По введенной строке сконструировать число Decimal.
-    auto construct_decimal = [&input_value]() {
-        static auto re = QRegularExpression{"(\\s)"};
-        input_value.remove(re);
-        const auto str = input_value.toStdString();
-        dec_n::Decimal val;
-        val.SetStringRepresentation(str);
-        return val;
+    // --- 1. Вспомогательные лямбды ---
+    auto getStr = [](const dec_n::Decimal& v) {
+        auto sv = v.ValueAsStringView();
+        return QString::fromUtf8(sv.data(), static_cast<int>(sv.size()));
     };
-    auto val = construct_decimal();
-    if (val.IsOverflowed()) {
-        int err = Errors::NOT_FINITE;
+
+    auto updateUIWithError = [this](int err) {
         emit clearInputField();
         emit clearCurrentOperation();
         emit showTempResult(err_description(err), false);
         Reset();
-        qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
+        qDebug().noquote() << modifiers::red << "!!! [Ошибка]: " << err_description(err) << modifiers::reset;
+    };
+
+    // --- 2. Специальные операции (CLEAR / IO) ---
+    if (requested_operation == OperationEnums::CLEAR_ALL) {
+        qDebug().noquote() << modifiers::gray << "Операция: " << modifiers::reset << description(requested_operation);
+        emit clearTempResult();
+        emit clearCurrentOperation();
+        if (mCurrentOperation != OperationEnums::FACTOR) emit clearInputField();
+        emit controller.stop_calculation();
+        Reset();
         return;
     }
+
+    if (requested_operation > OperationEnums::SEPARATOR_IO) {
+        bignum::u128::U128 value = (requested_operation == OperationEnums::MAX_INT_VALUE)
+        ? bignum::u128::U128::max() : bignum::u128::U128{0};
+        if (mState == StateEnums::RESETTED) emit clearTempResult();
+        emit setInput(QString::fromStdString(value.toString()));
+        return;
+    }
+
+    // --- 3. РАНДОМ (Вне очереди парсинга) ---
     if (requested_operation == OperationEnums::RANDINT || requested_operation == OperationEnums::RANDINT64) {
-        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-        DoWork(val, requested_operation);
+        qDebug().noquote() << modifiers::green << "--> [Запрос]: " << description(requested_operation) << modifiers::reset;
+        dec_n::Decimal dummy;
+        DoWork(dummy, requested_operation);
         return;
     }
-    //
-    const bool is_not_a_number = val.IsNotANumber();
-    // Игнорирование запросов при сброшенном состоянии и пустом поле ввода.
-    if ((mState == StateEnums::RESETTED) && is_not_a_number) {
+
+    // --- 4. Парсинг числа ---
+    input_value.remove(QRegularExpression{"\\s"});
+    dec_n::Decimal val;
+    val.SetStringRepresentation(input_value.toStdString());
+
+    if (val.IsOverflowed()) {
+        updateUIWithError(Errors::NOT_FINITE);
         return;
     }
-    // Запрет факторизации если вводится второй операнд.
-    if (requested_operation == OperationEnums::FACTOR && ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP))) {
-        return;
-    }
-    if (!is_not_a_number && requested_operation == OperationEnums::FACTOR) {
+
+    const bool is_nan = val.IsNotANumber();
+    if (mState == StateEnums::RESETTED && is_nan) return;
+
+    // --- 5. ФАКТОРИЗАЦИЯ ---
+    if (requested_operation == OperationEnums::FACTOR) {
+        if (mState == StateEnums::EQUAL_TO_OP || mState == StateEnums::OP_LOOP || is_nan) return;
         emit setEnableFactorButton(false);
-        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
         mCurrentOperation = OperationEnums::FACTOR;
         emit showCurrentOperation(description(requested_operation));
         DoWork(val, requested_operation);
         return;
     }
-    if (requested_operation < OperationEnums::SEPARATOR_OP_TYPE &&
-        requested_operation != OperationEnums::EQUAL) {
-        emit showCurrentOperation(description(requested_operation));
-    }
-    // Обработка запроса при пустом поле ввода и существовании математической операции.
-    if (is_not_a_number) {
+
+    // --- 6. Обработка NaN (Смена операции при пустом вводе) ---
+    if (is_nan) {
         if (requested_operation == mCurrentOperation) {
-            qDebug().noquote() << modifiers::red << QString::fromUtf8("Повтор операции.") << modifiers::esc_colorization;
+            qDebug().noquote() << modifiers::red << "Повтор операции." << modifiers::reset;
             return;
         }
-        // Сохранить текущую математическую операцию при нажатии Enter и пустом поле ввода.
-        if ((requested_operation == OperationEnums::EQUAL) && (mCurrentOperation >= 0)) {
-            qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-            return;
-        }
-        // Игнорирование однооперандной операции
-        if (requested_operation > OperationEnums::SEPARATOR_OP_TYPE) {
-            return;
-        } else
-        // Смена текущей двухоперандной операции пользователем.
+        if (requested_operation == OperationEnums::EQUAL && mCurrentOperation >= 0) return;
+
         if (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR_OP_TYPE) {
-            qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
             mCurrentOperation = requested_operation;
-            return;
+            emit showCurrentOperation(description(requested_operation));
         }
+        return;
     }
+
+    // --- 7. Унарные операции ---
     const bool current_val_is_the_same = (val == mPreviousValue);
     mPreviousValue = val;
-    // Обработка частичных операций.
-    // Операция смены знака.
+    const bool is_immediate_state = (mState == StateEnums::EQUAL_TO_OP || mState == StateEnums::OP_LOOP);
+
     if (requested_operation == OperationEnums::NEGATION) {
-        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
         val = -val;
-        std::string_view sv = val.ValueAsStringView();
-        emit setInput(QString::fromStdString({sv.data(), sv.size()}));
+        emit setInput(getStr(val));
         return;
     }
-    if (requested_operation == OperationEnums::SQRT) {
-        if ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP)) {
-            qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation) << QString::fromUtf8("из") << val.ValueAsStringView();
-            bool exact;
-            val = dec_n::Sqrt(val, exact);
-            std::string_view sv = val.ValueAsStringView();
-            emit setInput(QString::fromStdString({sv.data(), sv.size()}));
+
+    if (requested_operation == OperationEnums::SQRT || requested_operation == OperationEnums::SQR || requested_operation == OperationEnums::RECIPROC) {
+        if (is_immediate_state) {
+            if (requested_operation == OperationEnums::RECIPROC && val.IsZero()) { updateUIWithError(Errors::ZERO_DIVISION); return; }
+            if (requested_operation == OperationEnums::SQRT) { bool exact; val = dec_n::Sqrt(val, exact); }
+            else if (requested_operation == OperationEnums::SQR) { val = val * val; }
+            else { dec_n::Decimal one; one.SetDecimal(1, 0); val = one / val; }
+
+            if (val.IsOverflowed()) { updateUIWithError(Errors::NOT_FINITE); return; }
+            emit setInput(getStr(val));
             return;
         } else {
             mCurrentOperation = requested_operation;
-            emit showCurrentOperation(description(OperationEnums::SQRT));
+            emit showCurrentOperation(description(requested_operation));
         }
     }
-    if (requested_operation == OperationEnums::SQR) {
-        if ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP)) {
-            qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation) << val.ValueAsStringView();
-            val = val * val;
-            if (val.IsOverflowed()) {
-                int err = Errors::NOT_FINITE;
-                emit clearInputField();
-                emit clearCurrentOperation();
-                emit showTempResult(err_description(err), false);
-                Reset();
-                qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
-                return;
-            }
-            std::string_view sv = val.ValueAsStringView();
-            emit setInput(QString::fromStdString({sv.data(), sv.size()}));
-            return;
-        } else {
+
+    // --- 8. Кнопка EQUAL (Равно) ---
+    if (requested_operation == OperationEnums::EQUAL) {
+        if (mCurrentOperation == OperationEnums::FACTOR) return;
+        if (mCurrentOperation < 0 && !current_val_is_the_same) {
+            emit clearTempResult();
+            emit setInput(getStr(val));
             mCurrentOperation = requested_operation;
-            emit showCurrentOperation(description(OperationEnums::SQR));
-        }
-    }
-    if (requested_operation == OperationEnums::RECIPROC) {
-        if ((mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP)) {
-            qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation) << QString::fromUtf8("от") << val.ValueAsStringView();
-            if (val.IsZero()) {
-                int err = Errors::ZERO_DIVISION;
-                emit clearInputField();
-                emit clearCurrentOperation();
-                emit showTempResult(err_description(err), false);
-                Reset();
-                qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
-                return;
-            }
-            dec_n::Decimal one;
-            one.SetDecimal(bignum::i128::I128{1}, bignum::i128::I128{0});
-            val = one / val;
-            if (val.IsOverflowed()) {
-                int err = Errors::NOT_FINITE;
-                emit clearInputField();
-                emit clearCurrentOperation();
-                emit showTempResult(err_description(err), false);
-                Reset();
-                qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
-                return;
-            }
-            std::string_view sv = val.ValueAsStringView();
-            emit setInput(QString::fromStdString({sv.data(), sv.size()}));
             return;
-        } else {
-            mCurrentOperation = requested_operation;
-            emit showCurrentOperation(description(OperationEnums::RECIPROC));
         }
+        if (mCurrentOperation == requested_operation && current_val_is_the_same) return;
     }
-    if (requested_operation == OperationEnums::EQUAL && mCurrentOperation == OperationEnums::FACTOR) {
-        return;
-    }
-    // При нажатии Enter и отсутствии математической операции при изменении числа обновить введенное значение форматным.
-    if ((requested_operation == OperationEnums::EQUAL) && (mCurrentOperation < 0) && (!current_val_is_the_same)) {
-        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-        std::string_view sv = val.ValueAsStringView();
-        emit clearTempResult();
-        emit setInput(QString::fromStdString({sv.data(), sv.size()}));
-        mCurrentOperation = requested_operation;
-        return;
-    }
-    // При повторном нажатии Enter и неизменности вводимого числа игнорировать запрос.
-    if ((requested_operation == OperationEnums::EQUAL) && (mCurrentOperation == requested_operation) && (current_val_is_the_same)) {
-        qDebug().noquote() << modifiers::red << QString::fromUtf8("Повтор операции.") << modifiers::esc_colorization;
-        return;
-    }
-    //
-    const bool current_is_two_operand_operation = (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR_OP_TYPE);
-    const bool current_is_one_operand_operation = requested_operation > OperationEnums::SEPARATOR_OP_TYPE && requested_operation < OperationEnums::SEPARATOR_IO;
-    const bool state_is_operation = (mState == StateEnums::EQUAL_TO_OP) || (mState == StateEnums::OP_LOOP);
-    const bool state_is_the_equal = (mState == StateEnums::EQUALS_LOOP) || (mState == StateEnums::OP_TO_EQUAL);
-    const bool state_is_resetted = (mState == StateEnums::RESETTED);
-    // Запрашиваемая операция двухоперандная, а калькулятор в состоянии "После ввода операции".
-    if (current_is_two_operand_operation && state_is_operation) {
-        qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
+
+    // --- 9. Управление состояниями (FSM) ---
+    const bool is_binary = (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR_OP_TYPE);
+    const bool is_unary_delayed = (requested_operation > OperationEnums::SEPARATOR_OP_TYPE && requested_operation < OperationEnums::SEPARATOR_IO);
+
+    qDebug().noquote() << modifiers::gray << "Операция: " << modifiers::reset << description(requested_operation);
+
+    // Сценарий: цепочка (нажатие '+' после ввода второго операнда для предыдущей операции)
+    if (is_binary && is_immediate_state) {
+        emit showCurrentOperation(description(requested_operation)); // Визуализация новой операции
         mState = StateEnums::OP_LOOP;
         emit clearInputField();
-        std::string_view sv = val.ValueAsStringView();
-        emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
-        // Выполнить операцию.
-        DoWork(val, mCurrentOperation);
+        emit showTempResult(getStr(val), true);
+        DoWork(val, mCurrentOperation); // Выполняем накопленную операцию
         mCurrentOperation = requested_operation;
         return;
     }
-    qDebug().noquote() << QString::fromUtf8("Операция:") << description(requested_operation);
-    // Запрашиваемая операция "Равно" или однооперандная.
-    if (requested_operation == OperationEnums::EQUAL || current_is_one_operand_operation) {
-        if (state_is_operation) {
-            mState = StateEnums::OP_TO_EQUAL;
-        } else {
-            mState = StateEnums::EQUALS_LOOP;
-        }
+
+    // Переходы для EQUAL и отложенных унарных
+    if (requested_operation == OperationEnums::EQUAL || is_unary_delayed) {
+        mState = is_immediate_state ? StateEnums::OP_TO_EQUAL : StateEnums::EQUALS_LOOP;
     }
-    // Запрашиваемая операция двухоперандная, а калькулятор находится в состоянии "После ввода Enter" или сброшен.
-    if (current_is_two_operand_operation) {
-        if (state_is_the_equal) {
+
+    // Настройка для бинарных
+    if (is_binary) {
+        emit showCurrentOperation(description(requested_operation)); // Визуализация
+
+        if (mState == StateEnums::EQUALS_LOOP || mState == StateEnums::OP_TO_EQUAL) {
             mState = StateEnums::EQUAL_TO_OP;
         }
-        if (state_is_resetted) {
-            mRegister[1] = val;
+        if (mState == StateEnums::RESETTED) {
+            mRegister[1] = val; // Восстановлен индекс для базового операнда
             mState = StateEnums::EQUAL_TO_OP;
         }
         mCurrentOperation = requested_operation;
-        // Очистить поле ввода и показать введеное число в поле "Только для чтения" ниже.
-        {
-            emit clearInputField();
-            std::string_view sv = val.ValueAsStringView();
-            emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
-        }
+        emit clearInputField();
+        emit showTempResult(getStr(val), true);
     }
-    // Выполнить основную операцию.
+
+    // Финальный запуск (DoWork сама разберется с регистрами на основе mState)
     DoWork(val, mCurrentOperation);
 }
 
 void AppCore::handle_results(int err, int operation, bool exact_sqrt, QVector<dec_n::Decimal> res)
 {
-    if (operation != OperationEnums::RANDINT && operation != OperationEnums::RANDINT64)
-    {
-        // Поместить результат в регистр для дальнейших операций (цепочка операций).
+    // 1. Обновляем регистр (Guard Clause для читаемости)
+    if (operation != OperationEnums::RANDINT && operation != OperationEnums::RANDINT64 && !res.isEmpty()) {
         mRegister[1] = res.first();
     }
 
-    auto push_result = [this, err, operation, exact_sqrt, res]() {
-        results_free.acquire();
-        mResultIdx = (mResultIdx + 1) % tp::BUFFER_SIZE;
-        results[mResultIdx] = {err, operation, exact_sqrt, res};
-        results_used.release();
-    };
+    // 2. Управление индексами и семафорами
+    results_free.acquire();
 
-    push_result();
+    mResultIdx = (mResultIdx + 1) % tp::BUFFER_SIZE;
+
+    // Используем std::move, если QVector больше не нужен в этой области видимости,
+    // чтобы не копировать глубокие данные Decimal.
+    results[mResultIdx] = { err, operation, exact_sqrt, std::move(res) };
+
+    results_used.release();
 }
 
 void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVector<dec_n::Decimal> res, int id)
 {
-    if (err == Errors::NO_ERRORS) {
-        QDebug debug(QtDebugMsg);
-        const bool state_is_the_equal =
-            (mState == StateEnums::EQUALS_LOOP) ||
-                                        (mState == StateEnums::OP_TO_EQUAL);
-        if (operation == OperationEnums::SQRT) {
-            emit showCurrentOperation(description(OperationEnums::SQRT) + QString::fromUtf8(exact_sqrt ? ": точно." : ": приближенно."));
-        }
-        if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64)
-        {
-            std::string_view sv0 = res[0].ValueAsStringView().data();
-            emit setInput(QString::fromStdString({sv0.data(), sv0.size()}));
-            // Отобразить операцию в истории.
-            {
-                debug.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id << QString::fromUtf8(", результат: ") <<
-                    QString::fromStdString({sv0.data(), sv0.size()}) << modifiers::esc_colorization;
-            }
-            return;
-        }
-        if (operation == OperationEnums::FACTOR) {
-            // Отобразить операцию в истории.
-            debug.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id <<
-                QString::fromUtf8(", результат: ");
-            bignum::i128::I128 prime;
-            debug.noquote().nospace() << "{";
-            for (int i = 0; const auto& el : std::as_const(res)) {
-                i++;
-                if (i % 2)
-                    prime = el.IntegerPart();
-                else {
-                    const std::string& power_str = el.IntegerPart().unsigned_part().toString();
-                    const std::string& prime_str = prime.toString();
-                    debug.noquote().nospace() << QString::fromStdString({prime_str.data(), prime_str.size()}) << "^" << power_str;
-                    if (i == res.size()) {
-                        ;
-                    } else {
-                        debug.noquote().nospace() << "; ";
-                    }
-                }
-            }
-            debug.noquote().nospace() << "}" << modifiers::esc_colorization;
-            mCurrentOperation = OperationEnums::CLEAR_ALL;
-            mState = StateEnums::RESETTED;
-            emit setEnableFactorButton(true);
-            // bignum::u128::U128 value = u128::utils::get_random_value();
-            // process(OperationEnums::FACTOR, QString::fromStdString( value.value() )); // temporary loop for debug factorization.
-        }
-        else
-        {
-            // Показать результат в поле ввода, если нажата "Enter".
-            if (state_is_the_equal || mState == StateEnums::RESETTED) {
-                std::string_view sv = res[0].ValueAsStringView().data();
-                emit setInput(QString::fromStdString({sv.data(), sv.size()}));
-                emit clearTempResult();
-            } else
-            // Показать результат в поле "Только для чтения" ниже, если выполняется цепочка операций.
-            {
-                std::string_view sv = mRegister[1].ValueAsStringView();
-                emit showTempResult(QString::fromStdString({sv.data(), sv.size()}), true);
-            }
-            // Отобразить операцию в истории.
-            {
-                std::string_view sv = res[0].ValueAsStringView();
-                debug.noquote().nospace() << modifiers::bright_blue << QString::fromUtf8("Ответ: ID: ") << id << QString::fromUtf8(", результат: ") <<
-                    QString::fromStdString({sv.data(), sv.size()}) << modifiers::esc_colorization;
-            }
-        }
-    } else
-    // Отобразить ошибку.
-    {
+    // Подготовка метаданных (Время и ID) серым цветом
+    const QString timestamp = QTime::currentTime().toString("HH:mm:ss.zzz");
+    const QString meta = QString("%1%2 [ID: %3]%4 ")
+                             .arg(modifiers::gray, timestamp, QString::number(id), modifiers::reset);
+
+    // 1. ОБРАБОТКА ОШИБОК
+    if (err != Errors::NO_ERRORS) {
+        qDebug().noquote().nospace()
+        << meta << modifiers::red << "!!! [Ошибка]: " << err_description(err) << modifiers::reset;
+
         emit clearInputField();
         emit clearCurrentOperation();
         emit showTempResult(err_description(err), false);
         Reset();
-        qDebug().noquote() << modifiers::red << QString::fromUtf8("Ошибка:") << err_description(err) << modifiers::esc_colorization;
+        return;
+    }
+
+    const bool state_is_the_equal = (mState == StateEnums::EQUALS_LOOP) || (mState == StateEnums::OP_TO_EQUAL);
+
+    // 2. КВАДРАТНЫЙ КОРЕНЬ (обработка мета-информации в UI)
+    if (operation == OperationEnums::SQRT) {
+        QString suffix = exact_sqrt ? QString::fromUtf8(": точно.") : QString::fromUtf8(": приближенно.");
+        emit showCurrentOperation(description(OperationEnums::SQRT) + suffix);
+    }
+
+    // 3. ФАКТОРИЗАЦИЯ
+    // if (operation == OperationEnums::FACTOR) {
+    //     QStringList factors;
+    //     for (int i = 0; i + 1 < res.size(); i += 2) {
+    //         QString prime = QString::fromStdString(res[i].IntegerPart().toString());
+    //         QString power = QString::fromStdString(res[i + 1].IntegerPart().unsigned_part().toString());
+    //         factors << QString("%1^%2").arg(prime, power);
+    //     }
+
+    //     qDebug().noquote().nospace()
+    //         << meta << modifiers::blue << "<-- [Факторы]: {" << factors.join("; ") << "}" << modifiers::reset;
+
+    //     mCurrentOperation = OperationEnums::CLEAR_ALL;
+    //     mState = StateEnums::RESETTED;
+    //     emit setEnableFactorButton(true);
+    // }
+    if (operation == OperationEnums::FACTOR) {
+        // Вычисляем прошедшее время
+        qint64 nanoseconds = mTimers[id].nsecsElapsed();
+        double milliseconds = nanoseconds / 1000000.0; // Конвертируем в мс
+
+        QStringList factors;
+        for (int i = 0; i + 1 < res.size(); i += 2) {
+            QString prime = QString::fromStdString(res[i].IntegerPart().toString());
+            QString power = QString::fromStdString(res[i + 1].IntegerPart().unsigned_part().toString());
+            factors << QString("%1^%2").arg(prime, power);
+        }
+
+        // Вывод с бенчмарком (серым цветом)
+        qDebug().noquote().nospace()
+            << meta << modifiers::blue << "<-- [Факторы]: {" << factors.join("; ") << "} "
+            << modifiers::gray << "[" << QString::number(milliseconds, 'f', 3) << " ms]"
+            << modifiers::reset;
+
+        mCurrentOperation = OperationEnums::CLEAR_ALL;
+        mState = StateEnums::RESETTED;
+        emit setEnableFactorButton(true);
+    }
+    // 4. РАНДОМ И ОСТАЛЬНЫЕ ОПЕРАЦИИ
+    else {
+        auto res_sv = res[0].ValueAsStringView();
+        QString res_qs = QString::fromUtf8(res_sv.data(), static_cast<int>(res_sv.size()));
+
+        if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64) {
+            emit setInput(res_qs);
+        }
+        else {
+            if (state_is_the_equal || mState == StateEnums::RESETTED) {
+                emit setInput(res_qs);
+                emit clearTempResult();
+            } else {
+                auto reg_sv = mRegister[1].ValueAsStringView();
+                emit showTempResult(QString::fromUtf8(reg_sv.data(), static_cast<int>(reg_sv.size())), true);
+            }
+        }
+
+        // Универсальный вывод результата в консоль
+        qDebug().noquote().nospace()
+            << meta << modifiers::blue << "<-- [Ответ]: " << res_qs << modifiers::reset;
     }
 }
 
@@ -524,7 +461,7 @@ void AppCore::change_decimal_width(int width, bool quiet)
         emit changeDecimalWidth(dec_n::Decimal::GetWidth());
         if (!quiet)
             qDebug().noquote() << modifiers::red << QString::fromUtf8("Изменено количество знаков после запятой: ") <<
-                            dec_n::Decimal::GetWidth() << modifiers::esc_colorization;
+                            dec_n::Decimal::GetWidth() << modifiers::reset;
         QSettings settings("MyHome", "DecimalCalculator");
         settings.setValue("DecimalWidth", width);
     }
