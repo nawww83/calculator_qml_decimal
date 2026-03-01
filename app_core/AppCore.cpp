@@ -123,19 +123,25 @@ void AppCore::DoWork(dec_n::Decimal value, int operation) {
     auto push_request = [this, operation]() {
         QVector<dec_n::Decimal> v {mRegister[1], mRegister[0]};
         mRequestIdx = (mRequestIdx + 1) % tp::BUFFER_SIZE;
-        if (operation < OperationEnums::SEPARATOR_OP_TYPE) {
+        if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64)
+        {
+            qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
+                               << description(operation) << QString::fromUtf8("\tID запроса:") << mRequestIdx
+                               << modifiers::esc_colorization;
+        }
+        else if (operation < OperationEnums::SEPARATOR_OP_TYPE) {
             std::string_view sv0 = mRegister[0].ValueAsStringView();
             std::string_view sv1 = mRegister[1].ValueAsStringView();
             qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
                                << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
                                << "y:" << QString::fromStdString({sv0.data(), sv0.size()}).toUtf8()
-                               << "ID:" << mRequestIdx
+                               << QString::fromUtf8("\tID запроса:") << mRequestIdx
                      << modifiers::esc_colorization;
         } else {
             std::string_view sv1 = mRegister[1].ValueAsStringView();
             qDebug().noquote() << modifiers::green << QString::fromUtf8("Запрос:")
                                << description(operation) << "x:" << QString::fromStdString({sv1.data(), sv1.size()}).toUtf8()
-                               << "ID:" << mRequestIdx
+                               << QString::fromUtf8("\tID запроса:") << mRequestIdx
                                << modifiers::esc_colorization;
         }
         requests_free.acquire();
