@@ -420,6 +420,10 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
         QString res_qs = QString::fromUtf8(res_sv.data(), static_cast<int>(res_sv.size()));
 
         if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64) {
+            int pos = res_qs.indexOf(QRegularExpression("[.,]")); // Это целочисленные операции.
+            if (pos != -1) {
+                res_qs.truncate(pos); // Убираем состоящую из нулей дробную часть.
+            }
             emit setInput(res_qs);
         }
         else {
