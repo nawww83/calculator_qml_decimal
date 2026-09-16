@@ -231,7 +231,8 @@ void AppCore::process(int requested_operation, QString input_value)
     }
 
     // --- 4. Парсинг числа ---
-    input_value.remove(QRegularExpression{"\\s"});
+    static auto space_regex = QRegularExpression{"\\s"};
+    input_value.remove(space_regex);
     dec_n::Decimal val;
     val.SetStringRepresentation(input_value.toStdString());
 
@@ -422,8 +423,9 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
         auto res_sv = res[0].ValueAsStringView();
         QString res_qs = QString::fromUtf8(res_sv.data(), static_cast<int>(res_sv.size()));
 
+        static auto dot_comma_regex = QRegularExpression("[.,]");
         if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64) {
-            int pos = res_qs.indexOf(QRegularExpression("[.,]")); // Это целочисленные операции.
+            int pos = res_qs.indexOf(dot_comma_regex); // Это целочисленные операции.
             if (pos != -1) {
                 res_qs.truncate(pos); // Убираем состоящую из нулей дробную часть.
             }

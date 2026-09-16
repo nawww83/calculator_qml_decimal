@@ -48,12 +48,11 @@ Window {
         }
 
         function onShowTempResult(val, is_number) {
+            temp_result.isError = !is_number; // Выставляем флаг
             if (is_number) {
-                temp_result.color = "black";
-                temp_result.text = " " + thousandSeparator(val)
+                temp_result.text = " " + thousandSeparator(val);
             } else {
-                temp_result.color = "red";
-                temp_result.text = " " + val
+                temp_result.text = " " + val;
             }
         }
 
@@ -155,7 +154,7 @@ Window {
                         event.accepted = true;
                     }
                 }
-                if ((event.key === Qt.Key_Equal) || (event.key === Qt.Key_Return)) {
+                if ((event.key === Qt.Key_Equal) || (event.key === Qt.Key_Return) || (event.key === Qt.Key_Enter)) {
                     AppCore.process(Operations.OperationEnums.EQUAL, input.text);
                     event.accepted = true;
                 }
@@ -198,6 +197,13 @@ Window {
             id: temp_result
             text: ""
             font.pixelSize: 12
+
+            // Создаем внутреннее свойство для отслеживания ошибок
+            property bool isError: false
+
+            // Декларативно привязываем цвет через формулу.
+            // Такая связь является реактивной и никогда не вызовет варнингов.
+            color: isError ? "red" : "black"
         }
 
         Label {

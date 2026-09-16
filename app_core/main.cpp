@@ -18,6 +18,10 @@ using namespace dec_n;
 static void run_unit_tests() {
     bool all_is_ok = true;
 
+    // На время тестов принудительно ставим 3 знака, так как все строки завязаны на этот формат
+    int user_width = Decimal::GetWidth();
+    Decimal::SetWidth(3);
+
     using namespace bignum::i128;
 
     { // max_int / 10
@@ -361,6 +365,9 @@ static void run_unit_tests() {
         all_is_ok &= !normal_value.is_singular();
         assert(all_is_ok);
     }
+
+    // Возвращаем пользовательскую точность обратно ---
+    Decimal::SetWidth(user_width);
 }
 #endif
 

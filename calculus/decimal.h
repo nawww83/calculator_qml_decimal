@@ -137,17 +137,17 @@ public:
 };
 
 class Decimal {
-
-    static struct _Static {
+    static struct _Static
+    {
         /**
-         * @brief Количество цифр после запятой. Не более 19 для 128-битных чисел.
+         * @brief Текущее количество цифр после запятой.
          */
         int mWidth = 3;
 
         /**
-         * @brief Наибольшее количество цифр после запятой.
+         * @brief Наибольшее количество цифр после запятой (безопасный предел для uint64_t).
          */
-        static constexpr int MAX_WIDTH = 12;
+        static constexpr int MAX_WIDTH = 18;
 
         /**
          * @brief Знаменатель дробной части числа.
@@ -237,17 +237,22 @@ class Decimal {
         // Восстанавливаем эталонные числитель и знаменатель.
         mNominator = mNominator.is_negative() ? -fraction : fraction;
         mChangedDenominator = global.mDenominator;
-        // Коррекция всех девяток.
-        if ((global.mWidth > 0) && ((fraction + I128{1}) == mChangedDenominator)) {
-            fraction = I128{0};
-            r += the_sign != 0 ? -I128{1} : I128{1};
-            mNominator = I128{0};
-            mInteger = r;
-            if (r.is_overflow()) {
-                mStringRepresentation = "inf";
-                return;
+        // Автоматически компенсируем потерю до 2 единиц младшего разряда
+        if (global.mWidth > 0) {
+            I128 diff = mChangedDenominator - fraction;
+            // Если до следующего целого числа не хватает всего 1 или 2 единиц (например, ...999 или ...998)
+            if (diff > I128{0} && diff <= I128{2}) {
+                fraction = I128{0};
+                r += the_sign != 0 ? -I128{1} : I128{1};
+                mNominator = I128{0};
+                mInteger = r;
+                if (r.is_overflow()) {
+                    mStringRepresentation = "inf";
+                    return;
+                }
             }
         }
+
         //
         const int separator_length = global.mWidth < 1 ? 0 : 1;
         const auto& r_len = u128::utils::num_of_digits(r.unsigned_part());
@@ -264,26 +269,40 @@ class Decimal {
             mStringRepresentation = "inf";
             return;
         }
+
         U128 ru = r.unsigned_part();
-        for (int i = 0; ru != 0 ; i++) {
-            const auto mod10 = (ru % 10u).low();
-            mStringRepresentation[required_length - global.mWidth - 1 - separator_length - i] = DIGITS[mod10];
-            ru /= 10u;
+        const U128 divisor_10{10ull};
+
+        for (int i = 0; ru != U128{0}; i++) {
+            U128 remainder;
+            // Передаем указатель &remainder в третий аргумент.
+            // Функция запишет туда остаток, а вернет частное.
+            U128 quotient = U128::divide<true, true>(ru, divisor_10, &remainder);
+
+            // Используем публичный метод .low() для получения индекса символа
+            mStringRepresentation[required_length - global.mWidth - 1 - separator_length - i]
+                = DIGITS[remainder.low()];
+            ru = quotient;
         }
+
         if (separator_length > 0)
             mStringRepresentation[required_length - 1 - global.mWidth] = chars::separator;
+
         U128 fraction_u = fraction.unsigned_part();
         for (int i = 0; i < global.mWidth; i++) {
-            const auto mod10 = (fraction_u % 10u).low();
-            mStringRepresentation[required_length - 1 - i] = DIGITS[mod10];
-            fraction_u /= 10u;
+            U128 remainder;
+            U128 quotient = U128::divide<true, true>(fraction_u, divisor_10, &remainder);
+
+            mStringRepresentation[required_length - 1 - i] = DIGITS[remainder.low()];
+            fraction_u = quotient;
         }
     }
 
     /**
      * @brief Преобразовать строковое представление числа в компоненты Decimal.
      */
-    void TransformToDecimal() {
+    void TransformToDecimal()
+    {
         if (mStringRepresentation.RealSize() < 1) {
             mInteger = I128{0};
             mNominator = I128{0};
@@ -295,62 +314,96 @@ class Decimal {
             mNominator = -I128{1};
             return;
         }
+
         mNominator = I128{0};
         mChangedDenominator = global.mDenominator;
-        const int the_sign = mStringRepresentation[0] == chars::minus_sign ? 1 : 0;
+
+        const int the_sign = (mStringRepresentation[0] == chars::minus_sign) ? 1 : 0;
         int current_index = the_sign != 0 ? 1 : 0;
+
+        U128 accum_integer{0};
         char digit = mStringRepresentation[current_index];
-        mInteger = I128{0};
-        mInteger = undigits(digit); // В случае некорректного символа возвращается ноль.
+        accum_integer = static_cast<uint64_t>(undigits(digit));
         current_index++;
         digit = mStringRepresentation[current_index];
+
         bool is_overflow = false;
-        while ((digit != chars::separator && digit != chars::alternative_separator) && digit != chars::null) {
-            if (const auto tmp = mInteger * u64{10}; tmp.is_overflow()) {
+        while ((digit != chars::separator && digit != chars::alternative_separator)
+               && digit != chars::null) {
+            // Быстрое умножение на 10: x * 10 = (x << 3) + (x << 1)
+            U128 next_val = (accum_integer << 3) + (accum_integer << 1);
+
+            // Контроль переполнения при умножении
+            if (next_val < accum_integer) {
                 is_overflow = true;
                 break;
             }
-            mInteger = mInteger * u64{10};
-            if (auto tmp = mInteger + undigits(digit); tmp.is_overflow()) {
+
+            U128 prev_val = next_val;
+            next_val += static_cast<uint64_t>(undigits(digit));
+
+            // Контроль переполнения при сложении цифры
+            if (next_val < prev_val) {
                 is_overflow = true;
                 break;
             }
-            mInteger = mInteger + undigits(digit);
+
+            accum_integer = next_val;
             current_index++;
             digit = mStringRepresentation[current_index];
-        } // while
+        }
+
         if (is_overflow) {
             mInteger = -I128{1};
             mNominator = -I128{1};
             mStringRepresentation = "inf";
             return;
         }
+
+        // Собираем целую часть через честный конструктор знакового I128
+        mInteger = I128{accum_integer, false};
         mInteger = the_sign != 0 ? -mInteger : mInteger;
-        if (digit == chars::null)
+
+        if (digit == chars::null) {
             return;
+        }
+
+        // --- Накопление числителя дробной части на чистом U128 ---
+        U128 accum_nominator{0};
+        current_index++; // Пропускаем разделитель (запятую или точку)
+        digit = mStringRepresentation[current_index];
+
+        accum_nominator = static_cast<uint64_t>(undigits(digit));
         current_index++;
         digit = mStringRepresentation[current_index];
-        mNominator = mNominator + undigits(digit);
-        current_index++;
-        digit = mStringRepresentation[current_index];
+
         const int length = mStringRepresentation.RealSize();
         int idx_width = 1;
+
         while (current_index < length) {
-            if (idx_width >= global.mWidth) // Слишком много цифр после запятой.
+            if (idx_width >= global.mWidth)
                 break;
-            mNominator = mNominator * u64{10};
-            mNominator = mNominator + undigits(digit);
+
+            accum_nominator = (accum_nominator << 3) + (accum_nominator << 1)
+                              + static_cast<uint64_t>(undigits(digit));
+
             current_index++;
             digit = mStringRepresentation[current_index];
             idx_width++;
         }
-        while (idx_width < global.mWidth) { // Добавление нулей. Например 4,5 => 4,50 при width = 2.
-            mNominator = mNominator * u64{10};
-            mNominator = mNominator + I128{0};
+
+        // Быстрое дополнение нулями (например, 4,5 => 4,500)
+        while (idx_width < global.mWidth) {
+            accum_nominator = (accum_nominator << 3) + (accum_nominator << 1);
             idx_width++;
         }
-        if (mInteger.is_zero() && the_sign != 0) // Если целая часть равна нулю, то знак храним в числителе.
+
+        mNominator = I128{accum_nominator, false};
+
+        // Если целая часть ноль, а число отрицательное (например, -0,5) — знак уходит в числитель дробной части
+        if (mInteger.is_zero() && the_sign != 0) {
             mNominator = -mNominator;
+        }
     }
 
 public:
