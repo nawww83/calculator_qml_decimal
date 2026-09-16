@@ -134,12 +134,22 @@ inline void sub_mod(U128& x, const U128& y, const U128& m)
  * @param y.
  * @param m Модуль.
  */
-inline void mult_mod(U128& x, const U128& y, const U128& m)
+inline void mult_mod(U128 &x, const U128 &y, const U128 &m)
 {
     using namespace bignum;
     using U256 = UBig<U128>;
+
+    // Вычисляем точное 256-битное произведение
     const U256 z = U256::mult_ext(x, y);
-    x = (z / m).second;
+
+    // Явно указываем компилятору тип делителя, совпадающий с шаблоном
+    const U128 &divisor = m;
+
+    // Вызываем оператор деления. Так как divisor имеет тип U128 (который является ULOW для U256),
+    // компилятор выберет быстрый детерминированный метод с обратной величиной.
+    std::pair<U256, U128> res = z.operator/(divisor);
+
+    x = res.second;
 }
 
 /**
@@ -147,12 +157,18 @@ inline void mult_mod(U128& x, const U128& y, const U128& m)
  * @param x Число, возводимое в квадрат. Сюда кладется результат (x^2) mod m.
  * @param m Модуль.
  */
-inline void square_mod(U128& x, const U128& m)
+inline void square_mod(U128 &x, const U128 &m)
 {
     using namespace bignum;
     using U256 = UBig<U128>;
-    U256 z { U256::square_ext(x) };
-    x = (z / m).second;
+
+    // Используем ваш оптимизированный метод square_ext вместо mult_ext
+    const U256 z = U256::square_ext(x);
+
+    const U128 &divisor = m;
+    std::pair<U256, U128> res = z.operator/(divisor);
+
+    x = res.second;
 }
 
 /**
@@ -161,18 +177,18 @@ inline void square_mod(U128& x, const U128& m)
  * @param y Аддитивная компонента.
  * @param m Модуль.
  */
-inline void square_add_mod(U128& x, const U128& y, const U128& m)
+inline void square_add_mod(U128 &x, const U128 &y, const U128 &m)
 {
     using namespace bignum;
     using U256 = UBig<U128>;
-    U256 z { U256::square_ext(x) };
-    if (x < U128::max()) {
-        z += U256{y};
-        x = (z / m).second;
-    } else {
-        z = U256{(z / m).second} + U256{y};
-        x = (z / m).second;
-    }
+
+    U256 z = U256::square_ext(x);
+    z += U256{y};
+
+    const U128 &divisor = m;
+    std::pair<U256, U128> res = z.operator/(divisor);
+
+    x = res.second;
 }
 
 /**
@@ -181,18 +197,22 @@ inline void square_add_mod(U128& x, const U128& y, const U128& m)
  * @param y Аддитивная компонента.
  * @param m Модуль.
  */
-inline void mult_add_mod(U128& x, const U128& y, const U128& z, const U128& m)
+inline void mult_add_mod(U128 &x, const U128 &y, const U128 &z, const U128 &m)
 {
     using namespace bignum;
     using U256 = UBig<U128>;
-    U256 w { U256::mult_ext(x, y) };
-    if (x < U128::max() || y < U128::max()) {
-        w += U256{z};
-        x = (w / m).second;
-    } else {
-        w = U256{(w / m).second} + U256{z};
-        x = (w / m).second;
-    }
+
+    // 1. Вычисляем точное 256-битное произведение
+    U256 w = U256::mult_ext(x, y);
+
+    // 2. Безопасно прибавляем z без риска переполнения 256 бит
+    w += U256{z};
+
+    // 3. Вызываем быстрый оператор деления широкого на узкое (UBig / ULOW)
+    const U128 &divisor = m;
+    std::pair<U256, U128> res = w.operator/(divisor);
+
+    x = res.second;
 }
 
 /**
