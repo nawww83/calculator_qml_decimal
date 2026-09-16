@@ -1,2 +1,18 @@
 *.user
+# Игнорировать стандартную папку build
 build/
+
+# Игнорировать любые папки сборки Qt Creator (Desktop, Release, Debug и т.д.)
+build-*
+
+# Файлы сборки Qt/qmake
+Makefile*
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Скрытая папка кэша Qt Creator
+.qtc_clangd/
+
