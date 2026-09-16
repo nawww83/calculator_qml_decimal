@@ -32,6 +32,15 @@ namespace utils
 
 using namespace bignum::u128;
 
+/**
+ * @brief Структура для передачи результатов предварительного анализа числа.
+ */
+struct PreprocessResult
+{
+    std::map<U128, int> factors;
+    U128 composite_remainder = 0;
+    int global_power = 1;
+};
 
 U128 get_random_value();
 

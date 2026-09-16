@@ -1,7 +1,6 @@
 #pragma once
 
 #include <optional>
-#include <vector>
 #include "u128.hpp"
 
 namespace ecm {

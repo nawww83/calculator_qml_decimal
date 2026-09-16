@@ -1,5 +1,6 @@
 #include "ecm_factorizer.h"
 #include "u128_utils.h"
+#include <array>
 
 namespace ecm {
 
@@ -146,7 +147,11 @@ std::optional<U128> ecm::ECMFactorizer::factorize(const U128 &n)
     return std::nullopt;
 }
 
-std::optional<U128> ecm::ECMFactorizer::try_one_curve(const U128 &n, unsigned int B1, unsigned int /*B2*/, const std::vector<unsigned int> &p1, const std::vector<unsigned int> &p2)
+std::optional<U128> ecm::ECMFactorizer::try_one_curve(const U128 &n,
+                                                      unsigned int B1,
+                                                      unsigned int /*B2*/,
+                                                      const std::vector<unsigned int> &p1,
+                                                      const std::vector<unsigned int> &p2)
 {
     // Генерация параметров кривой Вейерштрасса и начальной точки
     U128 x0 = get_random_value_ab(1, n - 1);
@@ -178,45 +183,90 @@ std::optional<U128> ecm::ECMFactorizer::try_one_curve(const U128 &n, unsigned in
     return run_stage2(Q, n, a, B1, p2);
 }
 
-std::optional<U128> ecm::ECMFactorizer::run_stage2(ProjPoint Q, const U128 &n, const U128 &a, unsigned int B1, const std::vector<unsigned int> &p2)
+std::optional<U128> ecm::ECMFactorizer::run_stage2(
+    ProjPoint Q, const U128 &n, const U128 &a, unsigned int B1, const std::vector<unsigned int> &p2)
 {
-    if (Q.is_inf()) return std::nullopt;
+    if (Q.is_inf())
+        return std::nullopt;
 
-    // Таблица шагов для разрывов между простыми
-    std::vector<ProjPoint> steps;
-    ProjPoint Q2 = projective_double(Q, a, n);
-    steps.push_back(Q2); // 2Q
-    for (int i = 1; i < 128; ++i) {
-        steps.push_back(projective_add(steps.back(), Q2, a, n));
+    // Шаг (окно) для Giant-Step.
+    constexpr unsigned int H2 = 512;
+
+    // --- 1. ОПТИМИЗАЦИЯ: Выделяем память на СТЕКЕ вместо КУЧИ ---
+    // Размер фиксирован (513 элементов * 16 байт = ~8 КБ), что абсолютно безопасно для стека.
+    std::array<U128, H2 + 1> baby_X;
+    std::array<U128, H2 + 1> baby_Z;
+
+    // --- 2. ЗАПОЛНЕНИЕ ТАБЛИЦЫ BABY STEPS ---
+    ProjPoint curr = Q;
+    for (unsigned int i = 1; i <= H2; ++i) {
+        baby_X[i] = curr.X;
+        baby_Z[i] = curr.Z;
+        if (i < H2) {
+            curr = projective_add(curr, Q, a, n);
+        }
     }
 
-    // Индекс первого простого > B1
-    size_t p_idx = 0;
-    while (p_idx < p2.size() && p2[p_idx] <= B1) p_idx++;
-    if (p_idx >= p2.size()) return std::nullopt;
+    // --- 3. ПОДГОТОВКА GIANT STEPS ---
+    // curr на выходе из цикла равен H2*Q, значит G = 2*H2*Q
+    ProjPoint G = projective_double(curr, a, n);
 
-    ProjPoint T = projective_mul(U128(p2[p_idx]), Q, a, n);
+    size_t p_idx = 0;
+    while (p_idx < p2.size() && p2[p_idx] <= B1) {
+        p_idx++;
+    }
+    if (p_idx >= p2.size())
+        return std::nullopt;
+
+    unsigned int current_j = 0;
+    ProjPoint BG{0, 1, 0}; // Точка j * 2H * Q
+
     U128 accum_Z = 1;
     int batch = 0;
 
-    for (; p_idx + 1 < p2.size(); ++p_idx) {
-        unsigned diff = p2[p_idx + 1] - p2[p_idx];
-        unsigned step_idx = (diff / 2) - 1;
+    using U256 = bignum::UBig<U128>;
 
-        if (step_idx < steps.size()) {
-            T = projective_add(T, steps[step_idx], a, n);
-        } else {
-            T = projective_add(T, projective_mul(U128(diff), Q, a, n), a, n);
+    // --- 4. ОСНОВНОЙ ЦИКЛ ПО ПРОСТЫМ ЧИСЛАМ ---
+    for (; p_idx < p2.size(); ++p_idx) {
+        unsigned int p = p2[p_idx];
+
+        unsigned int j = (p + H2) / (2 * H2);
+        int rem = static_cast<int>(p) - static_cast<int>(j * 2 * H2);
+        unsigned int i = std::abs(rem);
+
+        if (i == 0 || i > H2)
+            continue;
+
+        while (current_j < j) {
+            if (current_j == 0) {
+                BG = G;
+            } else {
+                BG = projective_add(BG, G, a, n);
+            }
+            current_j++;
         }
 
-        // Накопление Z для редкого GCD (Batch GCD)
-        using U256 = bignum::UBig<U128>;
-        U256 prod = U256::mult_ext(accum_Z, T.Z);
+        if (BG.is_inf())
+            continue;
+
+        // diff = (X_giant * Z_baby - X_baby * Z_giant) mod n
+        U128 term1 = BG.X;
+        mult_mod(term1, baby_Z[i], n);
+        U128 term2 = baby_X[i];
+        mult_mod(term2, BG.Z, n);
+
+        U128 diff = term1;
+        sub_mod(diff, term2, n);
+
+        // Накопление GCD
+        U256 prod = U256::mult_ext(accum_Z, diff);
         accum_Z = (prod / U256{n}).second.low();
 
         if (++batch % 64 == 0) {
             U128 d = gcd(accum_Z, n);
-            if (d > 1) return (d < n) ? std::optional<U128>(d) : std::nullopt;
+            if (d > 1) {
+                return (d < n) ? std::optional<U128>(d) : std::nullopt;
+            }
             accum_Z = 1;
         }
     }
