@@ -67,27 +67,97 @@ bool is_prime(U128 x, int k)
 
 U128 modular_inverse(U128 a, U128 m, bool &success)
 {
-    using namespace bignum::i128;
-    const I128 m0 = m;
-    I128 y = 0;
-    I128 x = 1;
     success = false;
-    if (m == 1)
+    if (m == U128{1} || m == U128{0}) {
         return 0;
+    }
+
+#if defined(__SIZEOF_INT128__)
+    // --- 1. УЛЬТРАБЫСТРЫЙ ПУТЬ ДЛЯ GCC / LINUX (__int128) ---
+    unsigned __int128 g_a = (static_cast<unsigned __int128>(a.high()) << 64) | a.low();
+    unsigned __int128 g_m = (static_cast<unsigned __int128>(m.high()) << 64) | m.low();
+    unsigned __int128 m0 = g_m;
+
+    // Коэффициенты Безу (знаковые 128-битные типы компилятора)
+    __int128 y = 0;
+    __int128 x = 1;
+
+    while (g_a > 1) {
+        if (g_m == 0)
+            return U128{}; // Защита от деления на ноль
+
+        // GCC объединяет деление и взятие остатка в одну ассемблерную команду
+        unsigned __int128 q = g_a / g_m;
+        unsigned __int128 temp_m = g_m;
+        g_m = g_a % g_m;
+        g_a = temp_m;
+
+        __int128 temp_y = y;
+        y = x - static_cast<__int128>(q) * y;
+        x = temp_y;
+    }
+
+    if (g_a != 1) {
+        return 0; // Числа не взаимно просты, обратного элемента не существует
+    }
+
+    if (x < 0) {
+        x += static_cast<__int128>(m0);
+    }
+
+    success = true;
+    return U128(static_cast<uint64_t>(x), static_cast<uint64_t>(x >> 64));
+
+#else
+    // --- 2. НАДЕЖНЫЙ КРОСС ПЛАТФОРМЕННЫЙ FALLBACK ДЛЯ MSVC ---
+    // Считаем на чистом U128, убирая тяжелый знаковый класс I128 из деления
+    U128 m0 = m;
+    U128 y = 0;
+    U128 x = 1;
+    bool x_sign = false; // false = плюс, true = минус
+    bool y_sign = false;
+
     while (a > 1) {
         if (m == 0)
             return U128{};
-        const I128 q = a / m;
-        I128 temp = m;
+
+        U128 q = a / m;
+        U128 temp_m = m;
         m = a % m;
-        a = temp.unsigned_part();
-        temp = y;
-        y = x - q * y;
-        x = temp;
+        a = temp_m;
+
+        U128 temp_y = y;
+        bool temp_y_sign = y_sign;
+
+        // Вычисляем y = x - q * y с учетом знаков
+        U128 qy = q * y;
+        if (x_sign == y_sign) {
+            if (x >= qy) {
+                y = x - qy;
+                y_sign = x_sign;
+            } else {
+                y = qy - x;
+                y_sign = !x_sign;
+            }
+        } else {
+            y = x + qy;
+            y_sign = x_sign;
+        }
+
+        x = temp_y;
+        x_sign = temp_y_sign;
     }
-    x += x < 0 ? m0 : 0;
+
+    if (a != 1)
+        return 0;
+
+    if (x_sign && x > 0) {
+        x = m0 - x;
+    }
+
     success = true;
-    return x.unsigned_part();
+    return x;
+#endif
 }
 
 std::pair<U128, U128> ferma_method(U128 x)

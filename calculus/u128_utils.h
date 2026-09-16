@@ -257,34 +257,52 @@ inline U128 int_power_fast(U128 x, unsigned y) noexcept
 }
 
 /**
- * @brief Целочисленный квадратный корень sqrt(x).
+ * @brief Целочисленный квадратный корень sqrt(x) на аппаратной скорости GCC.
  * @param exact Возвращает true, если x — полный квадрат.
  */
-inline U128 isqrt(const U128& x, bool& exact)
+inline U128 isqrt(const U128 &x, bool &exact)
 {
     if (x == 0) {
         exact = true;
         return 0;
     }
 
-    // Начальное приближение: 2^(ceil(bits/2))
+#if defined(__SIZEOF_INT128__)
+    // --- Быстрый путь для GCC / Clang / Linux ---
+    unsigned __int128 v = (static_cast<unsigned __int128>(x.high()) << 64) | x.low();
+
+    // Подсчет значащих бит через встроенную функцию GCC
+    uint32_t bits = 128 - __builtin_clzll(static_cast<unsigned long long>(v >> 64) ? (v >> 64) : v);
+    if (static_cast<unsigned long long>(v >> 64))
+        bits += 64;
+
+    unsigned __int128 x0 = static_cast<unsigned __int128>(1) << ((bits + 1) / 2);
+    unsigned __int128 x1;
+
+    for (;;) {
+        x1 = (x0 + v / x0) >> 1;
+        if (x1 >= x0) {
+            exact = (x0 * x0 == v);
+            return U128(static_cast<uint64_t>(x0), static_cast<uint64_t>(x0 >> 64));
+        }
+        x0 = x1;
+    }
+#else
+    // --- Надежный fallback-путь для MSVC / Windows ---
     U128 x0 = U128{1} << ((x.bit_width() + 1) / 2);
     U128 x1;
 
     for (;;) {
-        U128 remainder;
-        // ОПТИМИЗАЦИЯ: Получаем частное и остаток за один проход
-        U128 quotient = U128::divide<true, true>(x, x0, &remainder);
-
+        U128 quotient = x / x0;
         x1 = (x0 + quotient) >> 1;
 
-        // В целочисленном методе Ньютона x1 >= x0 означает сходимость к floor(sqrt)
         if (x1 >= x0) {
             exact = (x0 * x0 == x);
             return x0;
         }
         x0 = x1;
     }
+#endif
 }
 
 // Перегрузка для удобства
@@ -296,55 +314,103 @@ inline U128 isqrt(const U128& x) {
 /**
  * @brief Целочисленный корень m-й степени из x.
  */
-inline U128 nroot(const U128& x, unsigned m)
+inline U128 nroot(const U128 &x, unsigned m)
 {
-    if (m == 0) return 0;
-    if (x <= 1 || m == 1) return x;
-    if (m >= 128) return (x > 0) ? U128{1} : U128{0};
-    if (m == 2) return isqrt(x);
+    if (m == 0)
+        return 0;
+    if (x <= 1 || m == 1)
+        return x;
+    if (m >= 128)
+        return (x > 0) ? U128{1} : U128{0};
+    if (m == 2)
+        return isqrt(x);
 
-    // 1. Начальное приближение "сверху"
-    // Берем 2^(ceil(bit_width / m))
+#if defined(__SIZEOF_INT128__)
+    // --- 1. БЫСТРЫЙ ПУТЬ ДЛЯ GCC / LINUX (__int128) ---
+    unsigned __int128 v = (static_cast<unsigned __int128>(x.high()) << 64) | x.low();
+
+    // Начальное приближение
+    uint32_t target_bits = (x.bit_width() + m - 1) / m;
+    unsigned __int128 x0 = static_cast<unsigned __int128>(1) << target_bits;
+    if (x0 > v)
+        x0 = v;
+
+    for (;;) {
+        // Быстрое возведение x0 в степень (m - 1) на уровне __int128
+        unsigned __int128 p = 1;
+        unsigned __int128 base = x0;
+        unsigned exp = m - 1;
+
+        constexpr unsigned __int128 max_u128 = ~static_cast<unsigned __int128>(0);
+
+        while (exp > 0) {
+            if (exp & 1) {
+                // Если зафиксировано переполнение, принудительно обнуляем p
+                if (p > 0 && base > 0 && p > max_u128 / base) {
+                    p = 0;
+                    break;
+                }
+                p *= base;
+            }
+            exp >>= 1;
+            if (exp > 0) {
+                if (base > 0 && base > max_u128 / base) {
+                    p = 0;
+                    break;
+                }
+                base *= base;
+            }
+        }
+
+        // Если p == 0 (или из-за переполнения, или изначально), частное равно 0
+        unsigned __int128 quotient = (p == 0) ? 0 : (v / p);
+
+        unsigned __int128 x1;
+        if (x0 > quotient) {
+            unsigned __int128 diff = (x0 - quotient) / m;
+            if (diff == 0)
+                x1 = x0 - 1;
+            else
+                x1 = x0 - diff;
+        } else {
+            return U128(static_cast<uint64_t>(x0), static_cast<uint64_t>(x0 >> 64));
+        }
+
+        if (x1 >= x0) {
+            return U128(static_cast<uint64_t>(x0), static_cast<uint64_t>(x0 >> 64));
+        }
+        x0 = x1;
+    }
+
+#else
+    // --- 2. НАДЕЖНЫЙ FALLBACK-ПУТЬ ДЛЯ MSVC / WINDOWS ---
     uint32_t target_bits = (x.bit_width() + m - 1) / m;
     U128 x0 = U128{1} << target_bits;
-
-    // Страховка: если 2^target_bits оказался больше x
-    if (x0 > x) x0 = x;
+    if (x0 > x)
+        x0 = x;
 
     U128 m_val{m};
-    [[maybe_unused]] U128 m_minus_1 = m_val - 1;
 
     for (;;) {
         U128 p = int_power_fast(x0, m - 1);
         U128 quotient = (p == 0) ? U128{0} : (x / p);
 
-        // Стандартная формула Ньютона: x1 = ((m-1)*x0 + quotient) / m
-        // Чтобы избежать переполнения (m-1)*x0, считаем через разность:
         U128 x1;
         if (x0 > quotient) {
-            // Идем вниз: x1 = x0 - (x0 - quotient) / m
             U128 diff = (x0 - quotient) / m_val;
-
-            // КРИТИЧЕСКИЙ МОМЕНТ: если diff == 0, но x0 > quotient,
-            // это не значит, что мы на месте. Это значит, что шаг < 1.
-            // В целых числах нам нужно принудительно сделать шаг -1.
-            if (diff == 0) x1 = x0 - 1;
-            else x1 = x0 - diff;
+            if (diff == 0)
+                x1 = x0 - 1;
+            else
+                x1 = x0 - diff;
         } else {
-            // Если x0 <= quotient, мы либо нашли корень, либо зашли снизу.
-            // Метод Ньютона сверху вниз гарантирует, что x0 >= floor(root).
             return x0;
         }
 
-        // Если x1 перелетел через корень (стал слишком маленьким)
-        // или если мы начали расти — останавливаемся.
-        if (x1 >= x0) return x0;
-
-        // Проверка: не стал ли x1^m меньше x?
-        // Если стал — значит x1 и есть наш floor(root).
-        // Но проще довериться сходимости и сделать еще одну итерацию.
+        if (x1 >= x0)
+            return x0;
         x0 = x1;
     }
+#endif
 }
 
 bool miller_test(U128 d, const U128 &n);
