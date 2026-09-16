@@ -3,9 +3,12 @@
 #include "i128.hpp"
 #include "ecm_factorizer.h"
 
-#include <list>
 #include <functional>
+#include <list>
+#include <mutex>
 #include <optional>
+#include <thread>
+#include <vector>
 
 namespace u128::utils
 {
@@ -174,10 +177,8 @@ U128 ro_pollard(const U128& n, std::optional<U128> limit)
         return n;
 }
 
-std::map<U128, int> factor(U128 x)
+std::map<U128, int> factor_internal(U128 x)
 {
-    Globals::SetStop(false);
-
     // test_projective_geometry();
 
     if (x == 0)
@@ -301,7 +302,6 @@ std::map<U128, int> factor(U128 x)
     for (const auto& fac : found_factors)
         ferma_recursive(fac);
 
-    Globals::SetStop(false);
     return result;
 }
 
@@ -322,11 +322,59 @@ U128 get_random_value_ab(const U128 &a, const U128 &b)
 
 U128 get_random_value()
 {
-    static u128_rand::RandomGenerator g_prng;
+    thread_local static u128_rand::RandomGenerator g_prng;
     U128 result { g_prng.mGenerator.next_u64(), g_prng.mGenerator.next_u64()};
     g_prng.mGenerator.next_u64();
     g_prng.mGenerator.next_u64();
     return result;
 }
 
+std::map<bignum::u128::U128, int> factor_parallel(bignum::u128::U128 x)
+{
+    std::mutex mtx;
+    std::map<bignum::u128::U128, int> final_result;
+    bool has_result = false;
+
+    // Сбрасываем ваш атомарный флаг перед началом расчетов
+    Globals::SetStop(false);
+
+    // Автоматически определяем количество ядер процессора
+    unsigned int num_threads = std::thread::hardware_concurrency();
+    // Безопасный предохранитель: если функция вернула 0, ставим дефолтные 4 потока
+    if (num_threads == 0) {
+        num_threads = 4;
+    }
+    std::vector<std::jthread> workers;
+    workers.reserve(num_threads);
+
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        // Запускаем jthread. Они автоматически завершатся (join) при выходе из области видимости.
+        workers.emplace_back(
+            [&](bignum::u128::U128 val) {
+                // Вызываем существующий метод факторизации.
+                // Каждый поток внутри него создаст свой рандом
+                // и пойдет по уникальной траектории ECM / Ро Поларда.
+                auto result = factor_internal(val);
+
+                // Защищаем проверку и сохранение результата мьютексом
+                std::lock_guard<std::mutex> lock(mtx);
+
+                // Если этот поток ПЕРВЫМ нашел факторы (и они не пусты)
+                if (!has_result && !result.empty()) {
+                    final_result = std::move(result);
+                    has_result = true;
+
+                    // Взводим глобальный стоп-флаг.
+                    Globals::SetStop(true);
+                }
+            },
+            x);
+    }
+
+    // 5. Очищаем вектор jthread. Вызывающий поток заблокируется здесь,
+    // пока все потоки не выйдут из factor(). Благодаря общему стопу это займет доли миллисекунды.
+    workers.clear();
+
+    return final_result;
+}
 }

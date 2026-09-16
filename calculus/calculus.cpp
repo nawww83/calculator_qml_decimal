@@ -5,7 +5,7 @@ namespace calculus {
 
 std::map<bignum::u128::U128, int> factor(bignum::u128::U128 x, int& error) {
     error = NO_ERRORS;
-    return u128::utils::factor(x);
+    return u128::utils::factor_parallel(x);
 }
 
 bignum::u128::U128 get_random(bool half, int &error)

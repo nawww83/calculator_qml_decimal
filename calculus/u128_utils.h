@@ -440,8 +440,14 @@ U128 ro_pollard(const U128& n, std::optional<U128> limit);
  * @param x Факторизуемое число.
  * @return Результат разложения на простые множители {a prime number, a non-negative power}.
  */
-std::map<U128, int> factor(U128 x);
+std::map<U128, int> factor_internal(U128 x);
 
+/**
+ * @brief factor_parallel
+ * @param x
+ * @return 
+ */
+std::map<U128, int> factor_parallel(U128 x);
 
 } // namespace utils
 
