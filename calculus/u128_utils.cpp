@@ -430,6 +430,7 @@ static PreprocessResult factor_preprocess(U128 x)
     return res;
 }
 
+// Тест: 172694645192493905907229620525860152663.
 std::map<bignum::u128::U128, int> factor_parallel(bignum::u128::U128 x)
 {
     // Запускаем детерминированную предобработку в вызывающем потоке
@@ -453,13 +454,12 @@ std::map<bignum::u128::U128, int> factor_parallel(bignum::u128::U128 x)
         num_threads = 4;
     }
 
-    std::vector<std::jthread> workers;
+    std::vector<std::thread> workers;
     workers.reserve(num_threads);
 
     for (unsigned int i = 0; i < num_threads; ++i) {
         workers.emplace_back(
             [&](bignum::u128::U128 val) {
-                // Потоки бьют сразу в Ленстру, не дублируя препроцессинг
                 auto result = factor_ecm_worker(val);
 
                 std::lock_guard<std::mutex> lock(mtx);
@@ -472,7 +472,13 @@ std::map<bignum::u128::U128, int> factor_parallel(bignum::u128::U128 x)
             prep.composite_remainder);
     }
 
-    workers.clear(); // Дожидаемся завершения всех потоков (join)
+    // Вручную дожидаемся завершения (join) каждого потока перед очисткой вектора
+    for (auto& worker : workers) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+    workers.clear();
 
     // Итоговое слияние: ко всем факторам, которые вернул ECM,
     // честно применяем исходную глобальную степень числа.

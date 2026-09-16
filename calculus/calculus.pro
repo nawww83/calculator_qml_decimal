@@ -13,6 +13,7 @@ win32:CONFIG(debug, debug|release): TARGET = calculusd  # Добавит 'd' в 
 include(../config.pri)
 
 QMAKE_CXXFLAGS += -fwrapv
+
 QMAKE_CXXFLAGS += -std=c++20
 
 SOURCES += \

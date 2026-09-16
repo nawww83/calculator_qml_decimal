@@ -4,6 +4,7 @@
 
 #include "AppCore.h"
 #include <QQmlContext>
+#include <QQuickStyle>
 #include <QSettings>
 #include <QTimer>
 #include <cassert>
@@ -405,6 +406,9 @@ int main(int argc, char *argv[])
 #endif
 
     QGuiApplication app(argc, argv);
+
+    // Принудительно устанавливаем стиль, поддерживающий кастомизацию
+    QQuickStyle::setStyle("Basic");
 
     qRegisterMetaType<QVector<dec_n::Decimal>>("QVector<dec_n::Decimal>");
 
