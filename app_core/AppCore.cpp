@@ -15,11 +15,11 @@
  * @brief Модификаторы строк.
  */
 namespace modifiers {
-    static const auto gray    = "\033[90m";   // Время, ID, метки x: и y:
-    static const auto green   = "\033[32m";   // Исходящие запросы (-->)
-    static const auto blue    = "\033[1;34m"; // Входящие ответы (<--)
-    static const auto red     = "\033[1;31m"; // Ошибки и критические сбои
-    static const auto reset   = "\033[0m";    // Обязательный сброс в конце строки
+static const auto gray = "\033[37m";   // Время, ID, метки x: и y:
+static const auto green = "\033[32m";  // Исходящие запросы (-->)
+static const auto blue = "\033[1;34m"; // Входящие ответы (<--)
+static const auto red = "\033[1;31m";  // Ошибки и критические сбои
+static const auto reset = "\033[0m";   // Обязательный сброс в конце строки
 }
 
 /**

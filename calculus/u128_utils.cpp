@@ -1,6 +1,5 @@
 #include "u128_utils.h"
 #include "rand_u128.h"
-#include "i128.hpp"
 #include "ecm_factorizer.h"
 
 #include <functional>
