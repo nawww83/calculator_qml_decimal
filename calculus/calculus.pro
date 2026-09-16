@@ -1,6 +1,7 @@
 CONFIG -= qt
 
 CONFIG += use_simd
+CONFIG += c++20
 QMAKE_CXXFLAGS += -msse4.2
 
 TEMPLATE = lib
@@ -9,11 +10,10 @@ DEFINES += CALCULUS_LIBRARY
 TARGET = calculus
 win32:CONFIG(debug, debug|release): TARGET = calculusd  # Добавит 'd' в конце для Debug
 
-CONFIG += c++20
-
-include(..\config.pri)
+include(../config.pri)
 
 QMAKE_CXXFLAGS += -fwrapv
+QMAKE_CXXFLAGS += -std=c++20
 
 SOURCES += \
     calculus.cpp \

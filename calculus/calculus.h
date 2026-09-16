@@ -71,6 +71,6 @@ CALCULUS_EXPORT void changeDecimalWidth(int width);
 /**
  * @brief Остановить текущее вычисление разово.
  */
-CALCULUS_EXPORT void stopCaclulation();
+CALCULUS_EXPORT void stopCalculation();
 
 #endif // CALCULUS_H

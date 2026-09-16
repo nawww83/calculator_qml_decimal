@@ -107,6 +107,7 @@ void changeDecimalWidth(int width)
     dec_n::Decimal::SetWidth(width);
 }
 
-void stopCaclulation() {
+void stopCalculation()
+{
     u128::Globals::SetStop(true);
 }

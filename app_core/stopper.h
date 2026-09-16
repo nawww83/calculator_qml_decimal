@@ -21,9 +21,7 @@ public slots:
     /**
      * @brief Остановить текущее вычисление разово.
      */
-    void stop_calculation() {
-        stopCaclulation();
-    }
+    void stop_calculation() { stopCalculation(); }
 signals:
     ;
 };

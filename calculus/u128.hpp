@@ -5,15 +5,15 @@
 
 #pragma once
 
-#include <cstdint>
-#include <cassert>
-#include <string>
-#include <string_view>
-#include <utility>
 #include <algorithm>
 #include <bit>
-#include <compare>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1920) && defined(_M_X64)
 #define USE_MSVC_INTRINSICS_DIVISION

@@ -2,7 +2,6 @@
 
 #include "u128.hpp"
 #include "ubig.hpp"
-#include <_mingw_mac.h>
 #include <atomic>
 #include <map> // std::map
 #include <optional>

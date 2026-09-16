@@ -1,7 +1,7 @@
 QT += quick
 
-CONFIG += c++20
 CONFIG += console
+CONFIG += c++20
 
 TARGET = calculator
 
@@ -10,7 +10,7 @@ SOURCES += \
         controller.cpp \
         main.cpp \
 
-include(..\config.pri)
+include(../config.pri)
 
 RESOURCES += qml.qrc
 
@@ -72,5 +72,19 @@ win32 {
     copyfiles.commands = $$quote(cmd /c copy /Y $${SOURCE_DLL} $${DEST_DIR})
 }
 
-QMAKE_EXTRA_TARGETS += copyfiles
-POST_TARGETDEPS += copyfiles
+# Линковка библиотеки calculus для Linux
+unix {
+    INCLUDEPATH += ../calculus
+    DEPENDPATH += ../calculus
+    LIBS += -L$$OUT_PWD/../calculus -lcalculus
+
+    # Тройное экранирование знака $, проверенное в Qt:
+    QMAKE_LFLAGS += "-Wl,-rpath,\'\$\${ORIGIN}/../calculus\'"
+}
+
+QMAKE_CXXFLAGS += -std=c++20
+
+win32 {
+    QMAKE_EXTRA_TARGETS += copyfiles
+    POST_TARGETDEPS += copyfiles
+}

@@ -28,7 +28,8 @@ namespace modifiers {
 static constexpr auto err_description = [](int error_code) -> QString {
     switch (error_code) {
         case Errors::ZERO_DIVISION: return QString::fromUtf8("Деление на ноль");
-        case Errors::UNKNOW_OP:     return QString::fromUtf8("Неизвестная операция");
+        case Errors::UNKNOWN_OP:
+            return QString::fromUtf8("Неизвестная операция");
         case Errors::NOT_FINITE:    return QString::fromUtf8("Переполнение");
         default:                    return QString::fromUtf8("Нет ошибок");
     }
@@ -63,7 +64,7 @@ AppCore::AppCore(QObject *parent)
     , m_requests(tp::BUFFER_SIZE)
     , m_results(tp::BUFFER_SIZE)
 {
-    // 1. Инициализация наблюдателей (теперь QApplication точно существует)
+    // Инициализация наблюдателей (теперь QApplication точно существует)
     m_reqObs = std::make_unique<ro::RequestObserver>(
         m_requests, &m_reqUsed, &m_reqFree, &m_controller
         );
@@ -72,16 +73,18 @@ AppCore::AppCore(QObject *parent)
         m_results, &m_resUsed, &m_resFree
         );
 
-    // 2. Соединения сигналов
+    // Соединения сигналов
     connect(&m_controller, &Controller::handle_results, this, &AppCore::handle_results);
     connect(m_resObs.get(), &ro::ResultObserver::handleResults, this, &AppCore::handle_results_queue);
 
-    // 3. Безопасный запуск потоков через очередь событий
+    // Безопасный запуск потоков через очередь событий
     QMetaObject::invokeMethod(this, [this](){
         m_resObs->start();
         m_reqObs->start();
         qDebug() << "Observers and Threads started successfully.";
     }, Qt::QueuedConnection);
+
+    Reset();
 
     qDebug() << "AppCore initialized. Welcome!";
 }
