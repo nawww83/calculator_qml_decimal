@@ -413,6 +413,7 @@ public:
 
     Decimal operator-() const {
         Decimal result = *this;
+        if (result.IsNotANumber() || result.IsOverflowed()) return result;
         if (result.mInteger.is_zero()) {
             result.mNominator = -result.mNominator;
         } else {
@@ -430,6 +431,13 @@ public:
     static bool SetWidth(int width) {
         int old_width = global.mWidth;
         global.mWidth = std::clamp(width, 0, global.MAX_WIDTH);
+        global.mDenominator = u128::utils::int_power(10, global.mWidth);
+        return global.mWidth != old_width;
+    }
+
+    static bool SetMaxWidth() {
+        int old_width = global.mWidth;
+        global.mWidth = global.MAX_WIDTH;
         global.mDenominator = u128::utils::int_power(10, global.mWidth);
         return global.mWidth != old_width;
     }
@@ -567,6 +575,64 @@ public:
         TransformToDecimal();
         TransformToString();
     }
+
+    /**
+     * @brief operator ==
+     * @param other
+     * @return
+     */
+    bool operator==(const Decimal& other) const {
+        return mInteger == other.mInteger && mNominator == other.mNominator;
+    }
+
+    /**
+     * @brief operator <
+     * @param other
+     * @return
+     */
+    bool operator<(const Decimal& other) const {
+        I128 zero(0);
+
+        // Случай 1: Разные знаки целых частей
+        if (mInteger != other.mInteger) {
+            // Если обе целые части не равны нулю, просто сравниваем их
+            if (mInteger != zero && other.mInteger != zero) {
+                return mInteger < other.mInteger;
+            }
+            // Если одна из целых частей равна нулю, нужно быть аккуратнее,
+            // так как знак второго числа может «прятаться» в числителе.
+            // Поэтому переходим к общему покомпонентному сравнению ниже.
+        }
+
+        // Случай 2: Целые части одинаковы и не равны нулю
+        if (mInteger == other.mInteger && mInteger != zero) {
+            if (mInteger > zero) {
+                // Для положительных: у кого числитель меньше, тот и меньше
+                return mNominator < other.mNominator;
+            } else {
+                // Для отрицательных: знак числителя обычно совпадает со знаком целой части
+                // (или числитель хранится как положительный модуль — зависит от вашей архитектуры).
+                // Если у вас числитель отрицательного числа тоже отрицательный:
+                return mNominator < other.mNominator;
+                // Если числитель у вас ВСЕГДА положительный, а знак только в mInteger, то знак меняется:
+                // return mNominator > other.mNominator;
+            }
+        }
+
+        // Случай 3: Обе или одна из целых частей равны нулю (знак может быть в числителе)
+        // Самый надежный способ для этого пограничного случая — сравнить mInteger и mNominator напрямую.
+        // Так как целая часть имеет больший приоритет, мы можем условно «склеить» их логически:
+        if (mInteger != other.mInteger) {
+            return mInteger < other.mInteger;
+        }
+        // Если и целые части равны (например, обе 0), просто сравниваем числители
+        return mNominator < other.mNominator;
+    }
+
+    bool operator>(const Decimal& other) const { return other < *this; }
+    bool operator<=(const Decimal& other) const { return !(*this > other); }
+    bool operator>=(const Decimal& other) const { return !(*this < other); }
+    bool operator!=(const Decimal& other) const { return !(*this == other); }
 
     /**
      * @brief Оператор сложения двух чисел.
@@ -1034,16 +1100,6 @@ public:
 };
 
 /**
- * @brief Оператор сравнения чисел Decimal по их строковому представлению.
- * @param lhs Первое число.
- * @param rhs Второе число.
- * @return Равны/Не равны.
- */
-bool inline operator==(const Decimal& lhs, const Decimal& rhs) {
-    return lhs.ValueAsStringView() == rhs.ValueAsStringView();
-}
-
-/**
  * @brief Извлечение квадратного корня.
  * @param x Число.
  * @param exact Признак, что корень извлекся точно: квадрат даст исходное значение.
@@ -1093,6 +1149,215 @@ inline Decimal Sqrt(Decimal x, bool& exact) {
             return prev;
         }
     }
+}
+
+/**
+ * @brief Sqrt
+ * @param x
+ * @return
+ */
+inline Decimal Sqrt(Decimal x){
+    bool ok;
+    return Sqrt(x, ok);
+}
+
+inline Decimal ln_inner(Decimal x) {
+    if (x.IsNotANumber() || x.IsOverflowed()) return x;
+    if (x.IsZero()) {
+        Decimal inf; inf.SetInfinity();
+        return inf;
+    }
+
+    // Логарифм отрицательного числа не определен (NaN)
+    if (x.IsNegative()) {
+        Decimal nan; nan.SetNotANumber();
+        return nan;
+    }
+
+    Decimal one; one.SetDecimal(1, 0);
+    Decimal zero; zero.SetDecimal(0, 0);
+
+    if ((x - one).IsZero()) return zero;
+
+    Decimal LN2; LN2.SetStringRepresentation("0.693147180559945309");
+    Decimal two; two.SetDecimal(2, 0);
+
+    // Правильные границы приведения
+    Decimal upper_bound; upper_bound.SetStringRepresentation("1.414213562373095048"); // Sqrt(2)
+    Decimal lower_bound; lower_bound.SetStringRepresentation("0.707106781186547524"); // 1/Sqrt(2)
+
+    int k = 0;
+
+    // Шаг 1: Грубое приведение к диапазону [1/sqrt(2), sqrt(2)]
+    while (!(x - upper_bound).IsNegative()) {
+        x = x / two;
+        k++;
+    }
+    while ((x - lower_bound).IsNegative()) {
+        x = x * two;
+        k--;
+    }
+
+    // --- ТРЮК ДЛЯ ИТЕРАЦИИ ЧИСЕЛ МЕНЬШЕ 1 ---
+    bool invert_sub_sum = false;
+    if ((x - one).IsNegative()) {
+        x = one / x;
+        invert_sub_sum = true;
+    }
+
+    // Шаг 2: ИТЕРАЦИОННЫЙ ПРОЦЕСС БРЕЙДИ
+    Decimal a = Sqrt(two);
+    Decimal w = LN2 / two;
+    Decimal sum; sum.SetDecimal(0, 0);
+
+    // Условие !w.IsZero() зависит от точности вашего Decimal.
+    // Если разрядов много, лучше итерировать фиксированное число раз (например, 60-100 итераций)
+    while (!w.IsZero()) {
+        if (!(x - a).IsNegative()) {
+            x = x / a;
+            sum = sum + w;
+        }
+        a = Sqrt(a);
+        w = w / two;
+    }
+
+    // Шаг 3: Финальная сборка
+    Decimal k_dec;
+    if (k >= 0) {
+        k_dec.SetDecimal(k, 0);
+    } else {
+        k_dec.SetDecimal(I128{-k, true}, 0);
+    }
+
+    if (invert_sub_sum) {
+        return (k_dec * LN2) - sum;
+    }
+
+    return sum + (k_dec * LN2);
+}
+
+inline Decimal Ln(Decimal x) {
+    return ln_inner(x);
+}
+
+inline Decimal exp_inner(Decimal x)
+{
+    if (x.IsNotANumber() || x.IsOverflowed()) return x;
+
+    if (x.IsZero()) {
+        Decimal one; one.SetDecimal(1, 0);
+        return one;
+    }
+
+    Decimal one; one.SetDecimal(1, 0);
+    Decimal LN2; LN2.SetStringRepresentation("0.693147180559945309");
+
+    // 1. Обработка отрицательных чисел: exp(-x) = 1 / exp(x)
+    if (x.IsNegative()) {
+        x = x.Abs();
+        return one / exp_inner(x);
+    }
+
+    // 2. Выделяем целую часть k = floor(x / ln2)
+    // Разделим x на ln2, чтобы понять, сколько степеней двойки нужно вынести
+    Decimal k_dec = x / LN2;
+    // Здесь должна быть ваша функция приведения к целому (Truncate / Floor)
+    k_dec.SetDecimal(k_dec.IntegerPart(), 0);
+
+    // Остаток r = x - k * ln2
+    Decimal r = x - (k_dec * LN2);
+
+    // 3. Вычисление exp(r) через ряд Тейлора: 1 + r + r^2/2! + r^3/3! + ...
+    Decimal term = one;
+    Decimal sum = one;
+    Decimal count;
+
+    for (int i = 1; i < 40; i++) { // 40 итераций обычно за глаза хватает для precision 128-bit
+        count.SetDecimal(i, 0);
+        term = (term * r) / count;
+
+        if (term.IsZero()) break; // Достигли предела точности типа
+        sum = sum + term;
+    }
+
+    // 4. Сборка результата: sum * 2^k
+    // Переводим k_dec обратно в int для цикла умножения на 2
+    int k = k_dec.IntegerPart().unsigned_part().low();
+    Decimal two; two.SetDecimal(2, 0);
+
+    for (int i = 0; i < k; i++) {
+        sum = sum * two;
+        if (sum.IsOverflowed()) return sum;
+    }
+
+    return sum;
+}
+
+inline Decimal Exp(Decimal x) {
+    return exp_inner(x);
+}
+
+inline Decimal pow_inner(Decimal x, Decimal y)
+{
+    if (x.IsNotANumber() || x.IsOverflowed()) return x;
+    if (y.IsZero() && !x.IsZero()) {
+        Decimal one; one.SetDecimal(1, 0);
+        return one;
+    }
+    if (!y.IsZero() && x.IsZero()) {
+        Decimal zero; zero.SetDecimal(0, 0);
+        return zero;
+    }
+    if (y.IsZero() && x.IsZero()) {
+        Decimal nan; nan.SetNotANumber();
+        return nan;
+    }
+    // Проверяем, является ли степень целой или полуцелой (N.0 или N.5)
+    Decimal two_dec; two_dec.SetDecimal(2, 0);
+    Decimal double_y = y * two_dec;
+
+    if (double_y.IsInteger()) {
+        Decimal one; one.SetDecimal(1, 0);
+
+        // Выделяем целую часть степени (для 12.5 это 12)
+        Decimal floor_y;
+        floor_y.SetDecimal(y.IntegerPart(), 0);
+
+        // 1. Считаем целую степень: x^12 через быстрое или последовательное умножение
+        Decimal result_int = one;
+        Decimal temp_y = floor_y.Abs();
+        while (!temp_y.IsZero()) {
+            result_int = result_int * x;
+            if (result_int.IsOverflowed()) break;
+            temp_y = temp_y - one;
+        }
+        if (!y.IsNegative() && result_int.IsOverflowed()) return result_int;
+        if (y.IsNegative() && result_int.IsOverflowed()) {
+            Decimal zero; zero.SetDecimal(0, 0);
+            return zero;
+        }
+        // 2. Если есть половинка (.5), умножаем на честный Sqrt(x)
+        if (!(y - floor_y).IsZero()) {
+            result_int = result_int * Sqrt(x);
+        }
+
+        // 3. Обрабатываем отрицательную степень
+        if (y.IsNegative()) {
+            return one / result_int;
+        }
+
+        return result_int;
+    }
+    else {
+        Decimal result = y;
+        result = result * Ln(x);
+        return Exp(result);
+    }
+}
+
+inline Decimal Pow(Decimal x, Decimal y)
+{
+    return pow_inner(x, y);
 }
 
 inline Decimal::_Static Decimal::global;

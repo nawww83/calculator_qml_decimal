@@ -44,6 +44,7 @@ static constexpr auto description = [](int operation) -> QString {
         case OperationEnums::SUB:           return QString::fromUtf8("Вычитание");
         case OperationEnums::MULT:          return QString::fromUtf8("Умножение");
         case OperationEnums::DIV:           return QString::fromUtf8("Деление");
+        case OperationEnums::POW:           return QString::fromUtf8("Возведение в степень");
         case OperationEnums::EQUAL:         return QString::fromUtf8("Равно");
         case OperationEnums::SQRT:          return QString::fromUtf8("Квадратный корень");
         case OperationEnums::SQR:           return QString::fromUtf8("Квадрат числа");

@@ -94,6 +94,14 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
             error_code = calculus::ZERO_DIVISION;
         }
         break;
+    case calculus::POW:
+        result = dec_n::Pow(x, y);
+        if (result.IsOverflowed() || result.IsNotANumber()) {
+            error_code = calculus::NOT_FINITE;
+        } else {
+            return result;
+        }
+        break;
     case calculus::SEPARATOR:
         error_code = calculus::UNKNOW_OP;
         break;

@@ -24,6 +24,7 @@ enum Operations {
     SUB,
     MULT,
     DIV,
+    POW,
     SEPARATOR_OP_TYPE, // Разделитель двухоперандных/однооперандных операций.
     SQRT,
     SQR,

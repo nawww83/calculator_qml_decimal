@@ -9,7 +9,7 @@ import operation.enums 1.0 as Operations
 import "global_vars.js" as Global
 
 Window {
-    width: 675
+    width: 685
     height: 295
     maximumHeight: height
     maximumWidth: width
@@ -108,7 +108,10 @@ Window {
         }
 
         onAccepted: { AppCore.change_decimal_width(newDecimalWidthInput.text) }
-        onOpened: newDecimalWidthInput.focus = true
+        onOpened:{
+            newDecimalWidthInput.text = Global.decimalWidth
+            newDecimalWidthInput.focus = true
+        }
     }
 
     ColumnLayout {
@@ -146,6 +149,10 @@ Window {
                 }
                 if (event.key === Qt.Key_Slash) {
                     AppCore.process(Operations.OperationEnums.DIV, input.text);
+                    event.accepted = true;
+                }
+                if (event.key === Qt.Key_AsciiCircum) {
+                    AppCore.process(Operations.OperationEnums.POW, input.text);
                     event.accepted = true;
                 }
                 if (event.key === Qt.Key_Underscore) {
@@ -305,6 +312,27 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: AppCore.process(Operations.OperationEnums.DIV, input.text)
+                    }
+                }
+                Button {
+                    id: pow
+                    text: "\u005e"
+                    font.pixelSize: 28
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Возведение в степень (точность ограничена типом Decimal)")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: pow.down ? "#ff0000" : (pow.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.POW, input.text)
                     }
                 }
                 Button {
@@ -561,7 +589,6 @@ Window {
                     Cброс: <b>Esc</b><br>
                     Смена количества знаков после запятой: <b>Ctrl+S</b><br>
                     Двухоперандные операции не имеют приоритета.
-                    Работает правило округления всех девяток.
                     <br>
                     <a href=\"https://github.com/nawww83/calculator_qml_decimal\">See github: nawww83</a>"
             onLinkActivated: link => Qt.openUrlExternally(link)
