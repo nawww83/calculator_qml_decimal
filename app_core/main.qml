@@ -4,13 +4,15 @@ import QtQuick.Window 2.15
 import QtQml 2.15
 import QtQuick.Layouts 1.15
 
+import AppCoreBackend 1.0
 import operation.enums 1.0 as Operations
 
 import "global_vars.js" as Global
 
 Window {
-    width: 685
-    height: 295
+    id: root
+    width: 730
+    height: 300
     maximumHeight: height
     maximumWidth: width
     minimumHeight: height
@@ -19,18 +21,17 @@ Window {
     visible: true
     title: qsTr("Decimal калькулятор 128-bit, version " + Global.APP_VERSION)
 
-    function regex_1() {
-        var pattern = "^[-]?([1-9]\\d{0,2}(\\s?\\d{0,3})*|0)([.,]\\d{0,w_original})?$"
-        if (Global.decimalWidth < 1) {
-            pattern = "^[-]?([1-9]\\d{0,2}(\\s?\\d{0,3})*|0)?$"
-        } else {
-            pattern = pattern.replace("w_original", Global.decimalWidth)
-        }
-        return pattern
-        // Global.decimalWidth - требуемое количество цифр после запятой.
-    }
+    // Привязываемся напрямую к свойству C++
+    property int userWidth: AppCore.userDisplayWidth
 
-    property var decimalRegEx: RegExp(regex_1());
+    // Реактивное свойство: пересчитывается АВТОМАТИЧЕСКИ при изменении userWidth
+    readonly property var decimalRegEx: {
+        var pattern = "^[-]?([1-9]\\d{0,2}(\\s?\\d{0,3})*|0)([.,]\\d{0," + userWidth + "})?$"
+        if (userWidth < 1) {
+            pattern = "^[-]?([1-9]\\d{0,2}(\\s?\\d{0,3})*|0)?$"
+        }
+        return new RegExp(pattern);
+    }
 
     Connections {
         target: AppCore
@@ -67,11 +68,6 @@ Window {
         function onClearCurrentOperation() {
             current_operation.text = ""
         }
-
-        function onChangeDecimalWidth(width) {
-            Global.decimalWidth = width
-            decimalRegEx = RegExp(regex_1());
-        }
     }
 
     function thousandSeparator(inp){
@@ -102,14 +98,14 @@ Window {
                 font.pointSize: 13
                 Layout.fillWidth: true
                 placeholderText: qsTr("Количество знаков после запятой")
-                validator: RegularExpressionValidator { regularExpression: /(\d{2})/ }
+                validator: RegularExpressionValidator { regularExpression: /^(1[0-8]|[0-9])$/ }
                 Keys.onReturnPressed: dialog.accept()
             }
         }
 
-        onAccepted: { AppCore.change_decimal_width(newDecimalWidthInput.text) }
-        onOpened:{
-            newDecimalWidthInput.text = Global.decimalWidth
+        onAccepted: { AppCore.change_decimal_width(parseInt(newDecimalWidthInput.text, 10)) }
+        onOpened: {
+            newDecimalWidthInput.text = root.userWidth
             newDecimalWidthInput.focus = true
         }
     }
@@ -321,7 +317,7 @@ Window {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Возведение в степень (точность ограничена типом Decimal)")
+                    ToolTip.text: qsTr("Возведение в степень")
 
                     background: Rectangle {
                        opacity: enabled ? 1 : 0.3
@@ -453,8 +449,50 @@ Window {
                     }
                 }
                 Button {
+                    id: round_btn
+                    text: "[x]"
+                    font.pixelSize: 20
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Округлить до ближайшего целого")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: round_btn.down ? "#ff0000" : (round_btn.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.ROUND, input.text);
+                    }
+                }
+                Button {
+                    id: fix_nines_btn
+                    text: ".99\u2192"  // .99→
+                    font.pixelSize: 20
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Схлопнуть машинный хвост девяток")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: fix_nines_btn.down ? "#ff0000" : (fix_nines_btn.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.FIX_NINES, input.text);
+                    }
+                }
+                Button {
                     id: max_integer
-                    text: "MI"
+                    text: "M\u2081\u2082\u2088"  // M₁₂₈
                     font.pixelSize: 24
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -475,7 +513,7 @@ Window {
                 }
                 Button {
                     id: random_integer
-                    text: "RND"
+                    text: "\u03BE\u2081\u2082\u2088"  // ξ₁₂₈
                     font.pixelSize: 24
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -496,7 +534,7 @@ Window {
                 }
                 Button {
                     id: random_half_integer
-                    text: "RND64"
+                    text: "\u03BE\u2086\u2084"  // ξ₆₄
                     font.pixelSize: 24
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -517,7 +555,7 @@ Window {
                 }
                 Button {
                     id: factor
-                    text: "Factor"
+                    text: "p\u00B7q"  // p·q
                     font.pixelSize: 24
                     Layout.fillWidth: true
                     Layout.fillHeight: true

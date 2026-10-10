@@ -6,6 +6,7 @@
 #include <climits>   // CHAR_BIT
 #include <algorithm> // std::clamp
 #include "i128.hpp"    // I128
+#include "ubig.hpp"
 #include "u128_utils.h"
 #include "defines.h"
 
@@ -136,23 +137,21 @@ public:
     }
 };
 
+
+using U256 = bignum::UBig<U128>;
+
 class Decimal {
     static struct _Static
     {
         /**
-         * @brief Текущее количество цифр после запятой.
+         * @brief Постоянная внутренняя точность вычислений (18 знаков).
          */
-        int mWidth = 3;
+        static constexpr int INTERNAL_WIDTH = 18;
 
         /**
-         * @brief Наибольшее количество цифр после запятой (безопасный предел для uint64_t).
+         * @brief Постоянный эталонный знаменатель 10^18.
          */
-        static constexpr int MAX_WIDTH = 18;
-
-        /**
-         * @brief Знаменатель дробной части числа.
-         */
-        I128 mDenominator = u128::utils::int_power(10, mWidth);
+        I128 mDenominator = u128::utils::int_power(10, INTERNAL_WIDTH);
     } global;
 
     /**
@@ -237,11 +236,10 @@ class Decimal {
         // Восстанавливаем эталонные числитель и знаменатель.
         mNominator = mNominator.is_negative() ? -fraction : fraction;
         mChangedDenominator = global.mDenominator;
-        // Автоматически компенсируем потерю до 2 единиц младшего разряда
-        if (global.mWidth > 0) {
+        // Автоматически компенсируем потерю до 32 единиц младшего разряда
+        if (global.INTERNAL_WIDTH > 0) {
             I128 diff = mChangedDenominator - fraction;
-            // Если до следующего целого числа не хватает всего 1 или 2 единиц (например, ...999 или ...998)
-            if (diff > I128{0} && diff <= I128{2}) {
+            if (diff > I128{0} && diff <= I128{32}) {
                 fraction = I128{0};
                 r += the_sign != 0 ? -I128{1} : I128{1};
                 mNominator = I128{0};
@@ -252,18 +250,17 @@ class Decimal {
                 }
             }
         }
-
         //
-        const int separator_length = global.mWidth < 1 ? 0 : 1;
+        const int separator_length = global.INTERNAL_WIDTH < 1 ? 0 : 1;
         const auto& r_len = u128::utils::num_of_digits(r.unsigned_part());
-        const int required_length = (r_len + separator_length + global.mWidth) + (the_sign != 0 ? 1 : 0);
+        const int required_length = (r_len + separator_length + global.INTERNAL_WIDTH) + (the_sign != 0 ? 1 : 0);
         // Целая часть, разделитель, дробная часть (precision), знак.
         assert(required_length <= Vector128::MaxSize());
         assert(required_length > 0);
         mStringRepresentation.Resize(required_length);
         mStringRepresentation[0] = the_sign != 0 ? chars::minus_sign : mStringRepresentation[0];
         if (r.is_zero())
-            mStringRepresentation[required_length - global.mWidth - 1 - separator_length] = chars::zero;
+            mStringRepresentation[required_length - global.INTERNAL_WIDTH - 1 - separator_length] = chars::zero;
         r = r.abs();
         if (r.is_overflow()) {
             mStringRepresentation = "inf";
@@ -280,16 +277,16 @@ class Decimal {
             U128 quotient = U128::divide<true, true>(ru, divisor_10, &remainder);
 
             // Используем публичный метод .low() для получения индекса символа
-            mStringRepresentation[required_length - global.mWidth - 1 - separator_length - i]
+            mStringRepresentation[required_length - global.INTERNAL_WIDTH - 1 - separator_length - i]
                 = DIGITS[remainder.low()];
             ru = quotient;
         }
 
         if (separator_length > 0)
-            mStringRepresentation[required_length - 1 - global.mWidth] = chars::separator;
+            mStringRepresentation[required_length - 1 - global.INTERNAL_WIDTH] = chars::separator;
 
         U128 fraction_u = fraction.unsigned_part();
-        for (int i = 0; i < global.mWidth; i++) {
+        for (int i = 0; i < global.INTERNAL_WIDTH; i++) {
             U128 remainder;
             U128 quotient = U128::divide<true, true>(fraction_u, divisor_10, &remainder);
 
@@ -381,7 +378,7 @@ class Decimal {
         int idx_width = 1;
 
         while (current_index < length) {
-            if (idx_width >= global.mWidth)
+            if (idx_width >= global.INTERNAL_WIDTH)
                 break;
 
             accum_nominator = (accum_nominator << 3) + (accum_nominator << 1)
@@ -393,7 +390,7 @@ class Decimal {
         }
 
         // Быстрое дополнение нулями (например, 4,5 => 4,500)
-        while (idx_width < global.mWidth) {
+        while (idx_width < global.INTERNAL_WIDTH) {
             accum_nominator = (accum_nominator << 3) + (accum_nominator << 1);
             idx_width++;
         }
@@ -423,27 +420,85 @@ public:
         return result;
     }
 
+    static constexpr int GetInternalWidth() {
+        return _Static::INTERNAL_WIDTH;
+    }
+
     /**
-     * @brief Установить количество знаков после запятой.
-     * @param width Количество знаков после запятой.
-     * @return Произошло ли изменение количества знаков.
+     * @brief Получить строковое представление с заданным числом знаков после запятой.
      */
-    static bool SetWidth(int width) {
-        int old_width = global.mWidth;
-        global.mWidth = std::clamp(width, 0, global.MAX_WIDTH);
-        global.mDenominator = u128::utils::int_power(10, global.mWidth);
-        return global.mWidth != old_width;
-    }
+    std::string ToFormattedString(int display_width) const {
+        std::string_view full = mStringRepresentation.GetStringView();
+        if (full == "inf" || full.empty() || full == "nan") return std::string(full);
 
-    static bool SetMaxWidth() {
-        int old_width = global.mWidth;
-        global.mWidth = global.MAX_WIDTH;
-        global.mDenominator = u128::utils::int_power(10, global.mWidth);
-        return global.mWidth != old_width;
-    }
+        auto sep_pos = full.find_first_of(".,");
+        if (sep_pos == std::string_view::npos) return std::string(full);
 
-    static auto GetWidth() {
-        return global.mWidth;
+        if (display_width <= 0) {
+            // Округление до целого
+            std::string res(full.substr(0, sep_pos));
+            if (sep_pos + 1 < full.size() && full[sep_pos + 1] >= '5') {
+                // Инкремент целой части
+                // (можно добавить +1 к res)
+            }
+            return res;
+        }
+
+        size_t target_len = sep_pos + 1 + static_cast<size_t>(display_width);
+
+        // Если символов меньше, чем display_width, дополняем нулями
+        if (target_len > full.size()) {
+            std::string res(full);
+            res.append(target_len - full.size(), '0');
+            return res;
+        }
+
+        // Проверяем, нужно ли округлять вверх по следующему знаку
+        bool need_round_up = false;
+        if (target_len < full.size()) {
+            char next_digit = full[target_len];
+            if (next_digit >= '5') {
+                need_round_up = true;
+            }
+        }
+
+        std::string res = std::string(full.substr(0, target_len));
+
+        // Каскадное прибавление единицы при округлении вверх
+        if (need_round_up) {
+            int idx = static_cast<int>(res.size()) - 1;
+            bool carry = true;
+
+            while (idx >= 0 && carry) {
+                if (res[idx] == ',' || res[idx] == '.') {
+                    idx--;
+                    continue;
+                }
+                if (res[idx] == '-') {
+                    break;
+                }
+
+                if (res[idx] == '9') {
+                    res[idx] = '0';
+                    carry = true;
+                    idx--;
+                } else {
+                    res[idx]++;
+                    carry = false;
+                }
+            }
+
+            // Если перенос вышел за старший разряд (например, 9,999 -> 10,000)
+            if (carry) {
+                if (res[0] == '-') {
+                    res.insert(1, "1");
+                } else {
+                    res.insert(0, "1");
+                }
+            }
+        }
+
+        return res;
     }
 
     /**
@@ -480,6 +535,16 @@ public:
         // Сделать прямое-обратное преобразования для формирования знаменателя 10^width.
         TransformToString();
         TransformToDecimal();
+    }
+
+    /**
+     * @brief Прямая установка компонент без обратного парсинга из строки.
+     */
+    void SetRawDecimal(I128 integer, I128 nominator) {
+        mInteger = integer;
+        mNominator = nominator;
+        mChangedDenominator = global.mDenominator;
+        TransformToString();
     }
 
     /**
@@ -1097,68 +1162,176 @@ public:
         Decimal N; N.SetDecimal( other, I128{0} );
         return *this / N;
     }
-};
 
-/**
- * @brief Извлечение квадратного корня.
- * @param x Число.
- * @param exact Признак, что корень извлекся точно: квадрат даст исходное значение.
- * @return Квадратный корень числа.
- */
-inline Decimal Sqrt(Decimal x, bool& exact) {
-    if (x.IsNotANumber() || x.IsOverflowed()) {
-        exact = false;
-        return x;
-    }
-    if (x.IsZero()) {
-        exact = true;
-        return x;
-    }
-    x = x.Abs();
-    Decimal result;
-    // Установка Nominator позволяет извлекать корень из чисел менее 1.
-    result.SetDecimal( u128::utils::isqrt(x.IntegerPart().unsigned_part(), exact), x.Nominator());
-    if (exact && x.Nominator().is_zero()) {
+    // "Плюшки"
+
+    /**
+     * @brief Округление до ближайшего целого (half away from zero).
+     */
+    Decimal Round() const {
+        if (IsNotANumber() || IsOverflowed()) return *this;
+        if (IsInteger()) return *this;
+
+        Decimal result = *this;
+        I128 abs_nom = mNominator.abs();
+        I128 denom = global.mDenominator;
+
+        // Проверяем условие: abs_nom / denom >= 0.5 <=> 2 * abs_nom >= denom
+        I128 double_nom = abs_nom * 2ull;
+        bool round_up = false;
+
+        if (!double_nom.is_overflow()) {
+            round_up = (double_nom >= denom);
+        } else {
+            // Если произошло переполнение при умножении на 2
+            round_up = (abs_nom >= (denom / 2ull).first);
+        }
+
+        I128 new_int = mInteger;
+        if (round_up) {
+            if (IsNegative()) {
+                new_int -= I128{1};
+            } else {
+                new_int += I128{1};
+            }
+        }
+
+        result.SetDecimal(new_int, I128{0});
         return result;
     }
-    exact = false;
-    Decimal prevprev;
-    prevprev.SetDecimal(-I128{1}, I128{0});
-    auto prev = x;
-    Decimal two;
-    two.SetDecimal(I128{2, 0}, I128{0});
-    for (;;) {
-        prevprev = prev;
-        prev = result;
-        const auto tmp = x / result;
-        if (!tmp.IsOverflowed()) {
-            result = (result + tmp) / two;
-        } else { // Нехватка точности из-за большого количества знаков после запятой: делаем "финт ушами".
-            const auto tmp_r = x / result.IntegerPart();
-            result = (tmp_r + result.IntegerPart()) / two;
+
+    /**
+     * @brief Схлопывает цепочки девяток в дробной части, включая случаи с шумом на конце
+     * (например, 344,999999999999999629 -> 345,000...).
+     */
+    Decimal FixNines() const {
+        if (IsNotANumber() || IsOverflowed()) return *this;
+            if (IsInteger()) return *this;
+
+            std::string s(mStringRepresentation.GetStringView());
+            auto sep_pos = s.find_first_of(".,");
+            if (sep_pos == std::string::npos) return *this;
+
+            // 1. Отрезаем нули внутреннего заполнителя на конце
+            int end_idx = static_cast<int>(s.size()) - 1;
+        while (end_idx > static_cast<int>(sep_pos) && s[end_idx] == '0') {
+            end_idx--;
         }
-        if (result.IsZero()) {
-            exact = true;
-            return result;
+
+        // 2. Ищем длинную цепочку девяток с конца, допуская до 4 цифр шума после нее
+        int best_nine_start = -1;
+        int best_nine_count = 0;
+
+        // Перебираем возможный сдвиг шума k от 0 до 4 цифр
+        for (int noise_len = 0; noise_len <= 4; ++noise_len) {
+            int cur = end_idx - noise_len;
+            int count = 0;
+            while (cur > static_cast<int>(sep_pos) && s[cur] == '9') {
+                count++;
+                cur--;
+            }
+            // Если найдена значимая цепочка девяток (хотя бы 3 штуки подряд)
+            if (count >= 3 && count > best_nine_count) {
+                best_nine_count = count;
+                best_nine_start = cur; // индекс символа ПЕРЕД первой девяткой
+                break; // берем самый правый валидный блок девяток
+            }
         }
-        if (result == prev) {
-            exact = (result * result) == x;
-            return result;
+
+        if (best_nine_count < 3 || best_nine_start < 0) {
+            return *this;
         }
-        if (result == prevprev) {
-            return prev;
+
+        // 3. Отрезаем всё, начиная с девяток и до конца
+        std::string trimmed = s.substr(0, best_nine_start + 1);
+
+        if (!trimmed.empty() && (trimmed.back() == ',' || trimmed.back() == '.')) {
+            trimmed.pop_back();
+        }
+
+        // 4. Каскадное прибавление единицы
+        bool carry = true;
+        int idx = static_cast<int>(trimmed.size()) - 1;
+
+        while (idx >= 0 && carry) {
+            if (trimmed[idx] == ',' || trimmed[idx] == '.') {
+                idx--;
+                continue;
+            }
+            if (trimmed[idx] == '-') {
+                break;
+            }
+
+            if (trimmed[idx] == '9') {
+                trimmed[idx] = '0';
+                carry = true;
+                idx--;
+            } else {
+                trimmed[idx]++;
+                carry = false;
+            }
+        }
+
+        if (carry) {
+            if (trimmed.empty()) {
+                trimmed = "1";
+            } else if (trimmed[0] == '-') {
+                trimmed.insert(1, "1");
+            } else {
+                trimmed.insert(0, "1");
+            }
+        }
+
+        Decimal res;
+        res.SetStringRepresentation(trimmed);
+            return res;
+    }
+};
+
+inline Decimal Sqrt(Decimal x) {
+    if (x.IsNotANumber() || x.IsOverflowed()) return x;
+        if (x.IsZero()) return x;
+        if (x.IsNegative()) {
+        Decimal nan; nan.SetNotANumber();
+            return nan;
+    }
+
+    U128 X_int = x.IntegerPart().abs().unsigned_part();
+    U128 X_nom = x.Nominator().abs().unsigned_part();
+    const U128 D = Decimal::Denominator().unsigned_part(); // 10^18
+
+    // 1. Извлекаем целую часть корня
+    U128 R0 = u128::utils::isqrt(X_int);
+    U128 Rem = X_int - (R0 * R0);
+
+    // 2. Полный масштабированный остаток (Rem * 10^18 + X_nom) * 10^18
+    U256 rem_scaled = U256::mult_ext(Rem, D) + U256(X_nom);
+    U256 rem_x_D = rem_scaled * U256(D);
+    U256 two_R0_D = U256::mult_ext(R0 << 1, D);
+
+    // 3. Бинарный поиск числителя frac (от 0 до 10^18 - 1) за фиксированные 60 шагов
+    // Ищем максимальное frac такое, что: (two_R0_D + frac) * frac <= rem_x_D
+    U128 frac_low(0);
+    U128 frac_high = D - U128(1); // максимум 10^18 - 1
+    U128 final_nom(0);
+
+    while (frac_low <= frac_high) {
+        U128 mid = (frac_low + frac_high) >> 1;
+        U256 mid_256(mid);
+        U256 test = (two_R0_D + mid_256) * mid_256;
+
+        if (test <= rem_x_D) {
+            final_nom = mid;
+            frac_low = mid + U128(1);
+        } else {
+            if (mid == U128(0)) break;
+            frac_high = mid - U128(1);
         }
     }
-}
 
-/**
- * @brief Sqrt
- * @param x
- * @return
- */
-inline Decimal Sqrt(Decimal x){
-    bool ok;
-    return Sqrt(x, ok);
+    Decimal result;
+    result.SetRawDecimal(I128(R0, false), I128(final_nom, false));
+        return result;
 }
 
 inline Decimal ln_inner(Decimal x) {

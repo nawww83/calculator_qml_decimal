@@ -17,6 +17,8 @@ enum Ops {
     SQRT,       // Квадратный корень.
     SQR,        // Квадрат числа.
     RECIPROC,   // Обратное число.
+    ROUND,      // Округление к ближайшему целому.
+    FIX_NINES,  // Схлопывание паразитных девяток на конце.
     NEG,        // Инверсия знака.
     RANDINT,         // Случайное целое полноразрядное число.
     RANDINT64,         // Случайное целое 64-битное число.
@@ -57,17 +59,9 @@ CALCULUS_EXPORT bignum::u128::U128 get_random(bool half, int& error);
  * @param x Операнд 1.
  * @param y Операнд 2.
  * @param error_code Код ошибки.
- * @param exact_sqrt Точно ли извлекся квадратный корень.
  * @return Реузльтат операции.
  */
-CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error, bool& exact_sqrt);
-
-/**
- * @brief Изменить количество знаков после запятой у Decimal. Несмотря на статическую переменную,
- * это требуется, потому что это код библиотеки (dll, so), который отличается от кода основного приложения.
- * @param width Количество знаков после запятой.
- */
-CALCULUS_EXPORT void changeDecimalWidth(int width);
+CALCULUS_EXPORT dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error);
 
 /**
  * @brief Остановить текущее вычисление разово.

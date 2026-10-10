@@ -29,7 +29,6 @@ public slots:
      */
     void do_work(int operation, QVector<dec_n::Decimal> operands) {
         int error_code;
-        bool exact_sqrt = false;
         if (operation == calculus::FACTOR) {
             auto f = calculus::factor(operands[0].IntegerPart().unsigned_part(), error_code);
             mValue.clear();
@@ -51,22 +50,15 @@ public slots:
         else {
             mValue.resize(1);
             // Операнды копируются.
-            mValue[0] = doIt(operation, operands[0], operands[1], error_code, exact_sqrt);
+            mValue[0] = doIt(operation, operands[0], operands[1], error_code);
         }
-        emit results_ready(error_code, operation, exact_sqrt, mValue);
+        emit results_ready(error_code, operation, mValue);
     }
 
-    /**
-     * @brief Синхронизировать количество знаков после запятой в Decimal в пространстве библиотеки.
-     * @param width Количество знаков после запятой.
-     */
-    void sync_decimal_width(int width) {
-        changeDecimalWidth(width);
-    }
 signals:
     /**
      * @brief Уведомляет контроллер о готовности результата.
      */
-    void results_ready(int, int, bool, QVector<dec_n::Decimal>);
+    void results_ready(int, int, QVector<dec_n::Decimal>);
 };
 

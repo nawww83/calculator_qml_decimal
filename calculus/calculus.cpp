@@ -16,7 +16,7 @@ bignum::u128::U128 get_random(bool half, int &error)
 
 }
 
-dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error_code, bool& exact_sqrt)
+dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& error_code)
 {
     error_code = calculus::NO_ERRORS;
     dec_n::Decimal result {};
@@ -52,7 +52,7 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
         break;
     case calculus::NEG: result = dec_n::Decimal{} - x;
         return result;
-    case calculus::SQRT: result = dec_n::Sqrt(x, exact_sqrt);
+    case calculus::SQRT: result = dec_n::Sqrt(x);
         return result;
     case calculus::SQR: result = x * x;
         if (result.IsOverflowed()) {
@@ -102,17 +102,28 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
             return result;
         }
         break;
+    case calculus::ROUND:
+        result = x.Round();
+        if (result.IsOverflowed()) {
+            error_code = calculus::NOT_FINITE;
+        } else {
+            return result;
+        }
+        break;
+    case calculus::FIX_NINES:
+        result = x.FixNines();
+        if (result.IsOverflowed()) {
+            error_code = calculus::NOT_FINITE;
+        } else {
+            return result;
+        }
+        break;
     case calculus::SEPARATOR:
         error_code = calculus::UNKNOW_OP;
         break;
     default: error_code = calculus::UNKNOW_OP;
     }
     return dec_n::Decimal{};
-}
-
-void changeDecimalWidth(int width)
-{
-    dec_n::Decimal::SetWidth(width);
 }
 
 void stopCalculation()

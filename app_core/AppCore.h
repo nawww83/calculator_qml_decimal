@@ -29,6 +29,8 @@ enum Operations {
     SQRT,
     SQR,
     RECIPROC,
+    ROUND,          // Округление к ближайшему целому.
+    FIX_NINES,    // Схлопывание паразитных девяток на конце.
     NEGATION,
     RANDINT,         // Случайное целое полноразрядное число.
     RANDINT64,         // Случайное целое 64-битное число.
@@ -67,6 +69,8 @@ enum Errors {
 class AppCore : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(int userDisplayWidth READ userDisplayWidth NOTIFY changeDecimalWidth)
+
 public:
     /**
      * @brief Конструктор.
@@ -74,6 +78,11 @@ public:
      */
     explicit AppCore(QObject *parent = nullptr);
     ~AppCore();
+
+    // Дефолтная точность задана в одном месте — здесь:
+    static constexpr int DEFAULT_DISPLAY_WIDTH = 3;
+
+    int userDisplayWidth() const { return m_userDisplayWidth; }
 
 signals:
 
@@ -136,13 +145,13 @@ public slots:
     /**
      * @brief Обработать пришедший из контроллера результат и положить в очередь.
      */
-    void handle_results(int, int, bool, QVector< dec_n::Decimal >);
+    void handle_results(int, int, QVector< dec_n::Decimal >);
 
     /**
      * @brief Обработать находящийся в очереди результат: отдать в GUI.
      * @param id Идентификатор запроса/ответа в очереди.
      */
-    void handle_results_queue(int, int, bool, QVector< dec_n::Decimal >, int id);
+    void handle_results_queue(int, int, QVector< dec_n::Decimal >, int id);
 
     /**
      * @brief Запрос на изменение количества знаков после запятой у чисел Decimal.
@@ -215,6 +224,8 @@ private:
     Controller m_controller;
     std::unique_ptr<ro::RequestObserver> m_reqObs;
     std::unique_ptr<ro::ResultObserver> m_resObs;
+
+    int m_userDisplayWidth = DEFAULT_DISPLAY_WIDTH;
 
     QElapsedTimer mTimers[tp::BUFFER_SIZE]; // Массив таймеров по размеру буфера запросов
 };

@@ -49,6 +49,8 @@ static constexpr auto description = [](int operation) -> QString {
         case OperationEnums::SQRT:          return QString::fromUtf8("Квадратный корень");
         case OperationEnums::SQR:           return QString::fromUtf8("Квадрат числа");
         case OperationEnums::RECIPROC:      return QString::fromUtf8("Обратное число");
+        case OperationEnums::ROUND:         return QString::fromUtf8("Округление к целому");
+        case OperationEnums::FIX_NINES:     return QString::fromUtf8("Коррекция хвоста девяток");
         case OperationEnums::SEPARATOR_OP_TYPE:     return QString::fromUtf8("Разделитель операций: недопустимая операция!");
         case OperationEnums::NEGATION:      return QString::fromUtf8("Смена знака");
         case OperationEnums::CLEAR_ALL:     return QString::fromUtf8("Сброс");
@@ -191,9 +193,8 @@ void AppCore::DoWork(dec_n::Decimal value, int operation)
 void AppCore::process(int requested_operation, QString input_value)
 {
     // --- 1. Вспомогательные лямбды ---
-    auto getStr = [](const dec_n::Decimal& v) {
-        auto sv = v.ValueAsStringView();
-        return QString::fromUtf8(sv.data(), static_cast<int>(sv.size()));
+    auto getStr = [this](const dec_n::Decimal& v) {
+        return QString::fromStdString(v.ToFormattedString(m_userDisplayWidth));
     };
 
     auto updateUIWithError = [this](int err) {
@@ -281,14 +282,39 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
 
-    if (requested_operation == OperationEnums::SQRT || requested_operation == OperationEnums::SQR || requested_operation == OperationEnums::RECIPROC) {
+    if (requested_operation == OperationEnums::SQRT ||
+        requested_operation == OperationEnums::SQR  ||
+        requested_operation == OperationEnums::RECIPROC ||
+        requested_operation == OperationEnums::ROUND ||
+        requested_operation == OperationEnums::FIX_NINES)
+    {
         if (is_immediate_state) {
-            if (requested_operation == OperationEnums::RECIPROC && val.IsZero()) { updateUIWithError(Errors::ZERO_DIVISION); return; }
-            if (requested_operation == OperationEnums::SQRT) { bool exact; val = dec_n::Sqrt(val, exact); }
-            else if (requested_operation == OperationEnums::SQR) { val = val * val; }
-            else { dec_n::Decimal one; one.SetDecimal(1, 0); val = one / val; }
+            if (requested_operation == OperationEnums::RECIPROC && val.IsZero()) {
+                updateUIWithError(Errors::ZERO_DIVISION);
+                return;
+            }
+            if (requested_operation == OperationEnums::SQRT) {
+                val = dec_n::Sqrt(val);
+            }
+            else if (requested_operation == OperationEnums::SQR) {
+                val = val * val;
+            }
+            else if (requested_operation == OperationEnums::ROUND) {
+                val = val.Round();
+            }
+            else if (requested_operation == OperationEnums::FIX_NINES) {
+                val = val.FixNines();
+            }
+            else {
+                dec_n::Decimal one;
+                one.SetDecimal(1, 0);
+                val = one / val;
+            }
 
-            if (val.IsOverflowed()) { updateUIWithError(Errors::NOT_FINITE); return; }
+            if (val.IsOverflowed()) {
+                updateUIWithError(Errors::NOT_FINITE);
+                return;
+            }
             emit setInput(getStr(val));
             return;
         } else {
@@ -296,7 +322,6 @@ void AppCore::process(int requested_operation, QString input_value)
             emit showCurrentOperation(description(requested_operation));
         }
     }
-
     // --- 8. Кнопка EQUAL (Равно) ---
     if (requested_operation == OperationEnums::EQUAL) {
         if (mCurrentOperation == OperationEnums::FACTOR) return;
@@ -351,7 +376,7 @@ void AppCore::process(int requested_operation, QString input_value)
     DoWork(val, mCurrentOperation);
 }
 
-void AppCore::handle_results(int err, int operation, bool exact_sqrt, QVector<dec_n::Decimal> res)
+void AppCore::handle_results(int err, int operation, QVector<dec_n::Decimal> res)
 {
     // 1. Обновляем регистр (Guard Clause для читаемости)
     if (operation != OperationEnums::RANDINT && operation != OperationEnums::RANDINT64 && !res.isEmpty()) {
@@ -365,12 +390,12 @@ void AppCore::handle_results(int err, int operation, bool exact_sqrt, QVector<de
 
     // Используем std::move, если QVector больше не нужен в этой области видимости,
     // чтобы не копировать глубокие данные Decimal.
-    m_results[mResultIdx] = { err, operation, exact_sqrt, std::move(res) };
+    m_results[mResultIdx] = { err, operation, std::move(res) };
 
     m_resUsed.release();
 }
 
-void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVector<dec_n::Decimal> res, int id)
+void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decimal> res, int id)
 {
     // Подготовка метаданных (Время и ID) серым цветом
     const QString timestamp = QTime::currentTime().toString("HH:mm:ss.zzz");
@@ -391,10 +416,9 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
 
     const bool state_is_the_equal = (mState == StateEnums::EQUALS_LOOP) || (mState == StateEnums::OP_TO_EQUAL);
 
-    // 2. КВАДРАТНЫЙ КОРЕНЬ (обработка мета-информации в UI)
+    // 2. КВАДРАТНЫЙ КОРЕНЬ
     if (operation == OperationEnums::SQRT) {
-        QString suffix = exact_sqrt ? QString::fromUtf8(": точно.") : QString::fromUtf8(": приближенно.");
-        emit showCurrentOperation(description(OperationEnums::SQRT) + suffix);
+        emit showCurrentOperation(description(OperationEnums::SQRT));
     }
 
     if (operation == OperationEnums::FACTOR) {
@@ -421,9 +445,7 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
     }
     // 4. РАНДОМ И ОСТАЛЬНЫЕ ОПЕРАЦИИ
     else {
-        auto res_sv = res[0].ValueAsStringView();
-        QString res_qs = QString::fromUtf8(res_sv.data(), static_cast<int>(res_sv.size()));
-
+        QString res_qs = QString::fromStdString(res[0].ToFormattedString(m_userDisplayWidth));
         static auto dot_comma_regex = QRegularExpression("[.,]");
         if (operation == OperationEnums::RANDINT || operation == OperationEnums::RANDINT64) {
             int pos = res_qs.indexOf(dot_comma_regex); // Это целочисленные операции.
@@ -437,8 +459,8 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
                 emit setInput(res_qs);
                 emit clearTempResult();
             } else {
-                auto reg_sv = mRegister[1].ValueAsStringView();
-                emit showTempResult(QString::fromUtf8(reg_sv.data(), static_cast<int>(reg_sv.size())), true);
+                QString reg_qs = QString::fromStdString(mRegister[1].ToFormattedString(m_userDisplayWidth));
+                emit showTempResult(reg_qs, true);
             }
         }
 
@@ -450,18 +472,24 @@ void AppCore::handle_results_queue(int err, int operation, bool exact_sqrt, QVec
 
 void AppCore::change_decimal_width(int width, bool quiet)
 {
-    const bool is_changed = dec_n::Decimal::SetWidth(width);
-    emit m_controller.sync_decimal_width(width);
+    const int new_width = std::clamp(width, 0, 18);
+    const bool is_changed = (m_userDisplayWidth != new_width);
+    m_userDisplayWidth = new_width;
+
+    // Всегда уведомляем UI
+    emit changeDecimalWidth(m_userDisplayWidth);
+
     if (is_changed) {
         Reset();
         emit clearTempResult();
         emit clearCurrentOperation();
         emit clearInputField();
-        emit changeDecimalWidth(dec_n::Decimal::GetWidth());
-        if (!quiet)
-            qDebug().noquote() << modifiers::red << QString::fromUtf8("Изменено количество знаков после запятой: ") <<
-                            dec_n::Decimal::GetWidth() << modifiers::reset;
+        if (!quiet) {
+            qDebug().noquote() << modifiers::red
+                               << QString::fromUtf8("Изменено количество знаков после запятой: ")
+                               << m_userDisplayWidth << modifiers::reset;
+        }
         QSettings settings("MyHome", "DecimalCalculator");
-        settings.setValue("DecimalWidth", width);
+        settings.setValue("DecimalWidth", m_userDisplayWidth);
     }
 }
