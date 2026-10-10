@@ -54,10 +54,11 @@ Q_ENUM_NS(States)
 }
 
 enum Errors {
-    NO_ERRORS = 0,  // Нет ошибок.
-    UNKNOWN_OP,      // Неизвестная операция.
-    ZERO_DIVISION,  // Деление на ноль.
-    NOT_FINITE      // Переполнение.
+    NO_ERRORS = 0,    // Нет ошибок.
+    UNKNOWN_OP,       // Неизвестная операция.
+    ZERO_DIVISION,    // Деление на ноль.
+    NOT_FINITE,       // Переполнение.
+    NOT_A_NUMBER      // Не число.
 };
 
 /**

@@ -1290,10 +1290,10 @@ public:
 
 inline Decimal Sqrt(Decimal x) {
     if (x.IsNotANumber() || x.IsOverflowed()) return x;
-        if (x.IsZero()) return x;
-        if (x.IsNegative()) {
+    if (x.IsZero()) return x;
+    if (x.IsNegative()) {
         Decimal nan; nan.SetNotANumber();
-            return nan;
+        return nan;
     }
 
     U128 X_int = x.IntegerPart().abs().unsigned_part();

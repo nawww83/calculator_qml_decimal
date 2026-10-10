@@ -53,7 +53,11 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
     case calculus::NEG: result = dec_n::Decimal{} - x;
         return result;
     case calculus::SQRT: result = dec_n::Sqrt(x);
-        return result;
+        if (result.IsNotANumber()) {
+            error_code = calculus::NOT_A_NUMBER;
+        } else {
+            return result;
+        }
     case calculus::SQR: result = x * x;
         if (result.IsOverflowed()) {
             error_code = calculus::NOT_FINITE;
@@ -96,9 +100,13 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
         break;
     case calculus::POW:
         result = dec_n::Pow(x, y);
-        if (result.IsOverflowed() || result.IsNotANumber()) {
+        if (result.IsOverflowed()) {
             error_code = calculus::NOT_FINITE;
-        } else {
+        }
+        else if (result.IsNotANumber()) {
+            error_code = calculus::NOT_A_NUMBER;
+        }
+        else {
             return result;
         }
         break;

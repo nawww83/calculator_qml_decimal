@@ -31,6 +31,7 @@ static constexpr auto err_description = [](int error_code) -> QString {
         case Errors::UNKNOWN_OP:
             return QString::fromUtf8("Неизвестная операция");
         case Errors::NOT_FINITE:    return QString::fromUtf8("Переполнение");
+        case Errors::NOT_A_NUMBER:    return QString::fromUtf8("Не число");
         default:                    return QString::fromUtf8("Нет ошибок");
     }
 };
@@ -242,6 +243,10 @@ void AppCore::process(int requested_operation, QString input_value)
         updateUIWithError(Errors::NOT_FINITE);
         return;
     }
+    if (val.IsNotANumber()) {
+        updateUIWithError(Errors::NOT_A_NUMBER);
+        return;
+    }
 
     const bool is_nan = val.IsNotANumber();
     if (mState == StateEnums::RESETTED && is_nan) return;
@@ -313,6 +318,10 @@ void AppCore::process(int requested_operation, QString input_value)
 
             if (val.IsOverflowed()) {
                 updateUIWithError(Errors::NOT_FINITE);
+                return;
+            }
+            if (val.IsNotANumber()) {
+                updateUIWithError(Errors::NOT_A_NUMBER);
                 return;
             }
             emit setInput(getStr(val));
