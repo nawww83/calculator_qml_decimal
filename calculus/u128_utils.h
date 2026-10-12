@@ -6,6 +6,7 @@
 #include <map> // std::map
 #include <optional>
 #include <utility> // std::pair
+#include <vector>
 
 namespace u128
 {
