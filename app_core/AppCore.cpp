@@ -296,10 +296,14 @@ void AppCore::process(int requested_operation, QString input_value)
                 updateUIWithError(Errors::ZERO_DIVISION);
                 return;
             }
+
             if (requested_operation == OperationEnums::LN) {
                 val = dec_n::Ln(val);
             }
-            if (requested_operation == OperationEnums::SQRT) {
+            else if (requested_operation == OperationEnums::EXP) {
+                val = dec_n::Exp(val);
+            }
+            else if (requested_operation == OperationEnums::SQRT) {
                 val = dec_n::Sqrt(val);
             }
             else if (requested_operation == OperationEnums::SQR) {
@@ -311,7 +315,7 @@ void AppCore::process(int requested_operation, QString input_value)
             else if (requested_operation == OperationEnums::FIX_NINES) {
                 val = val.FixNines();
             }
-            else {
+            else { // RECIPROCAL
                 dec_n::Decimal one;
                 one.SetDecimal(1, 0);
                 val = one / val;
