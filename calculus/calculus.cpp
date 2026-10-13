@@ -24,21 +24,29 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
     const bool y_is_neg = y.IsNegative();
     const bool both_have_the_same_sign = x_is_neg == y_is_neg;
     switch (operation) {
-    case calculus::ADD: result = x + y;
+    case calculus::ADD:
+    {
+        result = x + y;
         if (result.IsOverflowed()) {
             error_code = calculus::NOT_FINITE;
         } else {
             return result;
         }
         break;
-    case calculus::SUB: result = x - y;
+    }
+    case calculus::SUB:
+    {
+        result = x - y;
         if (result.IsOverflowed()) {
             error_code = calculus::NOT_FINITE;
         } else {
             return result;
         }
         break;
-    case calculus::MULT: result = x * y;
+    }
+    case calculus::MULT:
+    {
+        result = x * y;
         if (result.IsOverflowed()) {
             error_code = calculus::NOT_FINITE;
         } else {
@@ -50,21 +58,32 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
             return result;
         }
         break;
-    case calculus::NEG: result = dec_n::Decimal{} - x;
+    }
+    case calculus::NEG:
+    {
+        result = dec_n::Decimal{} - x;
         return result;
-    case calculus::SQRT: result = dec_n::Sqrt(x);
+    }
+    case calculus::SQRT:
+    {
+        result = dec_n::Sqrt(x);
         if (result.IsNotANumber()) {
             error_code = calculus::NOT_A_NUMBER;
         } else {
             return result;
         }
-    case calculus::SQR: result = x * x;
+        break;
+    }
+    case calculus::SQR:
+    {
+        result = x * x;
         if (result.IsOverflowed()) {
             error_code = calculus::NOT_FINITE;
         } else {
             return result;
         }
         break;
+    }
     case calculus::RECIPROC:
     {
         if (x.IsZero()) {
@@ -81,7 +100,34 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
         }
         break;
     }
+    case calculus::LN:
+    {
+        result = dec_n::Ln(x);
+        if (result.IsNotANumber()) {
+            error_code = calculus::NOT_A_NUMBER;
+        } else if (result.IsOverflowed()) {
+            error_code = calculus::NOT_FINITE;
+        }
+        else {
+            return result;
+        }
+        break;
+    }
+    case calculus::EXP:
+    {
+        result = dec_n::Exp(x);
+        if (result.IsNotANumber()) {
+            error_code = calculus::NOT_A_NUMBER;
+        } else if (result.IsOverflowed()) {
+            error_code = calculus::NOT_FINITE;
+        }
+        else {
+            return result;
+        }
+        break;
+    }
     case calculus::DIV:
+    {
         if (!y.IsZero()) {
             result = x / y;
             if (result.IsOverflowed()) {
@@ -98,7 +144,9 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
             error_code = calculus::ZERO_DIVISION;
         }
         break;
+    }
     case calculus::POW:
+    {
         result = dec_n::Pow(x, y);
         if (result.IsOverflowed()) {
             error_code = calculus::NOT_FINITE;
@@ -110,7 +158,9 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
             return result;
         }
         break;
+    }
     case calculus::ROUND:
+    {
         result = x.Round();
         if (result.IsOverflowed()) {
             error_code = calculus::NOT_FINITE;
@@ -118,7 +168,9 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
             return result;
         }
         break;
+    }
     case calculus::FIX_NINES:
+    {
         result = x.FixNines();
         if (result.IsOverflowed()) {
             error_code = calculus::NOT_FINITE;
@@ -126,10 +178,14 @@ dec_n::Decimal doIt(int operation, dec_n::Decimal x, dec_n::Decimal y, int& erro
             return result;
         }
         break;
+    }
     case calculus::SEPARATOR:
+    {
         error_code = calculus::UNKNOW_OP;
         break;
-    default: error_code = calculus::UNKNOW_OP;
+    }
+    default:
+        error_code = calculus::UNKNOW_OP;
     }
     return dec_n::Decimal{};
 }

@@ -1356,7 +1356,7 @@ inline Decimal ln_inner(Decimal x) {
     Decimal two; two.SetDecimal(2, 0);
 
     // Правильные границы приведения
-    Decimal upper_bound; upper_bound.SetStringRepresentation("1.414213562373095048"); // Sqrt(2)
+    Decimal upper_bound; upper_bound.SetStringRepresentation("1.414213562373095049"); // Sqrt(2)
     Decimal lower_bound; lower_bound.SetStringRepresentation("0.707106781186547524"); // 1/Sqrt(2)
 
     int k = 0;
@@ -1434,23 +1434,22 @@ inline Decimal exp_inner(Decimal x)
     // 2. Выделяем целую часть k = floor(x / ln2)
     // Разделим x на ln2, чтобы понять, сколько степеней двойки нужно вынести
     Decimal k_dec = x / LN2;
-    // Здесь должна быть ваша функция приведения к целому (Truncate / Floor)
+    // Truncate / Floor
     k_dec.SetDecimal(k_dec.IntegerPart(), 0);
 
     // Остаток r = x - k * ln2
     Decimal r = x - (k_dec * LN2);
 
     // 3. Вычисление exp(r) через ряд Тейлора: 1 + r + r^2/2! + r^3/3! + ...
-    Decimal term = one;
+    // N берется фиксированным под нужную точность (для 128 бит обычно 30-35)
+    const int N = 35;
     Decimal sum = one;
-    Decimal count;
 
-    for (int i = 1; i < 40; i++) { // 40 итераций обычно за глаза хватает для precision 128-bit
+    for (int i = N; i >= 1; i--) {
+        Decimal count;
         count.SetDecimal(i, 0);
-        term = (term * r) / count;
-
-        if (term.IsZero()) break; // Достигли предела точности типа
-        sum = sum + term;
+        // sum = 1 + (r / i) * sum;
+        sum = one + (r * sum) / count;
     }
 
     // 4. Сборка результата: sum * 2^k

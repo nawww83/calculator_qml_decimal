@@ -50,6 +50,8 @@ static constexpr auto description = [](int operation) -> QString {
         case OperationEnums::SQRT:          return QString::fromUtf8("Квадратный корень");
         case OperationEnums::SQR:           return QString::fromUtf8("Квадрат числа");
         case OperationEnums::RECIPROC:      return QString::fromUtf8("Обратное число");
+        case OperationEnums::LN:            return QString::fromUtf8("Натуральный логарифм");
+        case OperationEnums::EXP:            return QString::fromUtf8("Экспонента");
         case OperationEnums::ROUND:         return QString::fromUtf8("Округление к целому");
         case OperationEnums::FIX_NINES:     return QString::fromUtf8("Коррекция хвоста девяток");
         case OperationEnums::SEPARATOR_OP_TYPE:     return QString::fromUtf8("Разделитель операций: недопустимая операция!");
@@ -193,7 +195,7 @@ void AppCore::DoWork(dec_n::Decimal value, int operation)
 
 void AppCore::process(int requested_operation, QString input_value)
 {
-    // --- 1. Вспомогательные лямбды ---
+    // --- Вспомогательные лямбды ---
     auto getStr = [this](const dec_n::Decimal& v) {
         return QString::fromStdString(v.ToFormattedString(m_userDisplayWidth));
     };
@@ -206,7 +208,7 @@ void AppCore::process(int requested_operation, QString input_value)
         qDebug().noquote() << modifiers::red << "!!! [Ошибка]: " << err_description(err) << modifiers::reset;
     };
 
-    // --- 2. Специальные операции (CLEAR / IO) ---
+    // --- Специальные операции (CLEAR / IO) ---
     if (requested_operation == OperationEnums::CLEAR_ALL) {
         qDebug().noquote() << modifiers::gray << "Операция: " << modifiers::reset << description(requested_operation);
         emit clearTempResult();
@@ -218,22 +220,21 @@ void AppCore::process(int requested_operation, QString input_value)
     }
 
     if (requested_operation > OperationEnums::SEPARATOR_IO) {
-        bignum::u128::U128 value = (requested_operation == OperationEnums::MAX_INT_VALUE)
-        ? bignum::u128::U128::max() : bignum::u128::U128{0};
-        if (mState == StateEnums::RESETTED) emit clearTempResult();
-        emit setInput(QString::fromStdString(value.toString()));
-        return;
+        if (requested_operation == OperationEnums::MAX_INT_VALUE) {
+            if (mState == StateEnums::RESETTED) emit clearTempResult();
+            auto value = bignum::u128::U128::max();
+            emit setInput(QString::fromStdString(value.toString()));
+            return;
+        }
+        if (requested_operation == OperationEnums::RANDINT || requested_operation == OperationEnums::RANDINT64) {
+            qDebug().noquote() << modifiers::green << "--> [Запрос]: " << description(requested_operation) << modifiers::reset;
+            dec_n::Decimal dummy;
+            DoWork(dummy, requested_operation);
+            return;
+        }
     }
 
-    // --- 3. РАНДОМ (Вне очереди парсинга) ---
-    if (requested_operation == OperationEnums::RANDINT || requested_operation == OperationEnums::RANDINT64) {
-        qDebug().noquote() << modifiers::green << "--> [Запрос]: " << description(requested_operation) << modifiers::reset;
-        dec_n::Decimal dummy;
-        DoWork(dummy, requested_operation);
-        return;
-    }
-
-    // --- 4. Парсинг числа ---
+    // --- Парсинг числа ---
     static auto space_regex = QRegularExpression{"\\s"};
     input_value.remove(space_regex);
     dec_n::Decimal val;
@@ -251,7 +252,7 @@ void AppCore::process(int requested_operation, QString input_value)
     const bool is_nan = val.IsNotANumber();
     if (mState == StateEnums::RESETTED && is_nan) return;
 
-    // --- 5. ФАКТОРИЗАЦИЯ ---
+    // --- ФАКТОРИЗАЦИЯ ---
     if (requested_operation == OperationEnums::FACTOR) {
         if (mState == StateEnums::EQUAL_TO_OP || mState == StateEnums::OP_LOOP || is_nan) return;
         emit setEnableFactorButton(false);
@@ -261,7 +262,7 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
 
-    // --- 6. Обработка NaN (Смена операции при пустом вводе) ---
+    // --- Обработка NaN (Смена операции при пустом вводе) ---
     if (is_nan) {
         if (requested_operation == mCurrentOperation) {
             qDebug().noquote() << modifiers::red << "Повтор операции." << modifiers::reset;
@@ -276,7 +277,7 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
 
-    // --- 7. Унарные операции ---
+    // --- Унарные операции ---
     const bool current_val_is_the_same = (val == mPreviousValue);
     mPreviousValue = val;
     const bool is_immediate_state = (mState == StateEnums::EQUAL_TO_OP || mState == StateEnums::OP_LOOP);
@@ -287,16 +288,16 @@ void AppCore::process(int requested_operation, QString input_value)
         return;
     }
 
-    if (requested_operation == OperationEnums::SQRT ||
-        requested_operation == OperationEnums::SQR  ||
-        requested_operation == OperationEnums::RECIPROC ||
-        requested_operation == OperationEnums::ROUND ||
-        requested_operation == OperationEnums::FIX_NINES)
+    if (requested_operation > OperationEnums::SEPARATOR_OP_TYPE &&
+        requested_operation < OperationEnums::SEPARATOR_IO)
     {
         if (is_immediate_state) {
             if (requested_operation == OperationEnums::RECIPROC && val.IsZero()) {
                 updateUIWithError(Errors::ZERO_DIVISION);
                 return;
+            }
+            if (requested_operation == OperationEnums::LN) {
+                val = dec_n::Ln(val);
             }
             if (requested_operation == OperationEnums::SQRT) {
                 val = dec_n::Sqrt(val);
@@ -331,7 +332,7 @@ void AppCore::process(int requested_operation, QString input_value)
             emit showCurrentOperation(description(requested_operation));
         }
     }
-    // --- 8. Кнопка EQUAL (Равно) ---
+    // --- Кнопка EQUAL (Равно) ---
     if (requested_operation == OperationEnums::EQUAL) {
         if (mCurrentOperation == OperationEnums::FACTOR) return;
         if (mCurrentOperation < 0 && !current_val_is_the_same) {
@@ -343,7 +344,7 @@ void AppCore::process(int requested_operation, QString input_value)
         if (mCurrentOperation == requested_operation && current_val_is_the_same) return;
     }
 
-    // --- 9. Управление состояниями (FSM) ---
+    // --- Управление состояниями (FSM) ---
     const bool is_binary = (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR_OP_TYPE);
     const bool is_unary_delayed = (requested_operation > OperationEnums::SEPARATOR_OP_TYPE && requested_operation < OperationEnums::SEPARATOR_IO);
 

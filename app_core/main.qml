@@ -332,6 +332,48 @@ Window {
                     }
                 }
                 Button {
+                    id: ln
+                    text: "\u33d1"
+                    font.pixelSize: 28
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Натуральный логарифм")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: ln.down ? "#ff0000" : (ln.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.LN, input.text)
+                    }
+                }
+                Button {
+                    id: exp
+                    text: "\u212f\u02e3"
+                    font.pixelSize: 28
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Экспонента")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: exp.down ? "#ff0000" : (exp.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.EXP, input.text)
+                    }
+                }
+                Button {
                     id: equal
                     text: "="
                     font.pixelSize: 28
@@ -512,27 +554,6 @@ Window {
                     }
                 }
                 Button {
-                    id: random_integer
-                    text: "\u03BE\u2081\u2082\u2088"  // ξ₁₂₈
-                    font.pixelSize: 24
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Случайное целое 128-битное число")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: random_integer.down ? "#ff0000" : (random_integer.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.RANDINT);
-                    }
-                }
-                Button {
                     id: random_half_integer
                     text: "\u03BE\u2086\u2084"  // ξ₆₄
                     font.pixelSize: 24
@@ -551,6 +572,27 @@ Window {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: AppCore.process(Operations.OperationEnums.RANDINT64);
+                    }
+                }
+                Button {
+                    id: random_integer
+                    text: "\u03BE\u2081\u2082\u2088"  // ξ₁₂₈
+                    font.pixelSize: 24
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Случайное целое 128-битное число")
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       border.color: random_integer.down ? "#ff0000" : (random_integer.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: AppCore.process(Operations.OperationEnums.RANDINT);
                     }
                 }
                 Button {
