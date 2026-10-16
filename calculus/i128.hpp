@@ -175,7 +175,7 @@ public:
     I128 operator>>(uint32_t shift) const
     {
         I128 result = *this;
-        result.mUnsigned <<= shift;
+        result.mUnsigned >>= shift;
         return result;
     }
 
