@@ -327,20 +327,35 @@ inline constexpr U128 &U128::operator>>=(u32 s) noexcept
     return *this;
 }
 
-// Низкоуровневое деление 128/64 для эмуляции
+// Низкоуровневое деление 128/64 для эмуляции.
+// Предусловие: h < d (частное помещается в 64 бита), d != 0.
 inline constexpr u64 div_internal(u64 h, u64 l, u64 d, u64 *r) noexcept
 {
 #if defined(USE_MSVC_INTRINSICS)
     if (!std::is_constant_evaluated())
         return _udiv128(h, l, d, r);
 #endif
+    // Деление со сдвигом и вычитанием по битам (64 итерации).
+    // Прежняя версия на 32-битных половинах переполняла сдвиги rem << 32
+    // при d >= 2^32, из-за чего частное получалось неверным.
+    u64 q = 0;
     u64 rem = h;
-    u64 qh = ((rem << 32) | (l >> 32)) / d;
-    rem = ((rem << 32) | (l >> 32)) % d;
-    u64 ql = ((rem << 32) | (l & 0xFFFFFFFF)) / d;
+    for (int i = 63; i >= 0; --i)
+    {
+        const u64 carry = rem >> 63; // вытесняемый старший бит
+        rem = (rem << 1) | ((l >> i) & 1);
+        q <<= 1;
+        if (carry || rem >= d)
+        {
+            // При carry истинное значение >= 2^64: вычитание заворачивается
+            // по модулю 2^64 и всё равно даёт верный остаток (< d).
+            rem -= d;
+            q |= 1;
+        }
+    }
     if (r)
-        *r = ((rem << 32) | (l & 0xFFFFFFFF)) % d;
-    return (qh << 32) | ql;
+        *r = rem;
+    return q;
 }
 
 template <bool Q, bool R>
