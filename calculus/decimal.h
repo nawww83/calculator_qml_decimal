@@ -656,42 +656,28 @@ public:
      * @return
      */
     bool operator<(const Decimal& other) const {
-        I128 zero(0);
-
-        // Случай 1: Разные знаки целых частей
-        if (mInteger != other.mInteger) {
-            // Если обе целые части не равны нулю, просто сравниваем их
-            if (mInteger != zero && other.mInteger != zero) {
-                return mInteger < other.mInteger;
-            }
-            // Если одна из целых частей равна нулю, нужно быть аккуратнее,
-            // так как знак второго числа может «прятаться» в числителе.
-            // Поэтому переходим к общему покомпонентному сравнению ниже.
+        const bool neg1 = IsNegative();
+        const bool neg2 = other.IsNegative();
+        if (neg1 != neg2) {
+            // Отрицательное число всегда меньше неотрицательного.
+            return neg1;
         }
-
-        // Случай 2: Целые части одинаковы и не равны нулю
-        if (mInteger == other.mInteger && mInteger != zero) {
-            if (mInteger > zero) {
-                // Для положительных: у кого числитель меньше, тот и меньше
-                return mNominator < other.mNominator;
-            } else {
-                // Для отрицательных: знак числителя обычно совпадает со знаком целой части
-                // (или числитель хранится как положительный модуль — зависит от вашей архитектуры).
-                // Если у вас числитель отрицательного числа тоже отрицательный:
-                return mNominator < other.mNominator;
-                // Если числитель у вас ВСЕГДА положительный, а знак только в mInteger, то знак меняется:
-                // return mNominator > other.mNominator;
-            }
+        // Сравниваем модули: сначала по целой части, затем по числителю.
+        const I128 mag1_int = mInteger.abs();
+        const I128 mag1_nom = mNominator.abs();
+        const I128 mag2_int = other.mInteger.abs();
+        const I128 mag2_nom = other.mNominator.abs();
+        bool mag_less;
+        bool mag_equal;
+        if (mag1_int != mag2_int) {
+            mag_less = mag1_int < mag2_int;
+            mag_equal = false;
+        } else {
+            mag_less = mag1_nom < mag2_nom;
+            mag_equal = (mag1_nom == mag2_nom);
         }
-
-        // Случай 3: Обе или одна из целых частей равны нулю (знак может быть в числителе)
-        // Самый надежный способ для этого пограничного случая — сравнить mInteger и mNominator напрямую.
-        // Так как целая часть имеет больший приоритет, мы можем условно «склеить» их логически:
-        if (mInteger != other.mInteger) {
-            return mInteger < other.mInteger;
-        }
-        // Если и целые части равны (например, обе 0), просто сравниваем числители
-        return mNominator < other.mNominator;
+        // Для отрицательных чисел больший модуль означает меньшее значение.
+        return neg1 ? (!mag_less && !mag_equal) : mag_less;
     }
 
     bool operator>(const Decimal& other) const { return other < *this; }

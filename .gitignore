@@ -16,3 +16,6 @@ Makefile*
 # Скрытая папка кэша Qt Creator
 .qtc_clangd/
 
+# Бинарник регрессионного теста числового ядра
+calculus/tests/numeric_regression_test
+

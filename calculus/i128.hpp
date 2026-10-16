@@ -85,14 +85,14 @@ public:
         }
         else
         {
-            if (mSign())
+            // Знаки разные. Нули (+0 и -0) равны между собой, а во всех
+            // остальных случаях порядок однозначно определяется знаком.
+            if (is_zero() && other.is_zero())
             {
-                return mUnsigned != U128{0} ? -1 <=> 1 : 1 <=> 1;
+                return std::partial_ordering::equivalent;
             }
-            else
-            {
-                return mUnsigned != U128{0} ? 1 <=> -1 : 1 <=> 1;
-            }
+            return mSign() ? std::partial_ordering::less
+                           : std::partial_ordering::greater;
         }
     }
 
@@ -462,14 +462,10 @@ public:
             return {result, 0};
         }
         const auto q = X.mUnsigned / Y;
-        // const auto r = X.mUnsigned % Y;
+        // Знак результата хранится только в поле sign: модуль частного
+        // равен |X| / Y, коррекций по знакам не делаем.
         auto Q = I128{q, X.mSign};
         auto R = X - Q * Y;
-        if (R.is_negative())
-        {
-            R += I128{Y};
-            Q -= I128{1};
-        }
         return {Q, R.mUnsigned.low()};
     }
 
@@ -494,14 +490,10 @@ public:
             return {result, 0};
         }
         const auto q = X.mUnsigned / Y.mUnsigned;
-        // const auto r = X.mUnsigned % Y.mUnsigned;
+        // Знак результата хранится только в поле sign: модуль частного
+        // равен |X| / |Y|, коррекций по знакам не делаем.
         auto Q = I128{q, X.mSign ^ Y.mSign};
         auto R = X - Q * Y;
-        if (!R.is_zero() && (R.mSign ^ Y.mSign)())
-        {
-            R += I128{Y};
-            Q -= I128{1};
-        }
         return {Q, R};
     }
 
