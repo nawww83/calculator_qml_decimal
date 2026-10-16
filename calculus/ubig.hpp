@@ -7,8 +7,14 @@
 
 #include <cstdint>
 #include <bit>
+#include <cassert>
 #include <compare>
 #include <algorithm>
+#include <functional>
+#include <limits>
+#include <ostream>
+#include <string>
+#include <type_traits>
 #include <utility>
 #include "u128.hpp" // generic
 
@@ -34,7 +40,6 @@ public:
     using value_type = ULOW;
 
     // --- Конструкторы ---
-    // --- Конструкторы ---
     constexpr UBig() noexcept = default;
 
     // Используем std::move, так как ULOW может быть тяжелым (например, U1024)
@@ -44,8 +49,15 @@ public:
     constexpr UBig(ULOW low) noexcept
         : mLow(std::move(low)), mHigh(0) {}
 
-    // Универсальный конструктор от примитива
-    constexpr UBig(uint64_t val) noexcept
+    /**
+         * @brief Универсальный конструктор от целочисленного примитива.
+         * @details Реализован шаблоном, а не как UBig(uint64_t), чтобы не
+         * конфликтовать с UBig(ULOW), когда сам ULOW — примитив (uint64_t).
+         * @tparam T Любой целочисленный тип, кроме самого ULOW.
+         */
+    template <typename T>
+        requires(std::is_integral_v<T> && !std::is_same_v<std::remove_cvref_t<T>, ULOW>)
+    constexpr UBig(T val) noexcept
         : mLow(static_cast<ULOW>(val)), mHigh(0) {}
 
     // Конструктор от string_view (или char*)
@@ -60,6 +72,19 @@ public:
     [[nodiscard]] constexpr ULOW &low() noexcept { return mLow; }
     [[nodiscard]] constexpr ULOW &high() noexcept { return mHigh; }
 
+    /**
+         * @brief Младшие 64 бита числа (сужение без проверки диапазона).
+         */
+    [[nodiscard]] constexpr uint64_t to_uint64() const noexcept
+    {
+        if constexpr (requires { mLow.to_uint64(); })
+            return mLow.to_uint64(); // Вложенный UBig
+        else if constexpr (requires { mLow.low(); })
+            return static_cast<uint64_t>(mLow.low()); // U128
+        else
+            return static_cast<uint64_t>(mLow); // Примитив
+    }
+
     // --- Сравнение ---
     constexpr bool operator==(const UBig &other) const noexcept
     {
@@ -70,6 +95,16 @@ public:
         if (auto cmp = mHigh <=> other.mHigh; cmp != 0)
             return cmp;
         return mLow <=> other.mLow;
+    }
+
+    // --- Логические проверки ---
+    [[nodiscard]] constexpr explicit operator bool() const noexcept
+    {
+        return mLow != low_min() || mHigh != low_min();
+    }
+    [[nodiscard]] constexpr bool operator!() const noexcept
+    {
+        return mLow == low_min() && mHigh == low_min();
     }
 
     // --- Сложение и вычитание ---
@@ -256,6 +291,7 @@ public:
         res.mHigh += (mHigh * other.mLow);
         return res;
     }
+    constexpr UBig &operator*=(const UBig &other) noexcept { return *this = (*this * other); }
 
     // --- Сдвиги ---
     constexpr UBig &operator<<=(uint32_t s) noexcept
@@ -347,7 +383,7 @@ public:
         auto [Q, R] = divide_as_pair(mHigh, other.mHigh);
 
         // 2. Учет вклада младших половин (Delta-коррекция)
-        constexpr ULOW MAX_V = ULOW::max();
+        constexpr ULOW MAX_V = low_max();
         const ULOW Delta = MAX_V - other.mLow;
         const UBig DeltaQ = mult_ext(Delta, Q);
 
@@ -473,6 +509,18 @@ public:
         return {Q, R};
     }
 
+    // --- Деление с присваиванием и остаток ---
+    // Тип результата всегда совпадает с типом левого операнда (UBig) — как у U128.
+    // Для узкого делителя ULOW конверсия в UBig происходит неявно, а внутри
+    // operator/ срабатывает быстрый путь (other.mHigh == 0).
+    constexpr UBig &operator/=(const UBig &other) noexcept { return *this = (*this / other).first; }
+    constexpr UBig &operator%=(const UBig &other) noexcept { return *this = (*this / other).second; }
+
+    /**
+         * @brief Остаток от деления.
+         */
+    [[nodiscard]] constexpr UBig operator%(const UBig &other) const noexcept { return (*this / other).second; }
+
     /**
          * @brief Количество ведущих нулей.
          */
@@ -559,21 +607,35 @@ public:
     }
 
     /**
+         * @brief Максимальное значение "половинки".
+         * @details Работает и для классов (U128, вложенный UBig), и для примитивов.
+         */
+    [[nodiscard]] static constexpr ULOW low_max() noexcept
+    {
+        if constexpr (requires { ULOW::max(); })
+            return ULOW::max();
+        else
+            return std::numeric_limits<ULOW>::max();
+    }
+
+    /**
+         * @brief Минимальное значение "половинки" (обычно 0).
+         */
+    [[nodiscard]] static constexpr ULOW low_min() noexcept
+    {
+        if constexpr (requires { ULOW::min(); })
+            return ULOW::min();
+        else
+            return ULOW{0};
+    }
+
+    /**
          * @brief Возвращает максимально возможное значение для данного типа UBig.
          * Рекурсивно заполняет все уровни вложенности единицами.
          */
     [[nodiscard]] static constexpr UBig max() noexcept
     {
-        if constexpr (requires { ULOW::max(); })
-        {
-            // Если ULOW — это ваш класс (U128, U256...), вызываем его max()
-            return UBig{ULOW::max(), ULOW::max()};
-        }
-        else
-        {
-            // Если ULOW — это примитив (uint64_t)
-            return UBig{std::numeric_limits<ULOW>::max(), std::numeric_limits<ULOW>::max()};
-        }
+        return UBig{low_max(), low_max()};
     }
 
     /**
@@ -581,14 +643,7 @@ public:
          */
     [[nodiscard]] static constexpr UBig min() noexcept
     {
-        if constexpr (requires { ULOW::min(); })
-        {
-            return UBig{ULOW::min(), ULOW::min()};
-        }
-        else
-        {
-            return UBig{ULOW{0}, ULOW{0}};
-        }
+        return UBig{low_min(), low_min()};
     }
 
     /**
@@ -707,4 +762,30 @@ public:
     }
 };
 
+/**
+     * @brief Потоковый вывод UBig в десятичном виде.
+     */
+template <typename ULOW>
+std::ostream &operator<<(std::ostream &os, const UBig<ULOW> &val)
+{
+    return os << val.toString();
+}
+
 } // namespace bignum
+
+namespace std
+{
+/**
+     * @brief Хеш для UBig. Алгоритм комбинирования хешей половин — как у U128.
+     */
+template <typename ULOW>
+struct hash<bignum::UBig<ULOW>>
+{
+    size_t operator()(const bignum::UBig<ULOW> &v) const noexcept
+    {
+        size_t h1 = std::hash<ULOW>{}(v.low());
+        size_t h2 = std::hash<ULOW>{}(v.high());
+        return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
+    }
+};
+} // namespace std
