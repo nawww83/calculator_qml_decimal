@@ -36,6 +36,22 @@ public:
     static constexpr uint32_t HALF_WIDTH = static_cast<uint32_t>(bignum::generic::bit_size<ULOW>());
     static constexpr uint32_t WIDTH = HALF_WIDTH * 2;
 
+    // Разрядность лимба для быстрого деления: 64 бита там, где есть 128-битные
+    // целые (GCC/Clang), иначе 32 бита (MSVC). Алгоритм деления — общий.
+#if defined(__SIZEOF_INT128__)
+    using limb_t = uint64_t;
+    using wide_t = unsigned __int128; // двойной лимб
+    using swide_t = __int128;         // знаковый двойной лимб
+#else
+    using limb_t = uint32_t;
+    using wide_t = uint64_t;
+    using swide_t = int64_t;
+#endif
+    static constexpr uint32_t LIMB_BITS = static_cast<uint32_t>(sizeof(limb_t) * 8);
+    static constexpr uint32_t LIMBS = WIDTH / LIMB_BITS;
+    static constexpr uint32_t HALF_LIMBS = HALF_WIDTH / LIMB_BITS;
+    static constexpr bool FLAT = (WIDTH % LIMB_BITS == 0) && (HALF_WIDTH % LIMB_BITS == 0);
+
     // Тип "половинки" для использования в generic-функциях
     using value_type = ULOW;
 
@@ -443,70 +459,107 @@ public:
             return {UBig(q), r};
         }
 
-        // --- Авторский итеративный метод ---
-        UBig X = *this;
-        const UBig X_old = X;
-        UBig Q{0};
-        ULOW R{0};
-
-        // Вычисляем обратную величину через вашу обобщенную функцию
-        std::pair<ULOW, ULOW> rcp = bignum::generic::reciprocal_and_extend(other);
-        const ULOW rcp_compl = other - rcp.second;
-
-        // Ускорение сходимости (выбор направления коррекции)
-        const bool make_inverse = rcp_compl < rcp.second;
-        if (make_inverse)
-            ++(rcp.first);
-
-        for (;;)
+        if constexpr (FLAT)
         {
-            const bool x_has_high = (X.mHigh != ULOW{0});
+            // === Быстрый путь: длинное деление (алгоритм D Кнута) по лимбам ===
+            // Разрядность лимба выбирается автоматически (64 бита с __int128, иначе 32).
+            // Это основной горячий путь проекта.
+            limb_t u[LIMBS] = {};
+            limb_t v[HALF_LIMBS] = {};
+            limb_t q[LIMBS] = {};
+            limb_t r[HALF_LIMBS] = {};
 
-            // 1. Накапливаем частное
-            if (x_has_high)
-                Q += mult_ext(X.mHigh, rcp.first);
-
-            // Добавляем результат деления младшей части
-            Q += UBig(get_quotient(X.mLow, other));
-
-            // 2. Считаем остаток через вашу функцию adder
-            const ULOW carry = bignum::generic::smart_remainder_adder(R, X.mLow, other, rcp.second);
-            Q += UBig(carry);
-
-            // 3. Обновляем X для следующей итерации
-            if (x_has_high)
+            UBig tmp = *this;
+            for (uint32_t i = 0; i < LIMBS; ++i)
             {
-                X = mult_ext(X.mHigh, make_inverse ? rcp_compl : rcp.second);
+                u[i] = static_cast<limb_t>(tmp.to_uint64());
+                tmp >>= LIMB_BITS;
             }
-            else
+            UBig dtmp{other};
+            for (uint32_t i = 0; i < HALF_LIMBS; ++i)
             {
-                X = UBig{0};
+                v[i] = static_cast<limb_t>(dtmp.to_uint64());
+                dtmp >>= LIMB_BITS;
             }
 
-            if (X != UBig{0})
+            // Отбрасываем незначащие старшие лимбы делителя: divmnu требует v[n-1] != 0.
+            int n = static_cast<int>(HALF_LIMBS);
+            while (n > 1 && v[n - 1] == 0)
+                --n;
+
+            divmnu(q, r, u, v, static_cast<int>(LIMBS), n);
+
+            UBig Q{0};
+            for (uint32_t i = 0; i < LIMBS; ++i)
+                Q |= UBig(q[i]) << (LIMB_BITS * i);
+
+            UBig R{0};
+            for (uint32_t i = 0; i < HALF_LIMBS; ++i)
+                R |= UBig(r[i]) << (LIMB_BITS * i);
+
+            // Остаток строго меньше делителя (< 2^HALF_WIDTH), поэтому помещается в одну "половинку".
+            return {Q, R.mLow};
+        }
+        else
+        {
+            // --- Резервный авторский итеративный метод (для ширин, не кратных 64) ---
+            UBig X = *this;
+            const UBig X_old = X;
+            UBig Q{0};
+            ULOW R{0};
+
+            std::pair<ULOW, ULOW> rcp = bignum::generic::reciprocal_and_extend(other);
+            const ULOW rcp_compl = other - rcp.second;
+
+            const bool make_inverse = rcp_compl < rcp.second;
+            if (make_inverse)
+                ++(rcp.first);
+
+            for (;;)
             {
-                if (make_inverse)
+                const bool x_has_high = (X.mHigh != ULOW{0});
+
+                if (x_has_high)
+                    Q += mult_ext(X.mHigh, rcp.first);
+
+                Q += UBig(get_quotient(X.mLow, other));
+
+                const ULOW carry = bignum::generic::smart_remainder_adder(R, X.mLow, other, rcp.second);
+                Q += UBig(carry);
+
+                if (x_has_high)
+                {
+                    X = mult_ext(X.mHigh, make_inverse ? rcp_compl : rcp.second);
+                }
+                else
+                {
+                    X = UBig{0};
+                }
+
+                if (X != UBig{0})
+                {
+                    if (make_inverse)
+                    {
+                        Q = -Q;
+                        R = other - R;
+                    }
+                    continue;
+                }
+
+                if (Q > X_old)
                 {
                     Q = -Q;
                     R = other - R;
+                    if (R == other)
+                    {
+                        R = ULOW{0};
+                        Q.inc();
+                    }
                 }
-                continue;
+                break;
             }
-
-            // 4. Финальная коррекция знака
-            if (Q > X_old)
-            {
-                Q = -Q;
-                R = other - R;
-                if (R == other)
-                {
-                    R = ULOW{0};
-                    Q.inc();
-                }
-            }
-            break;
+            return {Q, R};
         }
-        return {Q, R};
     }
 
     // --- Деление с присваиванием и остаток ---
@@ -668,6 +721,93 @@ public:
     static constexpr auto divide_as_pair(const ULOW &a, const ULOW &b)
     {
         return bignum::generic::div_rem(a, b);
+    }
+
+    /**
+         * @brief Длинное деление (алгоритм D Кнута) в системе счисления 2^LIMB_BITS.
+         * @details Делит u (m лимбов) на v (n лимбов). v[n-1] != 0, n >= 1.
+         *          u изменяется на месте. q получает m-n+1 лимбов (остальные
+         *          должны быть предварительно обнулены), r — n лимбов.
+         *          Разрядность лимба (64 или 32 бита) выбирается на этапе
+         *          компиляции — так код работает и на MSVC без __int128.
+         */
+    static constexpr void divmnu(limb_t *q, limb_t *r, limb_t *u,
+                                 const limb_t *v, int m, int n) noexcept
+    {
+        // Делитель из одного лимба — простой проход.
+        if (n == 1)
+        {
+            limb_t k = 0;
+            for (int j = m - 1; j >= 0; --j)
+            {
+                wide_t cur = (static_cast<wide_t>(k) << LIMB_BITS) | u[j];
+                q[j] = static_cast<limb_t>(cur / v[0]);
+                k = static_cast<limb_t>(cur % v[0]);
+            }
+            r[0] = k;
+            return;
+        }
+
+        constexpr wide_t B = static_cast<wide_t>(1) << LIMB_BITS;
+        const int s = static_cast<int>(std::countl_zero(v[n - 1]));
+
+        // Нормализация: сдвигаем делитель так, чтобы старший бит старшего лимба был установлен.
+        limb_t vn[LIMBS];
+        for (int i = n - 1; i > 0; --i)
+            vn[i] = (v[i] << s) | (s ? (v[i - 1] >> (LIMB_BITS - s)) : 0);
+        vn[0] = static_cast<limb_t>(v[0] << s);
+
+        limb_t un[LIMBS + 1];
+        un[m] = s ? (u[m - 1] >> (LIMB_BITS - s)) : 0;
+        for (int i = m - 1; i > 0; --i)
+            un[i] = (u[i] << s) | (s ? (u[i - 1] >> (LIMB_BITS - s)) : 0);
+        un[0] = static_cast<limb_t>(u[0] << s);
+
+        for (int j = m - n; j >= 0; --j)
+        {
+            // Оценка очередного лимба частного с коррекцией.
+            wide_t num = (static_cast<wide_t>(un[j + n]) << LIMB_BITS) | un[j + n - 1];
+            wide_t qhat = num / vn[n - 1];
+            wide_t rhat = num % vn[n - 1];
+            while (qhat >= B || qhat * vn[n - 2] > ((rhat << LIMB_BITS) | un[j + n - 2]))
+            {
+                --qhat;
+                rhat += vn[n - 1];
+                if (rhat >= B)
+                    break;
+            }
+
+            // Умножение и вычитание: un[j .. j+n] -= qhat * vn
+            swide_t k = 0;
+            for (int i = 0; i < n; ++i)
+            {
+                wide_t p = qhat * vn[i];
+                swide_t t = static_cast<swide_t>(un[i + j]) - k - static_cast<swide_t>(static_cast<limb_t>(p));
+                un[i + j] = static_cast<limb_t>(t);
+                k = static_cast<swide_t>(p >> LIMB_BITS) - (t >> LIMB_BITS);
+            }
+            swide_t t2 = static_cast<swide_t>(un[j + n]) - k;
+            un[j + n] = static_cast<limb_t>(t2);
+            q[j] = static_cast<limb_t>(qhat);
+
+            if (t2 < 0)
+            {
+                // Оценка была на единицу больше — прибавляем делитель обратно.
+                q[j] -= 1;
+                limb_t carry = 0;
+                for (int i = 0; i < n; ++i)
+                {
+                    wide_t ss = static_cast<wide_t>(un[i + j]) + vn[i] + carry;
+                    un[i + j] = static_cast<limb_t>(ss);
+                    carry = static_cast<limb_t>(ss >> LIMB_BITS);
+                }
+                un[j + n] = static_cast<limb_t>(un[j + n] + carry);
+            }
+        }
+
+        // Денормализация остатка.
+        for (int i = 0; i < n; ++i)
+            r[i] = (un[i] >> s) | (s ? (un[i + 1] << (LIMB_BITS - s)) : 0);
     }
 
     /**
