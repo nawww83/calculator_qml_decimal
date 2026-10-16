@@ -35,6 +35,7 @@ HEADERS += \
     u128.hpp \
     ubig.hpp \
     ulow.hpp \
+    siqs.hpp \
     defines.h \
     u128_utils.h
 

@@ -1,6 +1,7 @@
 #include "u128_utils.h"
 #include "rand_u128.h"
 #include "ecm_factorizer.h"
+#include "siqs.hpp"
 
 #include <functional>
 #include <list>
@@ -430,24 +431,14 @@ static PreprocessResult factor_preprocess(U128 x)
     return res;
 }
 
-// Тест: 172694645192493905907229620525860152663.
-std::map<bignum::u128::U128, int> factor_parallel(bignum::u128::U128 x)
+// Параллельный ECM (Ленстры) + добивание методом Ферма для одного числа.
+// Первый поток, доведший разложение до конца, выигрывает; остальные
+// останавливаются через Globals. Возвращает карту {простое -> степень}.
+static std::map<bignum::u128::U128, int> factor_via_ecm(bignum::u128::U128 n)
 {
-    // Запускаем детерминированную предобработку в вызывающем потоке
-    PreprocessResult prep = factor_preprocess(x);
-
-    // Если тяжелого остатка нет, число полностью разложилось в препроцессоре.
-    // Выходим сразу, экономя время на создании потоков ОС.
-    if (prep.composite_remainder == 0) {
-        return prep.factors;
-    }
-
-    // Если есть тяжелый остаток, отдаем его на растерзание параллельному ECM
     std::mutex mtx;
-    std::map<bignum::u128::U128, int> ecm_result;
+    std::map<bignum::u128::U128, int> result;
     bool has_result = false;
-
-    Globals::SetStop(false);
 
     unsigned int num_threads = std::thread::hardware_concurrency();
     if (num_threads == 0) {
@@ -460,29 +451,96 @@ std::map<bignum::u128::U128, int> factor_parallel(bignum::u128::U128 x)
     for (unsigned int i = 0; i < num_threads; ++i) {
         workers.emplace_back(
             [&](bignum::u128::U128 val) {
-                auto result = factor_ecm_worker(val);
+                auto local = factor_ecm_worker(val);
 
                 std::lock_guard<std::mutex> lock(mtx);
-                if (!has_result && !result.empty()) {
-                    ecm_result = std::move(result);
+                if (!has_result && !local.empty()) {
+                    result = std::move(local);
                     has_result = true;
                     Globals::SetStop(true);
                 }
             },
-            prep.composite_remainder);
+            n);
     }
 
     // Вручную дожидаемся завершения (join) каждого потока перед очисткой вектора
-    for (auto& worker : workers) {
+    for (auto &worker : workers) {
         if (worker.joinable()) {
             worker.join();
         }
     }
     workers.clear();
 
-    // Итоговое слияние: ко всем факторам, которые вернул ECM,
-    // честно применяем исходную глобальную степень числа.
-    for (const auto &[factor, power] : ecm_result) {
+    // Сбрасываем флаг остановки: им пользовался только этот параллельный прогон,
+    // иначе он помешает последующей рекурсии в factor_hard.
+    Globals::SetStop(false);
+
+    return result;
+}
+
+// Полное разложение "тяжелого" составного остатка. Выделение степени и
+// пробное деление уже выполнены в factor_preprocess, поэтому здесь остается
+// только составное число без малых делителей. Порядок методов:
+// SIQS -> ECM (Ленстры) + метод Ферма.
+static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
+{
+    std::map<bignum::u128::U128, int> result;
+
+    std::function<void(bignum::u128::U128)> split = [&](bignum::u128::U128 n) {
+        if (n <= 1)
+            return;
+        if (Globals::LoadStop())
+            return;
+        if (is_prime(n, 64)) {
+            result[n] += 1;
+            return;
+        }
+
+        // 1) Квадратичное решето (SIQS) — основной метод для 128-битных чисел.
+        const auto f = u128::siqs::quadratic_sieve<bignum::u128::U128>(n);
+        if (f.has_value() && f.value() > 1 && f.value() < n) {
+            split(f.value());
+            split(n / f.value());
+            return;
+        }
+
+        // Пользователь нажал "Стоп": фиксируем остаток как есть и выходим.
+        if (Globals::LoadStop()) {
+            result[n] += 1;
+            return;
+        }
+
+        // 2) Запасной путь: параллельный ECM (Ленстры) с добиванием методом Ферма.
+        const auto ecm_factors = factor_via_ecm(n);
+        for (const auto &[fac, pow] : ecm_factors) {
+            result[fac] += pow;
+        }
+    };
+
+    split(x);
+    return result;
+}
+
+// Тест: 172694645192493905907229620525860152663.
+std::map<bignum::u128::U128, int> factor_parallel(bignum::u128::U128 x)
+{
+    // Запускаем детерминированную предобработку в вызывающем потоке
+    PreprocessResult prep = factor_preprocess(x);
+
+    // Если тяжелого остатка нет, число полностью разложилось в препроцессоре.
+    // Выходим сразу, экономя время на создании потоков ОС.
+    if (prep.composite_remainder == 0) {
+        return prep.factors;
+    }
+
+    Globals::SetStop(false);
+
+    // Разложение тяжелого остатка: сначала SIQS, при неудаче — ECM (Ленстры) + Ферма.
+    const std::map<bignum::u128::U128, int> hard = factor_hard(prep.composite_remainder);
+
+    // Итоговое слияние: ко всем найденным факторам честно применяем
+    // исходную глобальную степень числа.
+    for (const auto &[factor, power] : hard) {
         prep.factors[factor] += (power * prep.global_power);
     }
 
