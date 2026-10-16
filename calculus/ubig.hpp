@@ -54,6 +54,7 @@ public:
 
     // Тип "половинки" для использования в generic-функциях
     using value_type = Half;
+    using half_type = Half;
 
     // --- Конструкторы ---
     constexpr UBig() noexcept = default;
