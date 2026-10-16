@@ -23,17 +23,17 @@ namespace bignum
 
 /**
      * @brief Иерархический класс для длинных чисел.
-     * @tparam ULOW Тип "половинки" (например, uint64_t или U128).
+     * @tparam Half Тип "половинки" (например, uint64_t или U128).
      */
-template <typename ULOW>
+template <typename Half>
 class UBig
 {
-    ULOW mLow{0};
-    ULOW mHigh{0};
+    Half mLow{0};
+    Half mHigh{0};
 
 public:
     // Используем универсальный способ определения разрядности
-    static constexpr uint32_t HALF_WIDTH = static_cast<uint32_t>(bignum::generic::bit_size<ULOW>());
+    static constexpr uint32_t HALF_WIDTH = static_cast<uint32_t>(bignum::generic::bit_size<Half>());
     static constexpr uint32_t WIDTH = HALF_WIDTH * 2;
 
     // Разрядность лимба для быстрого деления: 64 бита там, где есть 128-битные
@@ -53,28 +53,28 @@ public:
     static constexpr bool FLAT = (WIDTH % LIMB_BITS == 0) && (HALF_WIDTH % LIMB_BITS == 0);
 
     // Тип "половинки" для использования в generic-функциях
-    using value_type = ULOW;
+    using value_type = Half;
 
     // --- Конструкторы ---
     constexpr UBig() noexcept = default;
 
-    // Используем std::move, так как ULOW может быть тяжелым (например, U1024)
-    constexpr UBig(ULOW low, ULOW high) noexcept
+    // Используем std::move, так как Half может быть тяжелым (например, U1024)
+    constexpr UBig(Half low, Half high) noexcept
         : mLow(std::move(low)), mHigh(std::move(high)) {}
 
-    constexpr UBig(ULOW low) noexcept
+    constexpr UBig(Half low) noexcept
         : mLow(std::move(low)), mHigh(0) {}
 
     /**
          * @brief Универсальный конструктор от целочисленного примитива.
          * @details Реализован шаблоном, а не как UBig(uint64_t), чтобы не
-         * конфликтовать с UBig(ULOW), когда сам ULOW — примитив (uint64_t).
-         * @tparam T Любой целочисленный тип, кроме самого ULOW.
+         * конфликтовать с UBig(Half), когда сам Half — примитив (uint64_t).
+         * @tparam T Любой целочисленный тип, кроме самого Half.
          */
     template <typename T>
-        requires(std::is_integral_v<T> && !std::is_same_v<std::remove_cvref_t<T>, ULOW>)
+        requires(std::is_integral_v<T> && !std::is_same_v<std::remove_cvref_t<T>, Half>)
     constexpr UBig(T val) noexcept
-        : mLow(static_cast<ULOW>(val)), mHigh(0) {}
+        : mLow(static_cast<Half>(val)), mHigh(0) {}
 
     // Конструктор от string_view (или char*)
     constexpr UBig(std::string_view s)
@@ -83,10 +83,10 @@ public:
     }
 
     // --- Доступ ---
-    [[nodiscard]] constexpr const ULOW &low() const noexcept { return mLow; }
-    [[nodiscard]] constexpr const ULOW &high() const noexcept { return mHigh; }
-    [[nodiscard]] constexpr ULOW &low() noexcept { return mLow; }
-    [[nodiscard]] constexpr ULOW &high() noexcept { return mHigh; }
+    [[nodiscard]] constexpr const Half &low() const noexcept { return mLow; }
+    [[nodiscard]] constexpr const Half &high() const noexcept { return mHigh; }
+    [[nodiscard]] constexpr Half &low() noexcept { return mLow; }
+    [[nodiscard]] constexpr Half &high() noexcept { return mHigh; }
 
     /**
          * @brief Младшие 64 бита числа (сужение без проверки диапазона).
@@ -128,14 +128,14 @@ public:
     // --- Сложение ---
     constexpr UBig &operator+=(const UBig &other) noexcept
     {
-        ULOW old_low = mLow;
+        Half old_low = mLow;
         mLow += other.mLow;
 
         // 1. Сначала учитываем перенос из младшей части
         if (mLow < old_low)
         {
-            // Проверяем, можно ли вызвать ++ у объекта типа ULOW
-            if constexpr (requires(ULOW &obj) { ++obj; })
+            // Проверяем, можно ли вызвать ++ у объекта типа Half
+            if constexpr (requires(Half &obj) { ++obj; })
             {
                 ++mHigh;
             }
@@ -152,14 +152,14 @@ public:
     // --- Вычитание ---
     constexpr UBig &operator-=(const UBig &other) noexcept
     {
-        ULOW old_low = mLow;
+        Half old_low = mLow;
         mLow -= other.mLow;
 
         // 1. Учитываем заем ПЕРЕД вычитанием основной части
         if (old_low < other.mLow)
         {
-            // Проверяем, можно ли вызвать -- у объекта типа ULOW
-            if constexpr (requires(ULOW &obj) { --obj; })
+            // Проверяем, можно ли вызвать -- у объекта типа Half
+            if constexpr (requires(Half &obj) { --obj; })
             {
                 --mHigh;
             }
@@ -179,9 +179,9 @@ public:
     // --- Инкремент / Декремент ---
     constexpr void inc() noexcept
     {
-        ULOW old = mLow;
+        Half old = mLow;
         // 1. Инкрементируем младшую часть
-        if constexpr (requires(ULOW &l) { ++l; })
+        if constexpr (requires(Half &l) { ++l; })
             ++mLow;
         else
             mLow += 1;
@@ -190,7 +190,7 @@ public:
         if (mLow < old)
         {
             // Инкрементируем старшую часть тем же способом
-            if constexpr (requires(ULOW &h) { ++h; })
+            if constexpr (requires(Half &h) { ++h; })
                 ++mHigh;
             else
                 mHigh += 1;
@@ -199,9 +199,9 @@ public:
 
     constexpr void dec() noexcept
     {
-        ULOW old = mLow;
+        Half old = mLow;
         // 1. Декрементируем младшую часть
-        if constexpr (requires(ULOW &l) { --l; })
+        if constexpr (requires(Half &l) { --l; })
             --mLow;
         else
             mLow -= 1;
@@ -210,7 +210,7 @@ public:
         if (mLow > old)
         {
             // Декрементируем старшую часть
-            if constexpr (requires(ULOW &h) { --h; })
+            if constexpr (requires(Half &h) { --h; })
                 --mHigh;
             else
                 mHigh -= 1;
@@ -243,28 +243,28 @@ public:
     }
 
     // --- Умножение ---
-    static constexpr UBig mult_ext(const ULOW &x, const ULOW &y) noexcept
+    static constexpr UBig mult_ext(const Half &x, const Half &y) noexcept
     {
         constexpr int Q = WIDTH / 4; // Четверть ширины N-битного числа.
-        ULOW MASK = (ULOW{1} << Q) - ULOW{1};
-        ULOW x_low = x & MASK;
-        ULOW y_low = y & MASK;
-        ULOW x_high = x >> Q;
-        ULOW y_high = y >> Q;
-        ULOW t1 = x_low * y_low;
-        ULOW t = t1 >> Q;
-        ULOW t21 = x_low * y_high;
-        ULOW q = t21 >> Q;
-        ULOW p = t21 & MASK;
-        ULOW t22 = x_high * y_low;
-        ULOW s = t22 >> Q;
-        ULOW r = t22 & MASK;
-        ULOW t3 = x_high * y_high;
+        Half MASK = (Half{1} << Q) - Half{1};
+        Half x_low = x & MASK;
+        Half y_low = y & MASK;
+        Half x_high = x >> Q;
+        Half y_high = y >> Q;
+        Half t1 = x_low * y_low;
+        Half t = t1 >> Q;
+        Half t21 = x_low * y_high;
+        Half q = t21 >> Q;
+        Half p = t21 & MASK;
+        Half t22 = x_high * y_low;
+        Half s = t22 >> Q;
+        Half r = t22 & MASK;
+        Half t3 = x_high * y_high;
         UBig result{t1};
-        ULOW div = (q + s) + ((p + r + t) >> Q);
+        Half div = (q + s) + ((p + r + t) >> Q);
         auto p1 = t21 << Q;
         auto p2 = t22 << Q;
-        ULOW mod = p1 + p2;
+        Half mod = p1 + p2;
         result.mLow += mod;
         result.mHigh += div;
         result.mHigh += t3;
@@ -275,22 +275,22 @@ public:
          * @brief Возведение N/2-битного числа в квадрат с расширением до N-битного числа.
          * Оптимизировано по сравнению с обычным умножением (x * x).
          */
-    static constexpr UBig square_ext(const ULOW &x) noexcept
+    static constexpr UBig square_ext(const Half &x) noexcept
     {
         constexpr uint32_t Q = WIDTH / 4; // Четверть ширины N-битного числа.
-        ULOW MASK = (ULOW{1} << Q) - ULOW{1};
-        ULOW x_low = x & MASK;
-        ULOW x_high = x >> Q;
-        ULOW t1 = x_low * x_low;
-        ULOW t = t1 >> Q;
-        ULOW t21 = x_low * x_high;
-        ULOW q = t21 >> Q;
-        ULOW p = t21 & MASK;
-        ULOW t3 = x_high * x_high;
+        Half MASK = (Half{1} << Q) - Half{1};
+        Half x_low = x & MASK;
+        Half x_high = x >> Q;
+        Half t1 = x_low * x_low;
+        Half t = t1 >> Q;
+        Half t21 = x_low * x_high;
+        Half q = t21 >> Q;
+        Half p = t21 & MASK;
+        Half t3 = x_high * x_high;
         UBig result{t1};
-        ULOW div = (q << 1) + (((p << 1) + t) >> Q);
+        Half div = (q << 1) + (((p << 1) + t) >> Q);
         auto p1 = t21 << Q;
-        ULOW mod = p1 << 1;
+        Half mod = p1 << 1;
         result.mLow += mod;
         result.mHigh += div;
         result.mHigh += t3;
@@ -389,7 +389,7 @@ public:
             return {UBig{0}, *this};
 
         // Оптимизация для "узкого" делителя
-        if (other.mHigh == ULOW{0})
+        if (other.mHigh == Half{0})
         {
             auto [q, r] = *this / other.mLow;
             return {q, UBig{r}};
@@ -399,8 +399,8 @@ public:
         auto [Q, R] = divide_as_pair(mHigh, other.mHigh);
 
         // 2. Учет вклада младших половин (Delta-коррекция)
-        constexpr ULOW MAX_V = low_max();
-        const ULOW Delta = MAX_V - other.mLow;
+        constexpr Half MAX_V = low_max();
+        const Half Delta = MAX_V - other.mLow;
         const UBig DeltaQ = mult_ext(Delta, Q);
 
         const UBig sum_1 = UBig{0, R} + DeltaQ;
@@ -410,8 +410,8 @@ public:
         UBig W1 = is_neg ? (sub_val - sum_1) : (sum_1 - sub_val);
 
         // 3. Вычисление поправочного коэффициента Quotient
-        const ULOW C1 = (other.mHigh < MAX_V) ? (other.mHigh + 1ull) : MAX_V;
-        const ULOW W2 = MAX_V - get_quotient(Delta, C1);
+        const Half C1 = (other.mHigh < MAX_V) ? (other.mHigh + 1ull) : MAX_V;
+        const Half W2 = MAX_V - get_quotient(Delta, C1);
 
         UBig Quotient = get_quotient(get_quotient(W1, W2), C1);
         if (is_neg)
@@ -444,16 +444,16 @@ public:
     }
 
     /**
-         * @brief Оператор деления "широкого" числа на "половинку" (UBig / ULOW).
-         * @return std::pair<UBig, ULOW> {Частное Q, Остаток R}.
+         * @brief Оператор деления "широкого" числа на "половинку" (UBig / Half).
+         * @return std::pair<UBig, Half> {Частное Q, Остаток R}.
          */
-    constexpr std::pair<UBig, ULOW> operator/(const ULOW &other) const
+    constexpr std::pair<UBig, Half> operator/(const Half &other) const
     {
-        assert(other != ULOW{0});
+        assert(other != Half{0});
 
-        if (other == ULOW{1})
-            return {*this, ULOW{0}};
-        if (mHigh == ULOW{0})
+        if (other == Half{1})
+            return {*this, Half{0}};
+        if (mHigh == Half{0})
         {
             auto [q, r] = divide_as_pair( mLow, other);
             return {UBig(q), r};
@@ -506,10 +506,10 @@ public:
             UBig X = *this;
             const UBig X_old = X;
             UBig Q{0};
-            ULOW R{0};
+            Half R{0};
 
-            std::pair<ULOW, ULOW> rcp = bignum::generic::reciprocal_and_extend(other);
-            const ULOW rcp_compl = other - rcp.second;
+            std::pair<Half, Half> rcp = bignum::generic::reciprocal_and_extend(other);
+            const Half rcp_compl = other - rcp.second;
 
             const bool make_inverse = rcp_compl < rcp.second;
             if (make_inverse)
@@ -517,14 +517,14 @@ public:
 
             for (;;)
             {
-                const bool x_has_high = (X.mHigh != ULOW{0});
+                const bool x_has_high = (X.mHigh != Half{0});
 
                 if (x_has_high)
                     Q += mult_ext(X.mHigh, rcp.first);
 
                 Q += UBig(get_quotient(X.mLow, other));
 
-                const ULOW carry = bignum::generic::smart_remainder_adder(R, X.mLow, other, rcp.second);
+                const Half carry = bignum::generic::smart_remainder_adder(R, X.mLow, other, rcp.second);
                 Q += UBig(carry);
 
                 if (x_has_high)
@@ -552,7 +552,7 @@ public:
                     R = other - R;
                     if (R == other)
                     {
-                        R = ULOW{0};
+                        R = Half{0};
                         Q.inc();
                     }
                 }
@@ -564,7 +564,7 @@ public:
 
     // --- Деление с присваиванием и остаток ---
     // Тип результата всегда совпадает с типом левого операнда (UBig) — как у U128.
-    // Для узкого делителя ULOW конверсия в UBig происходит неявно, а внутри
+    // Для узкого делителя Half конверсия в UBig происходит неявно, а внутри
     // operator/ срабатывает быстрый путь (other.mHigh == 0).
     constexpr UBig &operator/=(const UBig &other) noexcept { return *this = (*this / other).first; }
     constexpr UBig &operator%=(const UBig &other) noexcept { return *this = (*this / other).second; }
@@ -583,13 +583,13 @@ public:
         // Если ноль — прибавляем всю ширину старшей части к нулям в младшей.
         if (mHigh != 0)
         {
-            if constexpr (requires(ULOW l) { l.countl_zero(); })
+            if constexpr (requires(Half l) { l.countl_zero(); })
                 return mHigh.countl_zero();
             else
                 return std::countl_zero(static_cast<uint64_t>(mHigh));
         }
         uint32_t l_zeros = 0;
-        if constexpr (requires(ULOW l) { l.countl_zero(); })
+        if constexpr (requires(Half l) { l.countl_zero(); })
             l_zeros = mLow.countl_zero();
         else
             l_zeros = std::countl_zero(static_cast<uint64_t>(mLow));
@@ -604,13 +604,13 @@ public:
     {
         if (mLow != 0)
         {
-            if constexpr (requires(ULOW l) { l.countr_zero(); })
+            if constexpr (requires(Half l) { l.countr_zero(); })
                 return mLow.countr_zero();
             else
                 return std::countr_zero(static_cast<uint64_t>(mLow));
         }
         uint32_t r_zeros = 0;
-        if constexpr (requires(ULOW l) { l.countr_zero(); })
+        if constexpr (requires(Half l) { l.countr_zero(); })
             r_zeros = mHigh.countr_zero();
         else
             r_zeros = std::countr_zero(static_cast<uint64_t>(mHigh));
@@ -623,7 +623,7 @@ public:
          */
     [[nodiscard]] constexpr uint32_t popcount() const noexcept
     {
-        auto pc = [](const ULOW &val)
+        auto pc = [](const Half &val)
         {
             if constexpr (requires { val.popcount(); })
                 return val.popcount();
@@ -663,23 +663,23 @@ public:
          * @brief Максимальное значение "половинки".
          * @details Работает и для классов (U128, вложенный UBig), и для примитивов.
          */
-    [[nodiscard]] static constexpr ULOW low_max() noexcept
+    [[nodiscard]] static constexpr Half low_max() noexcept
     {
-        if constexpr (requires { ULOW::max(); })
-            return ULOW::max();
+        if constexpr (requires { Half::max(); })
+            return Half::max();
         else
-            return std::numeric_limits<ULOW>::max();
+            return std::numeric_limits<Half>::max();
     }
 
     /**
          * @brief Минимальное значение "половинки" (обычно 0).
          */
-    [[nodiscard]] static constexpr ULOW low_min() noexcept
+    [[nodiscard]] static constexpr Half low_min() noexcept
     {
-        if constexpr (requires { ULOW::min(); })
-            return ULOW::min();
+        if constexpr (requires { Half::min(); })
+            return Half::min();
         else
-            return ULOW{0};
+            return Half{0};
     }
 
     /**
@@ -702,7 +702,7 @@ public:
     /**
          * @brief Вспомогательный метод для получения только частного.
          */
-    static constexpr UBig get_quotient(const UBig &a, const ULOW &b)
+    static constexpr UBig get_quotient(const UBig &a, const Half &b)
     {
         return (a / b).first;
     }
@@ -710,7 +710,7 @@ public:
     /**
          * @brief Вспомогательный метод для получения только частного.
          */
-    static constexpr ULOW get_quotient(const ULOW &a, const ULOW &b)
+    static constexpr Half get_quotient(const Half &a, const Half &b)
     {
         return bignum::generic::div_rem(a, b).first;
     }
@@ -718,7 +718,7 @@ public:
     /**
          * @brief Вспомогательный метод для получения частного и остатка в виде пары.
          */
-    static constexpr auto divide_as_pair(const ULOW &a, const ULOW &b)
+    static constexpr auto divide_as_pair(const Half &a, const Half &b)
     {
         return bignum::generic::div_rem(a, b);
     }
@@ -816,7 +816,7 @@ public:
          */
     [[nodiscard]] std::string toString() const
     {
-        if (mHigh == ULOW{0} && mLow == ULOW{0})
+        if (mHigh == Half{0} && mLow == Half{0})
             return "0";
 
         UBig copy = *this;
@@ -825,19 +825,19 @@ public:
         // Используем 10^18 как базу. Она гарантированно влезает в uint64_t
         // и позволяет удобно дополнять нулями.
         const uint64_t base_val = 1000000000000000000ULL;
-        const ULOW base_low{base_val};
+        const Half base_low{base_val};
 
         while (copy > UBig{0})
         {
-            // Вызываем ваше половинчатое деление (UBig / ULOW)
-            // Оно возвращает пару {UBig quotient, ULOW remainder}
+            // Вызываем ваше половинчатое деление (UBig / Half)
+            // Оно возвращает пару {UBig quotient, Half remainder}
             auto [q, r] = copy / base_low;
 
             // Превращаем остаток r в строку.
-            // Если ULOW - это u64, используем std::to_string.
-            // Если ULOW - это U128, вызываем r.toString().
+            // Если Half - это u64, используем std::to_string.
+            // Если Half - это U128, вызываем r.toString().
             std::string part;
-            if constexpr (std::is_same_v<ULOW, uint64_t>)
+            if constexpr (std::is_same_v<Half, uint64_t>)
             {
                 part = std::to_string(r);
             }
@@ -874,7 +874,7 @@ public:
 
         UBig res{0};
 
-        // Для U256 (где ULOW=U128) мы можем эффективно
+        // Для U256 (где Half=U128) мы можем эффективно
         // обрабатывать строки блоками по 18 цифр,
         // используя уже готовый оператор * и + самого UBig.
         while (p < s.length())
@@ -905,8 +905,8 @@ public:
 /**
      * @brief Потоковый вывод UBig в десятичном виде.
      */
-template <typename ULOW>
-std::ostream &operator<<(std::ostream &os, const UBig<ULOW> &val)
+template <typename Half>
+std::ostream &operator<<(std::ostream &os, const UBig<Half> &val)
 {
     return os << val.toString();
 }
@@ -918,13 +918,13 @@ namespace std
 /**
      * @brief Хеш для UBig. Алгоритм комбинирования хешей половин — как у U128.
      */
-template <typename ULOW>
-struct hash<bignum::UBig<ULOW>>
+template <typename Half>
+struct hash<bignum::UBig<Half>>
 {
-    size_t operator()(const bignum::UBig<ULOW> &v) const noexcept
+    size_t operator()(const bignum::UBig<Half> &v) const noexcept
     {
-        size_t h1 = std::hash<ULOW>{}(v.low());
-        size_t h2 = std::hash<ULOW>{}(v.high());
+        size_t h1 = std::hash<Half>{}(v.low());
+        size_t h2 = std::hash<Half>{}(v.high());
         return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
     }
 };
