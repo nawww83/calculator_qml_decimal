@@ -18,14 +18,14 @@ QMAKE_CXXFLAGS += -std=c++20
 
 SOURCES += \
     calculus.cpp \
-    ecm_factorizer.cpp \
     u128_utils.cpp
 
 HEADERS += \
     calculus_global.h \
     calculus.h \
     decimal.h \
-    ecm_factorizer.h \
+    ecm_factorizer.hpp \
+    pollard.hpp \
     lfsr.h \
     rand_u128.h \
     random_gen.h \

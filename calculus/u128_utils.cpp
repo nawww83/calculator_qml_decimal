@@ -1,13 +1,11 @@
 #include "u128_utils.h"
 #include "rand_u128.h"
-#include "ecm_factorizer.h"
+#include "ecm_factorizer.hpp"
+#include "pollard.hpp"
 #include "siqs.hpp"
 
 #include <functional>
-#include <list>
-#include <mutex>
 #include <optional>
-#include <thread>
 #include <vector>
 
 namespace u128::utils
@@ -37,7 +35,7 @@ bool miller_test(U128 d, const U128& n)
 
     while (d != (n - 1))
     {
-        int_power_mod(x, 2, n);
+        square_mod(x, n);
         d <<= 1;
         if (x == 1)
             return false;
@@ -241,66 +239,11 @@ U128 ro_pollard(const U128& n, std::optional<U128> limit)
             break;
         i++;
     }
-    if (d != n)
+    // При достижении лимита d == 1 (не делитель), а при удаче НОД мог сравняться с n.
+    // В обоих случаях сообщаем о неудаче, возвращая само число n.
+    if (d > 1 && d < n)
         return d;
-    else
-        return n;
-}
-
-static std::map<U128, int> factor_ecm_worker(U128 x)
-{
-    std::map<U128, int> result{};
-    std::list<U128> found_factors;
-    ecm::ECMFactorizer lenstra;
-
-    for (;;) {
-        if (Globals::LoadStop())
-            break;
-
-        if (is_prime(x, 64)) {
-            found_factors.push_back(x);
-            x = U128{1};
-            break;
-        }
-
-        const auto &f = lenstra.factorize(x);
-        if (f.has_value() && f.value() > 1 && f.value() < x) {
-            found_factors.push_back(f.value());
-            const auto q = x / f.value();
-            x = q;
-        } else {
-            break; // Если Ленстра не справился на текущих лимитах, передаем остаток методу Ферма
-        }
-    }
-
-    if (x > 1) {
-        found_factors.push_back(x);
-    }
-
-    // Дорасщепляем оставшиеся куски методом Ферма (если Ленстра выдал составной фактор)
-    std::function<void(U128)> ferma_recursive;
-    ferma_recursive = [&ferma_recursive, &result](U128 n) -> void {
-        if (is_prime(n, 64)) {
-            result[n] += 1;
-            return;
-        }
-        const auto &[a, b] = ferma_method(n);
-        if (a == U128{1}) {
-            result[b] += 1;
-            return;
-        } else if (b == U128{1}) {
-            result[a] += 1;
-            return;
-        }
-        ferma_recursive(a);
-        ferma_recursive(b);
-    };
-
-    for (const auto &fac : found_factors) {
-        ferma_recursive(fac);
-    }
-
-    return result;
+    return n;
 }
 
 std::map<U128, int> factor_internal(U128 x)
@@ -431,57 +374,10 @@ static PreprocessResult factor_preprocess(U128 x)
     return res;
 }
 
-// Параллельный ECM (Ленстры) + добивание методом Ферма для одного числа.
-// Первый поток, доведший разложение до конца, выигрывает; остальные
-// останавливаются через Globals. Возвращает карту {простое -> степень}.
-static std::map<bignum::u128::U128, int> factor_via_ecm(bignum::u128::U128 n)
-{
-    std::mutex mtx;
-    std::map<bignum::u128::U128, int> result;
-    bool has_result = false;
-
-    unsigned int num_threads = std::thread::hardware_concurrency();
-    if (num_threads == 0) {
-        num_threads = 4;
-    }
-
-    std::vector<std::thread> workers;
-    workers.reserve(num_threads);
-
-    for (unsigned int i = 0; i < num_threads; ++i) {
-        workers.emplace_back(
-            [&](bignum::u128::U128 val) {
-                auto local = factor_ecm_worker(val);
-
-                std::lock_guard<std::mutex> lock(mtx);
-                if (!has_result && !local.empty()) {
-                    result = std::move(local);
-                    has_result = true;
-                    Globals::SetStop(true);
-                }
-            },
-            n);
-    }
-
-    // Вручную дожидаемся завершения (join) каждого потока перед очисткой вектора
-    for (auto &worker : workers) {
-        if (worker.joinable()) {
-            worker.join();
-        }
-    }
-    workers.clear();
-
-    // Сбрасываем флаг остановки: им пользовался только этот параллельный прогон,
-    // иначе он помешает последующей рекурсии в factor_hard.
-    Globals::SetStop(false);
-
-    return result;
-}
-
-// Полное разложение "тяжелого" составного остатка. Выделение степени и
-// пробное деление уже выполнены в factor_preprocess, поэтому здесь остается
-// только составное число без малых делителей. Порядок методов:
-// SIQS -> ECM (Ленстры) + метод Ферма.
+// Полное разложение "тяжёлого" составного остатка. Выделение степени и
+// пробное деление уже выполнены в factor_preprocess, поэтому здесь остаётся
+// только составное число без малых делителей. Порядок методов (как в factorizer):
+// Поллард p-1 -> Поллард-Брент rho -> SIQS -> ECM (кривые Монтгомери) -> метод Ферма.
 static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
 {
     std::map<bignum::u128::U128, int> result;
@@ -496,12 +392,34 @@ static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
             return;
         }
 
-        // 1) Квадратичное решето (SIQS) — основной метод для 128-битных чисел.
-        const auto f = u128::siqs::quadratic_sieve<bignum::u128::U128>(n);
-        if (f.has_value() && f.value() > 1 && f.value() < n) {
-            split(f.value());
-            split(n / f.value());
-            return;
+        // 1) Метод Полларда p-1 — дёшево ловит факторы с гладким p-1.
+        if (!Globals::LoadStop()) {
+            const auto f = u128::pollard::pollard_pm1(n, 100000u);
+            if (f.has_value() && f.value() > 1 && f.value() < n) {
+                split(f.value());
+                split(n / f.value());
+                return;
+            }
+        }
+
+        // 2) Поллард-Брент rho — быстро находит небольшие делители.
+        if (!Globals::LoadStop()) {
+            const bignum::u128::U128 f = u128::pollard::pollard_brent_rho(n, 200000ull);
+            if (f > 1 && f < n) {
+                split(f);
+                split(n / f);
+                return;
+            }
+        }
+
+        // 3) Квадратичное решето (SIQS) — основной метод для 128-битных чисел.
+        if (!Globals::LoadStop()) {
+            const auto f = u128::siqs::quadratic_sieve<bignum::u128::U128>(n);
+            if (f.has_value() && f.value() > 1 && f.value() < n) {
+                split(f.value());
+                split(n / f.value());
+                return;
+            }
         }
 
         // Пользователь нажал "Стоп": фиксируем остаток как есть и выходим.
@@ -510,11 +428,28 @@ static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
             return;
         }
 
-        // 2) Запасной путь: параллельный ECM (Ленстры) с добиванием методом Ферма.
-        const auto ecm_factors = factor_via_ecm(n);
-        for (const auto &[fac, pow] : ecm_factors) {
-            result[fac] += pow;
+        // 4) Запасной путь: ECM (кривые Монтгомери, портирован из factorizer).
+        {
+            const auto f = u128::ecm::factorize(n);
+            if (f.has_value() && f.value() > 1 && f.value() < n) {
+                split(f.value());
+                split(n / f.value());
+                return;
+            }
         }
+
+        // 5) Последний шанс: метод Ферма (работает для близких множителей).
+        if (!Globals::LoadStop()) {
+            const auto &[a, b] = ferma_method(n);
+            if (a > 1 && a < n) {
+                split(a);
+                split(b);
+                return;
+            }
+        }
+
+        // Разложить не удалось: фиксируем остаток как есть.
+        result[n] += 1;
     };
 
     split(x);

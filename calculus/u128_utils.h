@@ -491,14 +491,6 @@ inline std::pair<U128, U128> sqrt_mod(const U128& x, const U128& p)
 }
 
 /**
- * @brief lenstra
- * @param n
- * @param limit (~100000)
- * @return
- */
-std::optional<U128> lenstra(const U128& n, unsigned int limit);
-
-/**
  * @brief Является ли число простым.
  * @param x Проверяемое число.
  * @param k Количество раундов теста Миллера-Рабина.
