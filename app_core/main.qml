@@ -12,10 +12,33 @@ import "global_vars.js" as Global
 Window {
     id: root
     width: 730
-    height: 300
-    maximumHeight: height
+
+    // Высота окна в свёрнутом состоянии и высота выдвижных панелей.
+    readonly property int collapsedHeight: 300
+    readonly property int keypadHeight: 190
+    readonly property int rareOpsHeight: 50
+
+    // Клавиатура и редкие операции выдвигаются: окно растёт вместе с ними.
+    property bool keypadOpen: false
+    property real keypadReveal: keypadOpen ? keypadHeight : 0
+
+    property bool rareOpsOpen: false
+    property real rareOpsReveal: rareOpsOpen ? rareOpsHeight : 0
+
+    Behavior on keypadReveal {
+        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+    }
+
+    Behavior on rareOpsReveal {
+        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+    }
+
+    height: collapsedHeight + Math.round(rareOpsReveal) + Math.round(keypadReveal)
+    maximumHeight: collapsedHeight
+                   + ((keypadOpen || keypadReveal > 0) ? keypadHeight : 0)
+                   + ((rareOpsOpen || rareOpsReveal > 0) ? rareOpsHeight : 0)
     maximumWidth: width
-    minimumHeight: height
+    minimumHeight: collapsedHeight
     minimumWidth: width
 
     visible: true
@@ -42,6 +65,7 @@ Window {
 
         function onSetInput(val) {
             input.text = thousandSeparator(val)
+            input.cursorPosition = input.text.length
         }
 
         function onSetEnableFactorButton(val) {
@@ -84,6 +108,102 @@ Window {
         memory.text = " Memory: " + Global.memory_cell
     }
 
+    // --- Ввод с выдвижной экранной клавиатуры ---------------------------
+
+    function appendCharacter(ch) {
+        var text = input.text
+        var pos = (input.activeFocus && input.cursorPosition >= 0)
+                ? input.cursorPosition : text.length
+
+        if (ch >= "0" && ch <= "9") {
+            // Не даём набрать "05": одиночный ноль заменяем цифрой.
+            if (text === "0") {
+                text = ""
+                pos = 0
+            } else if (text === "-0") {
+                text = "-"
+                pos = 1
+            }
+        }
+
+        var candidate = text.substring(0, pos) + ch + text.substring(pos)
+        if (!decimalRegEx.test(candidate))
+            return
+
+        setInputText(candidate, pos + 1)
+    }
+
+    function appendDecimalSeparator() {
+        var text = input.text
+        if (text.indexOf(",") >= 0 || text.indexOf(".") >= 0)
+            return
+
+        var pos = (input.activeFocus && input.cursorPosition >= 0)
+                ? input.cursorPosition : text.length
+
+        // Разделитель без целой части: подставляем ведущий ноль.
+        if (text === "") {
+            text = "0"
+            pos = 1
+        } else if (text.charAt(pos - 1) === "-") {
+            text = text.substring(0, pos) + "0" + text.substring(pos)
+            pos += 1
+        }
+
+        var candidate = text.substring(0, pos) + "," + text.substring(pos)
+        if (!decimalRegEx.test(candidate))
+            return
+
+        setInputText(candidate, pos + 1)
+    }
+
+    function removeLastCharacter() {
+        var text = input.text
+        var selectionStart = input.selectionStart
+        var selectionEnd = input.selectionEnd
+
+        // Если выделен фрагмент — удаляем его.
+        if (input.activeFocus && selectionStart !== selectionEnd) {
+            setInputText(text.substring(0, selectionStart) + text.substring(selectionEnd),
+                         selectionStart)
+            return
+        }
+
+        var pos = (input.activeFocus && input.cursorPosition >= 0)
+                ? input.cursorPosition : text.length
+        if (pos <= 0)
+            return
+
+        var candidate = text.substring(0, pos - 1) + text.substring(pos)
+        // После удаления слева от разделителя не должно остаться пустой целой части.
+        if (candidate.charAt(0) === ",")
+            candidate = "0" + candidate
+        else if (candidate.substring(0, 2) === "-,")
+            candidate = "-0" + candidate.substring(1)
+        candidate = candidate.replace(/^(-?)0+(?=\d)/, "$1")
+
+        setInputText(candidate, pos - 1)
+    }
+
+    // Записывает текст, расставляет разделители тысяч и сохраняет позицию курсора.
+    function setInputText(value, caret) {
+        var symbolsBeforeCaret = value.substring(0, caret).replace(/\s/g, "").length
+        var formatted = thousandSeparator(value)
+        input.text = formatted
+        input.cursorPosition = positionAfterSymbols(formatted, symbolsBeforeCaret)
+    }
+
+    function positionAfterSymbols(value, count) {
+        var seen = 0
+        for (var i = 0; i < value.length; ++i) {
+            if (value.charAt(i) !== " ")
+                ++seen
+            if (seen === count)
+                return i + 1
+        }
+        return value.length
+    }
+
     Dialog {
         id: dialog
         title: qsTr("Настройки")
@@ -111,7 +231,10 @@ Window {
     }
 
     ColumnLayout {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: root.collapsedHeight + Math.round(root.rareOpsReveal)
         spacing: 1
 
         TextField {
@@ -374,28 +497,10 @@ Window {
                     }
                 }
                 Button {
-                    id: equal
-                    text: "="
-                    font.pixelSize: 28
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: equal.down ? "#ff0000" : (equal.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.EQUAL, input.text)
-                    }
-                }
-                Button {
                     id: clear
                     text: "C"
                     font.pixelSize: 24
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -681,5 +786,142 @@ Window {
         }
 
         Item { Layout.fillHeight: true }
+    }
+
+    // Выдвижная экранная клавиатура: цифры, разделитель, Backspace и "=".
+    Item {
+        id: keypad
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: root.keypadReveal
+        clip: true
+        visible: height > 0
+
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            border.color: "green"
+            border.width: 1
+            radius: 3
+        }
+
+        GridLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 6
+            height: root.keypadHeight - 12
+            columns: 4
+            columnSpacing: 4
+            rowSpacing: 4
+
+            Repeater {
+                model: [
+                    { label: "7", action: "digit", row: 0, column: 0 },
+                    { label: "8", action: "digit", row: 0, column: 1 },
+                    { label: "9", action: "digit", row: 0, column: 2 },
+                    { label: "\u2190", action: "backspace", row: 0, column: 3, rowSpan: 2,
+                      tooltip: qsTr("Удалить символ слева от курсора") },
+                    { label: "4", action: "digit", row: 1, column: 0 },
+                    { label: "5", action: "digit", row: 1, column: 1 },
+                    { label: "6", action: "digit", row: 1, column: 2 },
+                    { label: "1", action: "digit", row: 2, column: 0 },
+                    { label: "2", action: "digit", row: 2, column: 1 },
+                    { label: "3", action: "digit", row: 2, column: 2 },
+                    { label: "=", action: "equal", row: 2, column: 3, rowSpan: 2,
+                      tooltip: qsTr("Равно") },
+                    { label: ",", action: "separator", row: 3, column: 0,
+                      tooltip: qsTr("Десятичный разделитель") },
+                    { label: "0", action: "digit", row: 3, column: 1, columnSpan: 2 }
+                ]
+
+                delegate: Button {
+                    id: keypadButton
+                    text: modelData.label
+                    font.pixelSize: 24
+                    padding: 0
+                    Layout.row: modelData.row
+                    Layout.column: modelData.column
+                    Layout.rowSpan: modelData.rowSpan || 1
+                    Layout.columnSpan: modelData.columnSpan || 1
+                    Layout.preferredWidth: 0
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    focusPolicy: Qt.NoFocus
+
+                    ToolTip.visible: hovered && !!modelData.tooltip
+                    ToolTip.text: modelData.tooltip || ""
+
+                    background: Rectangle {
+                        opacity: enabled ? 1 : 0.3
+                        border.color: keypadButton.down ? "#ff0000"
+                                    : (keypadButton.hovered ? "#0000ff" : "#00ff00")
+                        border.width: 1
+                        radius: 5
+                    }
+
+                    onClicked: {
+                        switch (modelData.action) {
+                        case "backspace":
+                            root.removeLastCharacter()
+                            break
+                        case "separator":
+                            root.appendDecimalSeparator()
+                            break
+                        case "equal":
+                            AppCore.process(Operations.OperationEnums.EQUAL, input.text)
+                            break
+                        default:
+                            root.appendCharacter(modelData.label)
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    } // keypad
+
+    // Кнопка-«ручка» для выдвижения и скрытия клавиатуры.
+    Button {
+        id: keypadToggle
+        text: "123"
+        font.pixelSize: 13
+        padding: 0
+        width: 46
+        height: 26
+        anchors.right: parent.right
+        anchors.rightMargin: 6
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.keypadReveal + 6
+        checkable: true
+        checked: root.keypadOpen
+        focusPolicy: Qt.NoFocus
+
+        ToolTip.visible: hovered
+        ToolTip.text: root.keypadOpen ? qsTr("Скрыть экранную клавиатуру")
+                                      : qsTr("Показать экранную клавиатуру")
+
+        // Текст задаём явно: в нажатом состоянии стиль делает его светлым,
+        // и на светло-зелёном фоне «123» пропадает.
+        contentItem: Item {
+            Text {
+                anchors.centerIn: parent
+                text: keypadToggle.text
+                font: keypadToggle.font
+                color: "black"
+            }
+        }
+
+        background: Rectangle {
+            opacity: enabled ? 1 : 0.3
+            color: keypadToggle.checked ? "#e8ffe8" : "transparent"
+            border.color: keypadToggle.down ? "#ff0000"
+                        : (keypadToggle.hovered ? "#0000ff" : "#00ff00")
+            border.width: 1
+            radius: 5
+        }
+
+        onCheckedChanged: root.keypadOpen = checked
     }
 }
