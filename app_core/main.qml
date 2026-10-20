@@ -353,12 +353,16 @@ Window {
                 border.color: "green"
                 radius: 3
             }
-            RowLayout {
+            GridLayout {
                 anchors.fill: parent
+                columns: 8
+                columnSpacing: 4
+                rowSpacing: 4
                 Button {
                     id: add
                     text: "\u002b"
                     font.pixelSize: 28
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -379,6 +383,7 @@ Window {
                     id: sub
                     text: "\u2212"
                     font.pixelSize: 28
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -399,6 +404,7 @@ Window {
                     id: mul
                     text: "\u00d7"
                     font.pixelSize: 28
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -418,6 +424,7 @@ Window {
                     id: div
                     text: "\u00f7"
                     font.pixelSize: 28
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -437,6 +444,7 @@ Window {
                     id: pow
                     text: "\u005e"
                     font.pixelSize: 28
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -458,6 +466,7 @@ Window {
                     id: ln
                     text: "\u33d1"
                     font.pixelSize: 28
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -479,6 +488,7 @@ Window {
                     id: exp
                     text: "\u212f\u02e3"
                     font.pixelSize: 28
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -518,7 +528,7 @@ Window {
                         onClicked: AppCore.process(Operations.OperationEnums.CLEAR_ALL);
                     }
                 }
-            } // RowLayout
+            } // GridLayout
         } // Pane
 
         Pane {
@@ -530,12 +540,16 @@ Window {
                 border.color: "green"
                 radius: 3
             }
-            RowLayout {
+            GridLayout {
                 anchors.fill: parent
+                columns: 8
+                columnSpacing: 4
+                rowSpacing: 4
                 Button {
                     id: sqrt
                     text: "\u221ax"
                     font.pixelSize: 24
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -557,6 +571,7 @@ Window {
                     id: sqr
                     text: "x²"
                     font.pixelSize: 24
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -578,6 +593,7 @@ Window {
                     id: reciprocal
                     text: "1/x"
                     font.pixelSize: 24
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -599,6 +615,7 @@ Window {
                     id: round_btn
                     text: "[x]"
                     font.pixelSize: 20
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -620,6 +637,7 @@ Window {
                     id: fix_nines_btn
                     text: ".99\u2192"  // .99→
                     font.pixelSize: 20
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -638,93 +656,10 @@ Window {
                     }
                 }
                 Button {
-                    id: max_integer
-                    text: "M\u2081\u2082\u2088"  // M₁₂₈
-                    font.pixelSize: 24
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Наибольшее целое число")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: max_integer.down ? "#ff0000" : (max_integer.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.MAX_INT_VALUE);
-                    }
-                }
-                Button {
-                    id: random_half_integer
-                    text: "\u03BE\u2086\u2084"  // ξ₆₄
-                    font.pixelSize: 24
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Случайное целое 64-битное число")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: random_half_integer.down ? "#ff0000" : (random_half_integer.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.RANDINT64);
-                    }
-                }
-                Button {
-                    id: random_integer
-                    text: "\u03BE\u2081\u2082\u2088"  // ξ₁₂₈
-                    font.pixelSize: 24
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Случайное целое 128-битное число")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: random_integer.down ? "#ff0000" : (random_integer.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.RANDINT);
-                    }
-                }
-                Button {
-                    id: factor
-                    text: "p\u00B7q"  // p·q
-                    font.pixelSize: 24
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Разложить на простые множители целую часть числа")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: factor.down ? "#ff0000" : (factor.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.FACTOR, input.text);
-                    }
-                }
-                Button {
                     id: to_memory
                     text: "MS"
                     font.pixelSize: 24
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -746,6 +681,7 @@ Window {
                     id: from_memory
                     text: "MR"
                     font.pixelSize: 24
+                    Layout.preferredWidth: 0
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
@@ -763,17 +699,179 @@ Window {
                         onClicked: input.text = Global.memory_cell !== "" ? Global.memory_cell : input.text
                     }
                 }
-            } // RowLayout
+                Button {
+                    id: more_btn
+                    text: "\u22ef"  // ⋯
+                    font.pixelSize: 24
+                    Layout.preferredWidth: 0
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    checkable: true
+                    checked: root.rareOpsOpen
+                    ToolTip.visible: hovered
+                    ToolTip.text: root.rareOpsOpen ? qsTr("Скрыть редкие операции")
+                                                    : qsTr("Показать редкие операции")
+
+                    // Три точки рисуем сами: символ «⋯» в некоторых шрифтах
+                    // получается слишком мелким и плохо заметен.
+                    contentItem: Item {
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 3
+
+                            Repeater {
+                                model: 3
+
+                                Rectangle {
+                                    width: 4
+                                    height: 4
+                                    radius: 2
+                                    color: "black"
+                                }
+                            }
+                        }
+                    }
+
+                    background: Rectangle {
+                       opacity: enabled ? 1 : 0.3
+                       color: more_btn.checked ? "#e8ffe8" : "transparent"
+                       border.color: more_btn.down ? "#ff0000" : (more_btn.hovered ? "#0000ff" : "#00ff00")
+                       border.width: 1
+                       radius: 5
+                    }
+
+                    onCheckedChanged: root.rareOpsOpen = checked
+                }
+            } // GridLayout
         } // Pane
+
+        // Выдвижная панель редких операций: открывается кнопкой «⋯».
+        Item {
+            id: rareOpsRow
+            Layout.fillWidth: true
+            Layout.preferredHeight: root.rareOpsReveal
+            visible: root.rareOpsReveal > 0
+            clip: true
+
+            Pane {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: root.rareOpsHeight
+                padding: 6
+                background: Rectangle {
+                    color: "transparent"
+                    border.color: "green"
+                    radius: 3
+                }
+
+                GridLayout {
+                    anchors.fill: parent
+                    columns: 4
+                    columnSpacing: 4
+                    rowSpacing: 4
+
+                    Button {
+                        id: max_integer
+                        text: "M\u2081\u2082\u2088"  // M₁₂₈
+                        font.pixelSize: 24
+                        Layout.preferredWidth: 0
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        ToolTip.visible: hovered
+                        ToolTip.text: qsTr("Наибольшее целое число")
+
+                        background: Rectangle {
+                           opacity: enabled ? 1 : 0.3
+                           border.color: max_integer.down ? "#ff0000" : (max_integer.hovered ? "#0000ff" : "#00ff00")
+                           border.width: 1
+                           radius: 5
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: AppCore.process(Operations.OperationEnums.MAX_INT_VALUE);
+                        }
+                    }
+                    Button {
+                        id: random_half_integer
+                        text: "\u03BE\u2086\u2084"  // ξ₆₄
+                        font.pixelSize: 24
+                        Layout.preferredWidth: 0
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        ToolTip.visible: hovered
+                        ToolTip.text: qsTr("Случайное целое 64-битное число")
+
+                        background: Rectangle {
+                           opacity: enabled ? 1 : 0.3
+                           border.color: random_half_integer.down ? "#ff0000" : (random_half_integer.hovered ? "#0000ff" : "#00ff00")
+                           border.width: 1
+                           radius: 5
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: AppCore.process(Operations.OperationEnums.RANDINT64);
+                        }
+                    }
+                    Button {
+                        id: random_integer
+                        text: "\u03BE\u2081\u2082\u2088"  // ξ₁₂₈
+                        font.pixelSize: 24
+                        Layout.preferredWidth: 0
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        ToolTip.visible: hovered
+                        ToolTip.text: qsTr("Случайное целое 128-битное число")
+
+                        background: Rectangle {
+                           opacity: enabled ? 1 : 0.3
+                           border.color: random_integer.down ? "#ff0000" : (random_integer.hovered ? "#0000ff" : "#00ff00")
+                           border.width: 1
+                           radius: 5
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: AppCore.process(Operations.OperationEnums.RANDINT);
+                        }
+                    }
+                    Button {
+                        id: factor
+                        text: "p\u00B7q"  // p·q
+                        font.pixelSize: 24
+                        Layout.preferredWidth: 0
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        ToolTip.visible: hovered
+                        ToolTip.text: qsTr("Разложить на простые множители целую часть числа")
+
+                        background: Rectangle {
+                           opacity: enabled ? 1 : 0.3
+                           border.color: factor.down ? "#ff0000" : (factor.hovered ? "#0000ff" : "#00ff00")
+                           border.width: 1
+                           radius: 5
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: AppCore.process(Operations.OperationEnums.FACTOR, input.text);
+                        }
+                    }
+                }
+            }
+        }
 
         TextArea {
             id: help
             font.pixelSize: 13
+            Layout.bottomMargin: 8
             textFormat: Text.RichText
             text: "Смена знака числа: нажмите underscore <b>&#95;</b><br>
                     Cброс: <b>Esc</b><br>
                     Смена количества знаков после запятой: <b>Ctrl+S</b><br>
-                    Двухоперандные операции не имеют приоритета.
+                    Экранная клавиатура: кнопка <b>123</b>
                     <br>
                     <a href=\"https://github.com/nawww83/calculator_qml_decimal\">See github: nawww83</a>"
             onLinkActivated: link => Qt.openUrlExternally(link)
