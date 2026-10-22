@@ -13,6 +13,7 @@
 #include "ubig.hpp"
 #include "siqs.hpp"
 #include "pollard.hpp"
+#include "cpu_topology.hpp"
 
 #include <atomic>
 #include <bit>
@@ -555,9 +556,9 @@ std::optional<T> ecm_parallel(const T &n,
     auto primes = u128::utils::primes(B1);
     auto is_prime_table = make_prime_sieve(B2);
 
-    unsigned num_threads = std::thread::hardware_concurrency();
-    if (num_threads == 0)
-        num_threads = 4;
+    // Только P-ядра: E-ядра на гибридных процессорах заметно медленнее.
+    // Потоки дополнительно закрепляются за P-ядрами (см. pin_current_thread).
+    unsigned num_threads = u128::cpu::worker_thread_count();
 
     std::atomic<bool> found{false};
     std::atomic<uint32_t> curve_counter{0};
@@ -570,6 +571,7 @@ std::optional<T> ecm_parallel(const T &n,
     for (unsigned t = 0; t < num_threads; ++t)
     {
         workers.emplace_back([&, t]() {
+            u128::cpu::pin_current_thread(t);
             while (!found.load(std::memory_order_relaxed) &&
                    !u128::Globals::LoadStop())
             {

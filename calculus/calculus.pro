@@ -24,6 +24,7 @@ HEADERS += \
     calculus_global.h \
     calculus.h \
     decimal.h \
+    cpu_topology.hpp \
     ecm_factorizer.hpp \
     pollard.hpp \
     lfsr.h \

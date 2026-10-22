@@ -12,6 +12,7 @@
 #include "u128.hpp"
 #include "ubig.hpp"
 #include "u128_utils.h"
+#include "cpu_topology.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -538,9 +539,9 @@ public:
         // 2. Параллельное просеивание полиномов
         if (status_cb)
             status_cb("SIQS: Просеивание полиномов (SIQS Gray Code)...");
-        unsigned num_threads = std::thread::hardware_concurrency();
-        if (num_threads == 0)
-            num_threads = 4;
+        // Только P-ядра: E-ядра на гибридных процессорах заметно медленнее.
+        // Потоки дополнительно закрепляются за P-ядрами (см. pin_current_thread).
+        unsigned num_threads = u128::cpu::worker_thread_count();
 
         std::vector<std::thread> workers;
         workers.reserve(num_threads);
@@ -550,6 +551,7 @@ public:
         for (unsigned t = 0; t < num_threads; ++t)
         {
             workers.emplace_back([this, &batch_seed, t, status_cb]() {
+                u128::cpu::pin_current_thread(t);
                 sieve_worker(batch_seed, t, status_cb);
             });
         }
