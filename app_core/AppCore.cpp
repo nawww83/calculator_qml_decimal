@@ -2,25 +2,14 @@
 
 #include <QRegularExpression>
 #include <QTime>
+#include <QVariantMap>
 
 #include "u128.hpp"
 #include "i128.hpp"
 
 #include <QSettings>
 #include <memory>
-#include <QDebug>
 #include <QTimer>
-
-/**
- * @brief Модификаторы строк.
- */
-namespace modifiers {
-static const auto gray = "\033[37m";   // Время, ID, метки x: и y:
-static const auto green = "\033[32m";  // Исходящие запросы (-->)
-static const auto blue = "\033[1;34m"; // Входящие ответы (<--)
-static const auto red = "\033[1;31m";  // Ошибки и критические сбои
-static const auto reset = "\033[0m";   // Обязательный сброс в конце строки
-}
 
 /**
  * @brief Возвращает описание ошибки по коду ошибки.
@@ -87,18 +76,13 @@ AppCore::AppCore(QObject *parent)
     QMetaObject::invokeMethod(this, [this](){
         m_resObs->start();
         m_reqObs->start();
-        qDebug() << "Observers and Threads started successfully.";
     }, Qt::QueuedConnection);
 
     Reset();
-
-    qDebug() << "AppCore initialized. Welcome!";
 }
 
 AppCore::~AppCore()
 {
-    qDebug() << "~AppCore: Shutting down threads...";
-
     // Сигнализируем контроллеру о немедленной остановке вычислений
     emit m_controller.stop_calculation();
 
@@ -112,8 +96,6 @@ AppCore::~AppCore()
 
     // Завершаем потоки внутри контроллера
     m_controller.quit();
-
-    qDebug() << "~AppCore: Shutdown complete.";
 }
 
 void AppCore::Reset() {
@@ -150,39 +132,29 @@ void AppCore::DoWork(dec_n::Decimal value, int operation)
     // СТАРТ ТАЙМЕРА для конкретного ID
     mTimers[mRequestIdx].start();
 
-    // 3. Визуальное логирование (в едином стиле с ответом)
+    // 3. Запись запроса в историю для панели QML
     {
-        const QString timestamp = QTime::currentTime().toString("HH:mm:ss.zzz");
-        auto debug = qDebug().noquote().nospace();
-
-        // Метаданные: [Время] [ID] (Серый)
-        debug << modifiers::gray << timestamp << " [ID: " << mRequestIdx << "] " << modifiers::reset;
-
-        // Заголовок: --> [Запрос]: Название (Зеленый)
-        debug << modifiers::green << "--> [Запрос]: " << description(operation) << " " << modifiers::reset;
-
-        // Аргументы операции (если это не рандом)
+        QString detail;
         if (operation != OperationEnums::RANDINT && operation != OperationEnums::RANDINT64) {
             auto sv1 = mRegister[1].ValueAsStringView();
             if (operation == OperationEnums::FACTOR) { // Для факторизации нет смысла выводить дробную часть.
-                // Ищем позицию первого вхождения точки или запятой
                 size_t pos = sv1.find_first_of(".,");
-
-                // Если разделитель найден, обрезаем строку до этой позиции
                 if (pos != std::string_view::npos) {
                     sv1 = sv1.substr(0, pos);
                 }
             }
-            debug << modifiers::gray << "x: " << modifiers::reset
-                  << QString::fromUtf8(sv1.data(), static_cast<int>(sv1.size()));
+            detail = QString::fromUtf8("x: ") + QString::fromUtf8(sv1.data(), static_cast<int>(sv1.size()));
 
             // Если операция бинарная (ниже сепаратора), выводим y
             if (operation < OperationEnums::SEPARATOR_OP_TYPE) {
                 auto sv0 = mRegister[0].ValueAsStringView();
-                debug << modifiers::gray << " y: " << modifiers::reset
-                      << QString::fromUtf8(sv0.data(), static_cast<int>(sv0.size()));
+                detail += QString::fromUtf8("   y: ") + QString::fromUtf8(sv0.data(), static_cast<int>(sv0.size()));
             }
         }
+
+        addHistoryEntry(QString::fromUtf8("request"),
+                        QString::fromUtf8("--> [Запрос]: ") + description(operation),
+                        detail, mRequestIdx);
     }
 
     // 4. Формирование вектора и отправка в очередь
@@ -205,12 +177,12 @@ void AppCore::process(int requested_operation, QString input_value)
         emit clearCurrentOperation();
         emit showTempResult(err_description(err), false);
         Reset();
-        qDebug().noquote() << modifiers::red << "!!! [Ошибка]: " << err_description(err) << modifiers::reset;
+        addHistoryEntry(QString::fromUtf8("error"),
+                        QString::fromUtf8("!!! [Ошибка]: ") + err_description(err));
     };
 
     // --- Специальные операции (CLEAR / IO) ---
     if (requested_operation == OperationEnums::CLEAR_ALL) {
-        qDebug().noquote() << modifiers::gray << "Операция: " << modifiers::reset << description(requested_operation);
         emit clearTempResult();
         emit clearCurrentOperation();
         if (mCurrentOperation != OperationEnums::FACTOR) emit clearInputField();
@@ -227,7 +199,6 @@ void AppCore::process(int requested_operation, QString input_value)
             return;
         }
         if (requested_operation == OperationEnums::RANDINT || requested_operation == OperationEnums::RANDINT64) {
-            qDebug().noquote() << modifiers::green << "--> [Запрос]: " << description(requested_operation) << modifiers::reset;
             dec_n::Decimal dummy;
             DoWork(dummy, requested_operation);
             return;
@@ -265,7 +236,6 @@ void AppCore::process(int requested_operation, QString input_value)
     // --- Обработка NaN (Смена операции при пустом вводе) ---
     if (is_nan) {
         if (requested_operation == mCurrentOperation) {
-            qDebug().noquote() << modifiers::red << "Повтор операции." << modifiers::reset;
             return;
         }
         if (requested_operation == OperationEnums::EQUAL && mCurrentOperation >= 0) return;
@@ -352,8 +322,6 @@ void AppCore::process(int requested_operation, QString input_value)
     const bool is_binary = (requested_operation >= 0 && requested_operation < OperationEnums::SEPARATOR_OP_TYPE);
     const bool is_unary_delayed = (requested_operation > OperationEnums::SEPARATOR_OP_TYPE && requested_operation < OperationEnums::SEPARATOR_IO);
 
-    qDebug().noquote() << modifiers::gray << "Операция: " << modifiers::reset << description(requested_operation);
-
     // Сценарий: цепочка (нажатие '+' после ввода второго операнда для предыдущей операции)
     if (is_binary && is_immediate_state) {
         emit showCurrentOperation(description(requested_operation)); // Визуализация новой операции
@@ -411,15 +379,11 @@ void AppCore::handle_results(int err, int operation, QVector<dec_n::Decimal> res
 
 void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decimal> res, int id)
 {
-    // Подготовка метаданных (Время и ID) серым цветом
-    const QString timestamp = QTime::currentTime().toString("HH:mm:ss.zzz");
-    const QString meta = QString("%1%2 [ID: %3]%4 ")
-                             .arg(modifiers::gray, timestamp, QString::number(id), modifiers::reset);
-
     // 1. ОБРАБОТКА ОШИБОК
     if (err != Errors::NO_ERRORS) {
-        qDebug().noquote().nospace()
-        << meta << modifiers::red << "!!! [Ошибка]: " << err_description(err) << modifiers::reset;
+        addHistoryEntry(QString::fromUtf8("error"),
+                        QString::fromUtf8("!!! [Ошибка]: ") + err_description(err),
+                        QString(), id);
 
         emit clearInputField();
         emit clearCurrentOperation();
@@ -447,11 +411,13 @@ void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decima
             factors << QString("%1^%2").arg(prime, power);
         }
 
-        // Вывод с бенчмарком (серым цветом)
-        qDebug().noquote().nospace()
-            << meta << modifiers::blue << "<-- [Факторы]: {" << factors.join("; ") << "} "
-            << modifiers::gray << "[" << QString::number(milliseconds, 'f', 3) << " ms]"
-            << modifiers::reset;
+        // История: факторы и время вычисления.
+        addHistoryEntry(QString::fromUtf8("response"),
+                        QString::fromUtf8("<-- [Факторы]"),
+                        QString::fromUtf8("{") + factors.join(QString::fromUtf8("; "))
+                            + QString::fromUtf8("} [") + QString::number(milliseconds, 'f', 3)
+                            + QString::fromUtf8(" ms]"),
+                        id);
 
         mCurrentOperation = OperationEnums::CLEAR_ALL;
         mState = StateEnums::RESETTED;
@@ -478,14 +444,17 @@ void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decima
             }
         }
 
-        // Универсальный вывод результата в консоль
-        qDebug().noquote().nospace()
-            << meta << modifiers::blue << "<-- [Ответ]: " << res_qs << modifiers::reset;
+        // Результат в историю операций.
+        addHistoryEntry(QString::fromUtf8("response"),
+                        QString::fromUtf8("<-- [Ответ]: ") + res_qs,
+                        QString(), id);
     }
 }
 
 void AppCore::change_decimal_width(int width, bool quiet)
 {
+    Q_UNUSED(quiet);
+
     const int new_width = std::clamp(width, 0, 18);
     const bool is_changed = (m_userDisplayWidth != new_width);
     m_userDisplayWidth = new_width;
@@ -498,12 +467,33 @@ void AppCore::change_decimal_width(int width, bool quiet)
         emit clearTempResult();
         emit clearCurrentOperation();
         emit clearInputField();
-        if (!quiet) {
-            qDebug().noquote() << modifiers::red
-                               << QString::fromUtf8("Изменено количество знаков после запятой: ")
-                               << m_userDisplayWidth << modifiers::reset;
-        }
         QSettings settings("MyHome", "DecimalCalculator");
         settings.setValue("DecimalWidth", m_userDisplayWidth);
     }
+}
+
+void AppCore::addHistoryEntry(const QString &kind, const QString &headline,
+                              const QString &detail, int id)
+{
+    QVariantMap entry;
+    entry.insert(QStringLiteral("time"), QTime::currentTime().toString("HH:mm:ss.zzz"));
+    entry.insert(QStringLiteral("id"), id);
+    entry.insert(QStringLiteral("kind"), kind);
+    entry.insert(QStringLiteral("headline"), headline);
+    entry.insert(QStringLiteral("detail"), detail);
+
+    m_history.append(entry);
+    while (m_history.size() > MAX_HISTORY_SIZE)
+        m_history.removeFirst();
+
+    emit historyChanged();
+}
+
+void AppCore::clearHistory()
+{
+    if (m_history.isEmpty())
+        return;
+
+    m_history.clear();
+    emit historyChanged();
 }

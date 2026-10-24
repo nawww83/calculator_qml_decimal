@@ -7,13 +7,12 @@
 #include "types.h"
 #include <QString>
 #include <QVariant>
+#include <QVariantList>
 #include <QSemaphore>
 
 namespace dec_n { class Decimal; }
 
 Q_DECLARE_METATYPE(dec_n::Decimal);
-
-inline std::mutex g_console_output_mutex;
 
 namespace OperationEnums {
 Q_NAMESPACE
@@ -73,6 +72,7 @@ class AppCore : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(int userDisplayWidth READ userDisplayWidth NOTIFY changeDecimalWidth)
+    Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
 
 public:
     /**
@@ -85,7 +85,16 @@ public:
     // Дефолтная точность задана в одном месте — здесь:
     static constexpr int DEFAULT_DISPLAY_WIDTH = 3;
 
+    // Максимальное количество строк истории, хранимых в памяти.
+    static constexpr int MAX_HISTORY_SIZE = 500;
+
     int userDisplayWidth() const { return m_userDisplayWidth; }
+
+    /**
+     * @brief История операций для отображения в QML.
+     * Каждая запись — QVariantMap с полями time, id, kind, headline, detail.
+     */
+    QVariantList history() const { return m_history; }
 
 signals:
 
@@ -135,6 +144,11 @@ signals:
      */
     void changeDecimalWidth(int width);
 
+    /**
+     * @brief История операций изменилась.
+     */
+    void historyChanged();
+
 public slots:
 
     /**
@@ -161,6 +175,11 @@ public slots:
      * @param width Количество знаков после запятой.
      */
     void change_decimal_width(int width, bool quiet = false);
+
+    /**
+     * @brief Очистить историю операций.
+     */
+    Q_INVOKABLE void clearHistory();
 
 protected:
 
@@ -214,6 +233,16 @@ protected:
 private:
     Q_DISABLE_COPY(AppCore);
 
+    /**
+     * @brief Добавить запись в историю операций.
+     * @param kind Тип записи: request, response, error.
+     * @param headline Основная строка записи.
+     * @param detail Дополнительная строка (может быть пустой).
+     * @param id Идентификатор запроса/ответа; -1, если его нет.
+     */
+    void addHistoryEntry(const QString &kind, const QString &headline,
+                         const QString &detail = QString(), int id = -1);
+
     // Порядок объявления важен: семафоры и буферы должны быть выше обсерверов
     QSemaphore m_reqFree{tp::BUFFER_SIZE};
     QSemaphore m_reqUsed{0};
@@ -229,6 +258,11 @@ private:
     std::unique_ptr<ro::ResultObserver> m_resObs;
 
     int m_userDisplayWidth = DEFAULT_DISPLAY_WIDTH;
+
+    /**
+     * @brief История операций для QML.
+     */
+    QVariantList m_history;
 
     QElapsedTimer mTimers[tp::BUFFER_SIZE]; // Массив таймеров по размеру буфера запросов
 };

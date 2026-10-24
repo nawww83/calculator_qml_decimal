@@ -14,9 +14,10 @@ Window {
     width: 730
 
     // Высота окна в свёрнутом состоянии и высота выдвижных панелей.
-    readonly property int collapsedHeight: 300
+    readonly property int collapsedHeight: 320
     readonly property int keypadHeight: 190
     readonly property int rareOpsHeight: 50
+    readonly property int historyHeight: 170
 
     // Клавиатура и редкие операции выдвигаются: окно растёт вместе с ними.
     property bool keypadOpen: false
@@ -24,6 +25,10 @@ Window {
 
     property bool rareOpsOpen: false
     property real rareOpsReveal: rareOpsOpen ? rareOpsHeight : 0
+
+    // История операций: выдвижная панель внизу окна, под экранной клавиатурой.
+    property bool historyOpen: false
+    property real historyReveal: historyOpen ? historyHeight : 0
 
     Behavior on keypadReveal {
         NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
@@ -33,10 +38,16 @@ Window {
         NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
     }
 
+    Behavior on historyReveal {
+        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+    }
+
     height: collapsedHeight + Math.round(rareOpsReveal) + Math.round(keypadReveal)
+            + Math.round(historyReveal)
     maximumHeight: collapsedHeight
                    + ((keypadOpen || keypadReveal > 0) ? keypadHeight : 0)
                    + ((rareOpsOpen || rareOpsReveal > 0) ? rareOpsHeight : 0)
+                   + ((historyOpen || historyReveal > 0) ? historyHeight : 0)
     maximumWidth: width
     minimumHeight: collapsedHeight
     minimumWidth: width
@@ -106,6 +117,17 @@ Window {
     function setToMemory(val){
         Global.memory_cell = val !== "" ? val : Global.memory_cell
         memory.text = " Memory: " + Global.memory_cell
+    }
+
+    // Цвет строки истории операций по её типу.
+    function historyColor(kind) {
+        switch (kind) {
+        case "request":  return "#1a7f37" // зелёный: исходящий запрос
+        case "response": return "#0b57d0" // синий: ответ
+        case "error":    return "#c62828" // красный: ошибка
+        case "warning":  return "#b26a00" // оранжевый: предупреждение
+        default:         return "#666666" // серый: информация
+        }
     }
 
     // --- Ввод с выдвижной экранной клавиатуры ---------------------------
@@ -871,7 +893,8 @@ Window {
             text: "Смена знака числа: нажмите underscore <b>&#95;</b><br>
                     Cброс: <b>Esc</b><br>
                     Смена количества знаков после запятой: <b>Ctrl+S</b><br>
-                    Экранная клавиатура: кнопка <b>123</b>
+                    Экранная клавиатура: кнопка <b>123</b><br>
+                    История операций: кнопка <b>История</b>
                     <br>
                     <a href=\"https://github.com/nawww83/calculator_qml_decimal\">See github: nawww83</a>"
             onLinkActivated: link => Qt.openUrlExternally(link)
@@ -892,6 +915,7 @@ Window {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.historyReveal
         height: root.keypadReveal
         clip: true
         visible: height > 0
@@ -980,6 +1004,135 @@ Window {
         }
     } // keypad
 
+    // Выдвижная панель истории операций (перенесена из консоли в QML).
+    Item {
+        id: historyPanel
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 0
+        height: root.historyReveal
+        clip: true
+        visible: height > 0
+
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            border.color: "green"
+            border.width: 1
+            radius: 3
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 6
+            spacing: 4
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+
+                Label {
+                    text: qsTr("История операций")
+                          + (historyView.count > 0 ? " (" + historyView.count + ")" : "")
+                    font.pixelSize: 12
+                    font.bold: true
+                    Layout.fillWidth: true
+                }
+
+                Button {
+                    id: clearHistoryButton
+                    text: qsTr("Очистить")
+                    font.pixelSize: 11
+                    padding: 4
+                    implicitWidth: 72
+                    implicitHeight: 22
+                    focusPolicy: Qt.NoFocus
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Очистить историю операций")
+
+                    background: Rectangle {
+                        opacity: enabled ? 1 : 0.3
+                        border.color: clearHistoryButton.down ? "#ff0000"
+                                    : (clearHistoryButton.hovered ? "#0000ff" : "#00ff00")
+                        border.width: 1
+                        radius: 5
+                    }
+
+                    onClicked: AppCore.clearHistory()
+                }
+            }
+
+            ListView {
+                id: historyView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 3
+                boundsBehavior: Flickable.StopAtBounds
+                model: AppCore.history
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                onCountChanged: positionViewAtEnd()
+
+                delegate: Item {
+                    id: historyEntry
+                    width: historyView.width
+                    height: entryLayout.implicitHeight
+
+                    ColumnLayout {
+                        id: entryLayout
+                        width: parent.width
+                        spacing: 1
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            Label {
+                                text: modelData.time
+                                font.pixelSize: 11
+                                color: "#909090"
+                            }
+
+                            Label {
+                                visible: modelData.id >= 0
+                                text: "[ID: " + modelData.id + "]"
+                                font.pixelSize: 11
+                                color: "#909090"
+                            }
+
+                            Label {
+                                text: modelData.headline
+                                font.pixelSize: 12
+                                color: root.historyColor(modelData.kind)
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        Label {
+                            visible: modelData.detail !== ""
+                            text: modelData.detail
+                            font.pixelSize: 11
+                            color: "#555555"
+                            wrapMode: Text.WrapAnywhere
+                            Layout.fillWidth: true
+                        }
+                    }
+                }
+
+                Label {
+                    anchors.centerIn: parent
+                    visible: historyView.count === 0
+                    text: qsTr("История пуста")
+                    font.pixelSize: 12
+                    color: "#909090"
+                }
+            }
+        }
+    } // historyPanel
+
     // Кнопка-«ручка» для выдвижения и скрытия клавиатуры.
     Button {
         id: keypadToggle
@@ -991,7 +1144,7 @@ Window {
         anchors.right: parent.right
         anchors.rightMargin: 6
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: root.keypadReveal + 6
+        anchors.bottomMargin: root.keypadReveal + root.historyReveal + 6
         checkable: true
         checked: root.keypadOpen
         focusPolicy: Qt.NoFocus
@@ -1021,5 +1174,50 @@ Window {
         }
 
         onCheckedChanged: root.keypadOpen = checked
+    }
+
+    // Кнопка-«ручка» для выдвижения и скрытия истории операций.
+    Button {
+        id: historyToggle
+        text: qsTr("История")
+        font.pixelSize: 12
+        padding: 0
+        width: 74
+        height: 26
+        anchors.right: keypadToggle.left
+        anchors.rightMargin: 6
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.keypadReveal + root.historyReveal + 6
+        checkable: true
+        checked: root.historyOpen
+        focusPolicy: Qt.NoFocus
+
+        ToolTip.visible: hovered
+        ToolTip.text: root.historyOpen ? qsTr("Скрыть историю операций")
+                                       : qsTr("Показать историю операций")
+
+        contentItem: Item {
+            Text {
+                anchors.centerIn: parent
+                text: historyToggle.text
+                font: historyToggle.font
+                color: "black"
+            }
+        }
+
+        background: Rectangle {
+            opacity: enabled ? 1 : 0.3
+            color: historyToggle.checked ? "#e8ffe8" : "transparent"
+            border.color: historyToggle.down ? "#ff0000"
+                        : (historyToggle.hovered ? "#0000ff" : "#00ff00")
+            border.width: 1
+            radius: 5
+        }
+
+        onCheckedChanged: {
+            root.historyOpen = checked
+            if (checked)
+                historyView.positionViewAtEnd()
+        }
     }
 }
