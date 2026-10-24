@@ -575,7 +575,7 @@ Window {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Корень квадратный из модуля числа")
+                    ToolTip.text: qsTr("Квадратный корень")
 
                     background: Rectangle {
                        opacity: enabled ? 1 : 0.3
