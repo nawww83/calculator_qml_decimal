@@ -1192,35 +1192,39 @@ public:
      */
     Decimal FixNines() const {
         if (IsNotANumber() || IsOverflowed()) return *this;
-            if (IsInteger()) return *this;
+        if (IsInteger()) return *this;
 
-            std::string s(mStringRepresentation.GetStringView());
-            auto sep_pos = s.find_first_of(".,");
-            if (sep_pos == std::string::npos) return *this;
+        std::string s(mStringRepresentation.GetStringView());
+        auto sep_pos = s.find_first_of(".,");
+        if (sep_pos == std::string::npos) return *this;
 
-            // 1. Отрезаем нули внутреннего заполнителя на конце
-            int end_idx = static_cast<int>(s.size()) - 1;
+        // 1. Отрезаем нули внутреннего заполнителя на конце
+        int end_idx = static_cast<int>(s.size()) - 1;
         while (end_idx > static_cast<int>(sep_pos) && s[end_idx] == '0') {
             end_idx--;
         }
 
-        // 2. Ищем длинную цепочку девяток с конца, допуская до 4 цифр шума после нее
-        int best_nine_start = -1;
+        // 2. Ищем длинную цепочку девяток с конца, допуская шум после нее.
+        //    Длина шума не фиксирована: она не может превышать длину самой
+        //    цепочки, иначе уже нельзя отличить "машинный хвост" от
+        //    значащей части числа (например, 0,999983616 -> 1 - нельзя).
+        int best_nine_start = -1; // индекс символа ПЕРЕД первой девяткой
         int best_nine_count = 0;
 
-        // Перебираем возможный сдвиг шума k от 0 до 4 цифр
-        for (int noise_len = 0; noise_len <= 4; ++noise_len) {
+        // Перебираем возможную длину шума от 0 до начала дробной части
+        for (int noise_len = 0; end_idx - noise_len > static_cast<int>(sep_pos); ++noise_len) {
             int cur = end_idx - noise_len;
+            if (s[cur] != '9') continue;
+
             int count = 0;
             while (cur > static_cast<int>(sep_pos) && s[cur] == '9') {
                 count++;
                 cur--;
             }
-            // Если найдена значимая цепочка девяток (хотя бы 3 штуки подряд)
-            if (count >= 3 && count > best_nine_count) {
+            // Значимая цепочка: минимум 3 девятки подряд и длиннее шума.
+            if (count >= 3 && count > noise_len && count > best_nine_count) {
                 best_nine_count = count;
-                best_nine_start = cur; // индекс символа ПЕРЕД первой девяткой
-                break; // берем самый правый валидный блок девяток
+                best_nine_start = cur;
             }
         }
 
