@@ -14,7 +14,7 @@ Window {
     width: 730
 
     // Высота окна в свёрнутом состоянии и высота выдвижных панелей.
-    readonly property int collapsedHeight: 320
+    readonly property int collapsedHeight: 265
     readonly property int keypadHeight: 190
     readonly property int rareOpsHeight: 50
     readonly property int historyHeight: 170
@@ -249,6 +249,41 @@ Window {
         onOpened: {
             newDecimalWidthInput.text = root.userWidth
             newDecimalWidthInput.focus = true
+        }
+    }
+
+    // Подсказка «клавиша + описание». Клавиша рисуется в рамке — так подсказка
+    // читается как клавиатурное сочетание, а не как строка текста.
+    component Hint: RowLayout {
+        id: hint
+        property string key: ""
+        property string description: ""
+        spacing: 6
+
+        Rectangle {
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth: Math.max(20, keyText.implicitWidth + 10)
+            implicitHeight: keyText.implicitHeight + 4
+            radius: 3
+            color: "#f4f4f4"
+            border.width: 1
+            border.color: "#c8c8c8"
+
+            Text {
+                id: keyText
+                anchors.centerIn: parent
+                text: hint.key
+                font.pixelSize: 11
+                font.bold: true
+                color: "#111111"
+            }
+        }
+
+        Text {
+            Layout.alignment: Qt.AlignVCenter
+            text: hint.description
+            font.pixelSize: 12
+            color: "#666666"
         }
     }
 
@@ -885,28 +920,65 @@ Window {
             }
         }
 
-        TextArea {
-            id: help
-            font.pixelSize: 13
-            Layout.bottomMargin: 8
-            textFormat: Text.RichText
-            text: "Смена знака числа: нажмите underscore <b>&#95;</b><br>
-                    Cброс: <b>Esc</b><br>
-                    Смена количества знаков после запятой: <b>Ctrl+S</b><br>
-                    Экранная клавиатура: кнопка <b>123</b><br>
-                    История операций: кнопка <b>История</b>
-                    <br>
-                    <a href=\"https://github.com/nawww83/calculator_qml_decimal\">See github: nawww83</a>"
-            onLinkActivated: link => Qt.openUrlExternally(link)
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.NoButton
-                cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor
-            }
-            readOnly: true
-        }
-
+        // Пустое место отжимает подсказки к нижнему краю окна.
         Item { Layout.fillHeight: true }
+
+        // Подсказки по горячим клавишам: две строки по три ячейки.
+        // Справа оставлено место под кнопки «История» и «123».
+        GridLayout {
+            id: help
+            Layout.fillWidth: true
+            Layout.leftMargin: 4
+            Layout.rightMargin: 156
+            Layout.bottomMargin: 10
+            columns: 3
+            columnSpacing: 14
+            rowSpacing: 3
+
+            Hint {
+                Layout.fillWidth: true
+                key: "Shift+\u2212"
+                description: qsTr("смена знака")
+            }
+
+            Hint {
+                Layout.fillWidth: true
+                key: "Esc"
+                description: qsTr("сброс")
+            }
+
+            Hint {
+                Layout.fillWidth: true
+                key: "Ctrl+S"
+                description: qsTr("точность")
+            }
+
+            Hint {
+                Layout.fillWidth: true
+                key: "123"
+                description: qsTr("экранная клавиатура")
+            }
+
+            Hint {
+                Layout.fillWidth: true
+                key: qsTr("История")
+                description: qsTr("журнал операций")
+            }
+
+            Label {
+                Layout.fillWidth: true
+                font.pixelSize: 12
+                color: "#666666"
+                textFormat: Text.RichText
+                text: "<a href=\"https://github.com/nawww83/calculator_qml_decimal\" style=\"color:#0066cc;text-decoration:none\">See github: nawww83</a>"
+                onLinkActivated: link => Qt.openUrlExternally(link)
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton
+                    cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor
+                }
+            }
+        }
     }
 
     // Выдвижная экранная клавиатура: цифры, разделитель, Backspace и "=".
