@@ -226,6 +226,14 @@ void AppCore::process(int requested_operation, QString input_value)
     // --- ФАКТОРИЗАЦИЯ ---
     if (requested_operation == OperationEnums::FACTOR) {
         if (mState == StateEnums::EQUAL_TO_OP || mState == StateEnums::OP_LOOP || is_nan) return;
+
+        // Факторизуется ровно то число, которое видно на дисплее.
+        // Worker берет x из mRegister[1], а DoWork в состоянии OP_TO_EQUAL кладет
+        // разобранное значение только в mRegister[0]. Без этой синхронизации
+        // факторизовалось бы предыдущее число: после "8 + 8 =" в регистре
+        // оставалось 16, даже если на дисплее M128/кси уже показали другое.
+        mRegister[1] = val;
+
         emit setEnableFactorButton(false);
         mCurrentOperation = OperationEnums::FACTOR;
         emit showCurrentOperation(description(requested_operation));

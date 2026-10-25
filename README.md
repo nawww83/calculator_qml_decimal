@@ -1,7 +1,7 @@
 # Калькулятор Decimal 128-бит
 
 <p align="center">
-  <img alt="Version 2.00" src="https://img.shields.io/badge/version-2.00-blue" />
+  <img alt="Version 2.01" src="https://img.shields.io/badge/version-2.01-blue" />
   <img alt="Windows 11" src="https://img.shields.io/badge/platform-Windows%2011-0078D4" />
   <img alt="Qt/QML" src="https://img.shields.io/badge/tech-QML-41CD52" />
 </p>
@@ -54,6 +54,11 @@
 [📦 Скачать последнюю версию для Windows](https://disk.yandex.ru/d/FcqdjAe5ofcNHQ)
 
 ## 📝 История версий
+
+### Версия 2.01, 25.10.2026
+
+- Исправлена факторизация: `p·q` раскладывает то число, которое показано на дисплее
+- Ранее после `8 + 8 =` кнопка `p·q` факторизовала предыдущий результат `16`, даже если на дисплее уже были `M₁₂₈` или `ξ₆₄`
 
 ### Версия 2.00, 25.10.2026
 
