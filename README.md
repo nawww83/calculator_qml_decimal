@@ -1,7 +1,7 @@
 # Калькулятор Decimal 128-бит
 
 <p align="center">
-  <img alt="Version 2.03" src="https://img.shields.io/badge/version-2.03-blue" />
+  <img alt="Version 2.04" src="https://img.shields.io/badge/version-2.04-blue" />
   <img alt="Windows 11" src="https://img.shields.io/badge/platform-Windows%2011-0078D4" />
   <img alt="Qt/QML" src="https://img.shields.io/badge/tech-QML-41CD52" />
 </p>
@@ -58,6 +58,12 @@
 [📦 Скачать последнюю версию для Windows](https://disk.yandex.ru/d/FcqdjAe5ofcNHQ)
 
 ## 📝 История версий
+
+### Версия 2.04, 25.10.2026
+
+- Иконка приложения перерисована векторно и собирается во всех размерах: 16, 20, 24, 32, 40, 48, 64, 96, 128 и 256 px (раньше было только 32 и 64)
+- Иконка адаптивная: на 16–24 px показывается крупное «DC», с 32 px — «DC» над «128»; фон по-прежнему прозрачный, цвет — красный
+- Крупные размеры (128 и 256 px) хранятся в PNG, поэтому иконка остаётся чёткой в проводнике, на панели задач и в крупных представлениях
 
 ### Версия 2.03, 25.10.2026
 
