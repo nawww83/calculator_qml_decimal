@@ -123,6 +123,12 @@ signals:
     void showTempResult(QString val, bool is_number);
 
     /**
+     * @brief Показать разложение на простые множители во вспомогательном поле.
+     * @param val Строковое представление разложения, например "= 2^2 · 3 · 5".
+     */
+    void showFactorResult(QString val);
+
+    /**
      * @brief Показать текущую операцию во вспомогательном поле.
      * @param operation Строковое представление операции.
      */
@@ -255,9 +261,11 @@ private:
      * @param headline Основная строка записи.
      * @param detail Дополнительная строка (может быть пустой).
      * @param id Идентификатор запроса/ответа; -1, если его нет.
+     * @param duration Время выполнения операции (может быть пустым).
      */
     void addHistoryEntry(const QString &kind, const QString &headline,
-                         const QString &detail = QString(), int id = -1);
+                         const QString &detail = QString(), int id = -1,
+                         const QString &duration = QString());
 
     // Порядок объявления важен: семафоры и буферы должны быть выше обсерверов
     QSemaphore m_reqFree{tp::BUFFER_SIZE};

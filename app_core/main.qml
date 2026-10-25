@@ -70,6 +70,8 @@ Window {
     property string memoryValue: ""
     // Доступность кнопки факторизации (управляется из AppCore).
     property bool factorAvailable: true
+    // Признак того, что текст поля ввода меняет само приложение, а не пользователь.
+    property bool inputIsSynced: false
 
     // Привязываемся напрямую к свойству C++
     property int userWidth: AppCore.userDisplayWidth
@@ -94,12 +96,16 @@ Window {
         target: AppCore
 
         function onClearInputField() {
+            root.inputIsSynced = true
             input.text = ""
+            root.inputIsSynced = false
         }
 
         function onSetInput(val) {
+            root.inputIsSynced = true
             input.text = thousandSeparator(val)
             input.cursorPosition = input.text.length
+            root.inputIsSynced = false
         }
 
         function onSetEnableFactorButton(val) {
@@ -107,6 +113,7 @@ Window {
         }
 
         function onShowTempResult(val, is_number) {
+            temp_result.isFactorNote = false
             temp_result.isError = !is_number; // Выставляем флаг
             if (is_number) {
                 temp_result.text = " " + thousandSeparator(val);
@@ -115,11 +122,18 @@ Window {
             }
         }
 
+        function onShowFactorResult(val) {
+            temp_result.isError = false
+            temp_result.isFactorNote = true
+            temp_result.text = " " + val
+        }
+
         function onShowCurrentOperation(operation) {
             current_operation.text = " " + operation
         }
 
         function onClearTempResult() {
+            temp_result.isFactorNote = false
             temp_result.text = ""
         }
 
@@ -128,13 +142,18 @@ Window {
         }
     }
 
+    // Разделитель триад: узкий пробел, чтобы группы цифр не расползались
+    // на ширину полноценного моноширинного знака.
+    readonly property string groupSeparator: "\u2004"
+
     function thousandSeparator(inp){
         inp = inp.replace(/\s/g, "")
         var idx = inp.indexOf(",")
         if (idx === -1)
-            return inp.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ")
+            return inp.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1" + groupSeparator)
         else
-            return inp.substring(0, idx).replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ") + inp.substring(idx)
+            return inp.substring(0, idx).replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1" + groupSeparator)
+                   + inp.substring(idx)
     }
 
     function setToMemory(val){
@@ -262,7 +281,7 @@ Window {
     function positionAfterSymbols(value, count) {
         var seen = 0
         for (var i = 0; i < value.length; ++i) {
-            if (value.charAt(i) !== " ")
+            if (!/\s/.test(value.charAt(i)))
                 ++seen
             if (seen === count)
                 return i + 1
@@ -748,6 +767,15 @@ Window {
 
                         property bool ctrlPressed: false
 
+                        // Пользователь начал править число: подсказка о разложении
+                        // предыдущего числа больше не относится к содержимому экрана.
+                        onTextChanged: {
+                            if (!root.inputIsSynced && temp_result.isFactorNote) {
+                                temp_result.isFactorNote = false
+                                temp_result.text = ""
+                            }
+                        }
+
                         Keys.onPressed: event => {
                             if (event.key === Qt.Key_Control) {
                                 ctrlPressed = true
@@ -832,6 +860,9 @@ Window {
 
                             // Создаем внутреннее свойство для отслеживания ошибок
                             property bool isError: false
+
+                            // В строке показано разложение на простые множители.
+                            property bool isFactorNote: false
 
                             // Декларативно привязываем цвет через формулу.
                             // Такая связь является реактивной и никогда не вызовет варнингов.
@@ -1356,6 +1387,15 @@ Window {
                                 color: root.historyColor(modelData.kind)
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
+                            }
+
+                            Label {
+                                visible: modelData.duration !== undefined
+                                         && modelData.duration !== ""
+                                text: "[" + modelData.duration + "]"
+                                font.family: root.monoFont
+                                font.pixelSize: 10
+                                color: "#8b8474"
                             }
                         }
 

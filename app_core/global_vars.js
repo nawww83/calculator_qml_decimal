@@ -1,3 +1,3 @@
 .pragma library
-var APP_VERSION = "2.02";
+var APP_VERSION = "2.03";
 var memory_cell = "";

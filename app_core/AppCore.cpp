@@ -225,7 +225,9 @@ void AppCore::process(int requested_operation, QString input_value)
     }
 
     // --- Парсинг числа ---
-    static auto space_regex = QRegularExpression{"\\s"};
+    // Убираем разделители триад: любой пробельный символ Unicode (U+2004 U+2009 и т.п.).
+    static auto space_regex = QRegularExpression{
+        "\\s", QRegularExpression::UseUnicodePropertiesOption};
     input_value.remove(space_regex);
     dec_n::Decimal val;
     val.SetStringRepresentation(input_value.toStdString());
@@ -256,6 +258,7 @@ void AppCore::process(int requested_operation, QString input_value)
         emit setEnableFactorButton(false);
         mCurrentOperation = OperationEnums::FACTOR;
         emit showCurrentOperation(description(requested_operation));
+        emit clearTempResult(); // Убираем разложение предыдущего числа.
         DoWork(val, requested_operation);
         return;
     }
@@ -442,24 +445,46 @@ void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decima
     }
 
     if (operation == OperationEnums::FACTOR) {
-        // Вычисляем прошедшее время
+        // Время вычисления показывается отдельным полем записи истории.
         qint64 nanoseconds = mTimers[id].nsecsElapsed();
         double milliseconds = nanoseconds / 1000000.0; // Конвертируем в мс
+        const QString duration = QString::number(milliseconds, 'f', 3)
+                                 + QString::fromUtf8(" ms");
 
+        // Множители в привычной математической записи: степень 1 не пишем,
+        // множители разделяем знаком умножения.
         QStringList factors;
+        factors.reserve(res.size() / 2);
         for (int i = 0; i + 1 < res.size(); i += 2) {
-            QString prime = QString::fromStdString(res[i].IntegerPart().toString());
-            QString power = QString::fromStdString(res[i + 1].IntegerPart().unsigned_part().toString());
-            factors << QString("%1^%2").arg(prime, power);
+            const QString prime = QString::fromStdString(res[i].IntegerPart().toString());
+            const QString power =
+                QString::fromStdString(res[i + 1].IntegerPart().unsigned_part().toString());
+            factors << (power == QLatin1String("1")
+                            ? prime
+                            : QString("%1^%2").arg(prime, power));
         }
 
-        // История: факторы и время вычисления.
+        // Ответ оформляется в том же стиле, что и ответы остальных операций.
+        // Для простого числа разложение совпадает с самим числом, поэтому
+        // поясняем результат, иначе он выглядит как эхо запроса.
+        QString answer = factors.isEmpty() ? QString::fromUtf8("—")
+                                           : factors.join(QString::fromUtf8(" · "));
+        if (res.size() == 2) {
+            const auto only_factor = res[0].IntegerPart().unsigned_part();
+            const auto only_power = res[1].IntegerPart().unsigned_part();
+            if (only_factor <= 1)
+                answer += QString::fromUtf8(" — не раскладывается");
+            else if (only_power == 1)
+                answer += QString::fromUtf8(" — простое число");
+        }
+
         addHistoryEntry(QString::fromUtf8("response"),
-                        QString::fromUtf8("<-- [Факторы]"),
-                        QString::fromUtf8("{") + factors.join(QString::fromUtf8("; "))
-                            + QString::fromUtf8("} [") + QString::number(milliseconds, 'f', 3)
-                            + QString::fromUtf8(" ms]"),
-                        id);
+                        QString::fromUtf8("<-- [Ответ]: ") + answer,
+                        QString(), id, duration);
+
+        // Дублируем разложение в нижней строке ЖК: само поле ввода после
+        // факторизации не меняется, иначе результат виден только в журнале.
+        emit showFactorResult(QString::fromUtf8("= ") + answer);
 
         mCurrentOperation = OperationEnums::CLEAR_ALL;
         mState = StateEnums::RESETTED;
@@ -521,7 +546,8 @@ void AppCore::change_decimal_width(int width, bool quiet)
 }
 
 void AppCore::addHistoryEntry(const QString &kind, const QString &headline,
-                              const QString &detail, int id)
+                              const QString &detail, int id,
+                              const QString &duration)
 {
     QVariantMap entry;
     entry.insert(QStringLiteral("time"), QTime::currentTime().toString("HH:mm:ss.zzz"));
@@ -529,6 +555,7 @@ void AppCore::addHistoryEntry(const QString &kind, const QString &headline,
     entry.insert(QStringLiteral("kind"), kind);
     entry.insert(QStringLiteral("headline"), headline);
     entry.insert(QStringLiteral("detail"), detail);
+    entry.insert(QStringLiteral("duration"), duration);
 
     m_history.append(entry);
     while (m_history.size() > MAX_HISTORY_SIZE)
