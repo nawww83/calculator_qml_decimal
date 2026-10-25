@@ -11,13 +11,13 @@ import "global_vars.js" as Global
 
 Window {
     id: root
-    width: 730
+    width: 760
 
     // Высота окна в свёрнутом состоянии и высота выдвижных панелей.
-    readonly property int collapsedHeight: 265
-    readonly property int keypadHeight: 190
-    readonly property int rareOpsHeight: 50
-    readonly property int historyHeight: 170
+    readonly property int collapsedHeight: 334
+    readonly property int keypadHeight: 236
+    readonly property int rareOpsHeight: 58
+    readonly property int historyHeight: 190
 
     // Клавиатура и редкие операции выдвигаются: окно растёт вместе с ними.
     property bool keypadOpen: false
@@ -53,10 +53,33 @@ Window {
     minimumWidth: width
 
     visible: true
+    color: "#202428"
     title: qsTr("Decimal калькулятор 128-bit, version " + Global.APP_VERSION)
+
+    // --- Оформление «бухгалтерского» настольного калькулятора ---------------
+
+    readonly property string uiFont: Qt.platform.os === "windows" ? "Segoe UI"
+                                                                 : "DejaVu Sans"
+    readonly property string monoFont: Qt.platform.os === "windows" ? "Consolas"
+                                                                     : "DejaVu Sans Mono"
+    readonly property string lcdFont: Qt.platform.os === "windows" ? "Lucida Console"
+                                                                    : "DejaVu Sans Mono"
+
+    // Индикатор памяти в дисплее.
+    property bool memoryUsed: false
+    property string memoryValue: ""
+    // Доступность кнопки факторизации (управляется из AppCore).
+    property bool factorAvailable: true
 
     // Привязываемся напрямую к свойству C++
     property int userWidth: AppCore.userDisplayWidth
+
+    // Крупные цифры автоматически уменьшаются, чтобы длинное число
+    // целиком помещалось на ЖК-экране.
+    readonly property int displayFontSize: {
+        var n = input.text.length
+        return n > 32 ? 19 : n > 26 ? 22 : n > 20 ? 26 : 32
+    }
 
     // Реактивное свойство: пересчитывается АВТОМАТИЧЕСКИ при изменении userWidth
     readonly property var decimalRegEx: {
@@ -80,7 +103,7 @@ Window {
         }
 
         function onSetEnableFactorButton(val) {
-            factor.enabled = val
+            root.factorAvailable = val
         }
 
         function onShowTempResult(val, is_number) {
@@ -115,8 +138,12 @@ Window {
     }
 
     function setToMemory(val){
-        Global.memory_cell = val !== "" ? val : Global.memory_cell
-        memory.text = " Memory: " + Global.memory_cell
+        if (val === "")
+            return
+
+        Global.memory_cell = val.replace(/\s/g, "")
+        root.memoryValue = Global.memory_cell
+        root.memoryUsed = true
     }
 
     // Цвет строки истории операций по её типу.
@@ -153,6 +180,23 @@ Window {
             return
 
         setInputText(candidate, pos + 1)
+    }
+
+    // Пара нулей — привычная клавиша бухгалтерских калькуляторов.
+    function appendDoubleZero() {
+        var text = input.text
+        var pos = (input.activeFocus && input.cursorPosition >= 0)
+                ? input.cursorPosition : text.length
+
+        // Ведущих нулей не набираем: пустой ввод и "0" остаются нулём.
+        if (text === "" || text === "0" || text === "-0")
+            return
+
+        var candidate = text.substring(0, pos) + "00" + text.substring(pos)
+        if (!decimalRegEx.test(candidate))
+            return
+
+        setInputText(candidate, pos + 2)
     }
 
     function appendDecimalSeparator() {
@@ -226,26 +270,129 @@ Window {
         return value.length
     }
 
+    // Корпус прибора: тёмный пластик с мягким верхним бликом.
+    Rectangle {
+        anchors.fill: parent
+        radius: 10
+        border.width: 1
+        border.color: "#15181b"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#3d434a" }
+            GradientStop { position: 0.45; color: "#2e3339" }
+            GradientStop { position: 1.0; color: "#24282d" }
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 1
+            height: 2
+            radius: 2
+            color: "#ffffff"
+            opacity: 0.10
+        }
+    }
+
+    // Клавиша в стиле бумажного диалога настроек.
+    component DialogKey: Button {
+        id: dialogKey
+        implicitWidth: 92
+        implicitHeight: 30
+        focusPolicy: Qt.NoFocus
+
+        contentItem: Text {
+            text: dialogKey.text
+            font.pixelSize: 12
+            color: "#3a352c"
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        background: Rectangle {
+            radius: 5
+            color: dialogKey.down ? "#ddd3ba"
+                   : (dialogKey.hovered ? "#ece4d1" : "#f9f5ea")
+            border.width: 1
+            border.color: "#b9b09a"
+        }
+    }
+
     Dialog {
         id: dialog
         title: qsTr("Настройки")
-        font.pointSize: 12
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        width: parent.width * 1.
+        modal: true
+        width: 360
+        padding: 16
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
+        closePolicy: Popup.CloseOnEscape
+        header: null
+        footer: null
 
-        ColumnLayout {
-            anchors.fill: parent
+        background: Rectangle {
+            color: "#f4f1e7"
+            radius: 10
+            border.width: 1
+            border.color: "#8d8778"
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Text {
+                text: qsTr("Настройки")
+                font.pixelSize: 15
+                font.bold: true
+                color: "#3a352c"
+            }
+
+            Text {
+                text: qsTr("Количество знаков после запятой (0–18)")
+                font.pixelSize: 12
+                color: "#5c5546"
+            }
+
             TextField {
                 id: newDecimalWidthInput
-                font.pointSize: 13
                 Layout.fillWidth: true
-                placeholderText: qsTr("Количество знаков после запятой")
+                font.pixelSize: 15
+                placeholderText: qsTr("от 0 до 18")
                 validator: RegularExpressionValidator { regularExpression: /^(1[0-8]|[0-9])$/ }
                 Keys.onReturnPressed: dialog.accept()
+
+                background: Rectangle {
+                    color: "#fffdf6"
+                    radius: 4
+                    border.width: 1
+                    border.color: "#b9b09a"
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                spacing: 8
+
+                Item { Layout.fillWidth: true }
+
+                DialogKey {
+                    text: qsTr("Отмена")
+                    onClicked: dialog.reject()
+                }
+
+                DialogKey {
+                    text: "OK"
+                    onClicked: dialog.accept()
+                }
             }
         }
 
-        onAccepted: { AppCore.change_decimal_width(parseInt(newDecimalWidthInput.text, 10)) }
+        onAccepted: {
+            var value = parseInt(newDecimalWidthInput.text, 10)
+            if (!isNaN(value))
+                AppCore.change_decimal_width(value)
+        }
         onOpened: {
             newDecimalWidthInput.text = root.userWidth
             newDecimalWidthInput.focus = true
@@ -265,17 +412,18 @@ Window {
             implicitWidth: Math.max(20, keyText.implicitWidth + 10)
             implicitHeight: keyText.implicitHeight + 4
             radius: 3
-            color: "#f4f4f4"
+            color: "#4b535b"
             border.width: 1
-            border.color: "#c8c8c8"
+            border.color: "#2a2f34"
 
             Text {
                 id: keyText
                 anchors.centerIn: parent
                 text: hint.key
+                font.family: Qt.platform.os === "windows" ? "Consolas" : "DejaVu Sans Mono"
                 font.pixelSize: 11
                 font.bold: true
-                color: "#111111"
+                color: "#e6ebef"
             }
         }
 
@@ -283,7 +431,131 @@ Window {
             Layout.alignment: Qt.AlignVCenter
             text: hint.description
             font.pixelSize: 12
-            color: "#666666"
+            color: "#aeb6bd"
+        }
+    }
+
+    // Объёмная клавиша калькулятора. Роль задаёт цвет и «характер» клавиши.
+    component CalcKey: Button {
+        id: key
+
+        property string role: "digit"       // digit | digitAlt | operator | memory | clear | equal | accent | function
+        property bool compact: false        // мелкая клавиша функционального ряда
+        property string hint: ""
+
+        readonly property bool lightFace: role === "digit" || role === "digitAlt"
+        readonly property bool active: checkable && checked
+
+        readonly property color faceTop: {
+            switch (role) {
+            case "digit":    return "#fbfaf4"
+            case "digitAlt": return "#e9e5d8"
+            case "operator": return "#8e98a2"
+            case "memory":   return "#6d7884"
+            case "clear":    return "#c95f45"
+            case "equal":    return "#3d8a66"
+            case "accent":   return "#b98b32"
+            default:         return "#4e565e"
+            }
+        }
+
+        readonly property color faceBottom: {
+            switch (role) {
+            case "digit":    return "#dedacd"
+            case "digitAlt": return "#cec9ba"
+            case "operator": return "#6c7681"
+            case "memory":   return "#525c66"
+            case "clear":    return "#a8472f"
+            case "equal":    return "#2a664a"
+            case "accent":   return "#946c22"
+            default:         return "#3b4249"
+            }
+        }
+
+        readonly property color faceBorder: {
+            switch (role) {
+            case "digit":    return "#b3afa2"
+            case "digitAlt": return "#a8a395"
+            case "operator": return "#4c545c"
+            case "memory":   return "#3e474f"
+            case "clear":    return "#7e3220"
+            case "equal":    return "#1f4f39"
+            case "accent":   return "#6d4e14"
+            default:         return "#262b30"
+            }
+        }
+
+        readonly property color faceText: lightFace ? "#22262a" : "#f2f6f8"
+
+        text: ""
+        focusPolicy: Qt.NoFocus
+        padding: 0
+        opacity: enabled ? 1.0 : 0.4
+        scale: down ? 0.975 : 1.0
+
+        Layout.preferredWidth: 0
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+
+        Behavior on scale { NumberAnimation { duration: 60; easing.type: Easing.OutQuad } }
+
+        ToolTip.visible: hovered && hint !== ""
+        ToolTip.text: hint
+        ToolTip.delay: 600
+
+        contentItem: Text {
+            text: key.text
+            font.family: Qt.platform.os === "windows" ? "Segoe UI" : "DejaVu Sans"
+            font.pixelSize: key.compact ? 15 : (key.text.length > 3 ? 17 : 22)
+            font.weight: key.lightFace ? Font.Normal : Font.DemiBold
+            color: key.active ? "#ffd98a" : key.faceText
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            radius: 6
+            border.width: key.active ? 2 : 1
+            border.color: key.active ? "#c9a227" : key.faceBorder
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: key.down ? Qt.darker(key.faceBottom, 1.10) : key.faceTop
+                }
+                GradientStop {
+                    position: 0.55
+                    color: key.down ? Qt.darker(key.faceBottom, 1.18) : key.faceBottom
+                }
+                GradientStop {
+                    position: 1.0
+                    color: key.down ? Qt.darker(key.faceBottom, 1.24)
+                                    : Qt.darker(key.faceBottom, 1.10)
+                }
+            }
+
+            // Верхний блик и нижняя тень создают ощущение выпуклой клавиши.
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 1
+                height: 1
+                radius: 1
+                color: "#ffffff"
+                opacity: key.lightFace ? 0.8 : 0.25
+            }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: 1
+                height: 2
+                radius: 1
+                color: "#000000"
+                opacity: 0.14
+            }
         }
     }
 
@@ -292,515 +564,434 @@ Window {
         anchors.right: parent.right
         anchors.top: parent.top
         height: root.collapsedHeight + Math.round(root.rareOpsReveal)
-        spacing: 1
+        spacing: 8
 
-        TextField {
-            id: input
-            text: ""
-            font.pointSize: 16
+        // Шильдик прибора.
+        RowLayout {
             Layout.fillWidth: true
-            maximumLength: 80
-            validator: RegularExpressionValidator { regularExpression: decimalRegEx }
+            Layout.leftMargin: 14
+            Layout.rightMargin: 14
+            Layout.topMargin: 10
+            spacing: 8
 
-            focus: true
-            visible: true
+            Text {
+                text: "DECIMAL 128"
+                font.family: root.uiFont
+                font.pixelSize: 11
+                font.bold: true
+                font.letterSpacing: 2.4
+                color: "#b9c2c9"
+            }
 
-            property bool ctrlPressed: false
+            // Индикатор питания — маленький зелёный светодиод.
+            Rectangle {
+                Layout.alignment: Qt.AlignVCenter
+                width: 7
+                height: 7
+                radius: 3.5
+                color: "#84ca6e"
+                border.width: 1
+                border.color: "#3c5c34"
 
-            Keys.onPressed: event => {
-                if (event.key === Qt.Key_Control) {
-                    ctrlPressed = true
-                }
-                if (event.key === Qt.Key_Plus) {
-                    AppCore.process(Operations.OperationEnums.ADD, input.text);
-                    event.accepted = true;
-                }
-                if (event.key === Qt.Key_Minus) {
-                    AppCore.process(Operations.OperationEnums.SUB, input.text);
-                    event.accepted = true;
-                }
-                if (event.key === Qt.Key_Asterisk) {
-                    AppCore.process(Operations.OperationEnums.MULT, input.text);
-                    event.accepted = true;
-                }
-                if (event.key === Qt.Key_Slash) {
-                    AppCore.process(Operations.OperationEnums.DIV, input.text);
-                    event.accepted = true;
-                }
-                if (event.key === Qt.Key_AsciiCircum) {
-                    AppCore.process(Operations.OperationEnums.POW, input.text);
-                    event.accepted = true;
-                }
-                if (event.key === Qt.Key_Underscore) {
-                    if (input.text !== "") {
-                        AppCore.process(Operations.OperationEnums.NEGATION, input.text);
-                        event.accepted = true;
-                    }
-                }
-                if ((event.key === Qt.Key_Equal) || (event.key === Qt.Key_Return) || (event.key === Qt.Key_Enter)) {
-                    AppCore.process(Operations.OperationEnums.EQUAL, input.text);
-                    event.accepted = true;
-                }
-                if (event.key === Qt.Key_Escape) {
-                    AppCore.process(Operations.OperationEnums.CLEAR_ALL, input.text);
-                    event.accepted = true;
-                }
-                if (event.key === Qt.Key_S && ctrlPressed) {
-                    ctrlPressed = false
-                    dialog.open()
-                    event.accepted = true;
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 13
+                    height: 13
+                    radius: 6.5
+                    color: "#84ca6e"
+                    opacity: 0.16
                 }
             }
-            Keys.onReleased: event => {
-                var previous_pos = cursorPosition
-                var previous_length = length
-                // Сначала заменить '.' на ',' если есть.
-                if (event.key === Qt.Key_Period) {
-                    if (input.text.indexOf(',') >= 0) {
-                        event.accepted = false;
-                    }
-                    else {
-                        input.text = input.text.replace(/\./g, ",");
-                        event.accepted = true;
-                    }
-                }
-                if (event.key === Qt.Key_Control) {
-                    ctrlPressed = false
-                }
-                input.text = thousandSeparator(input.text)
-                // Коррекция позиции курсора.
-                if (cursorPosition === length && previous_pos !== previous_length) {
-                    var shift = previous_length - length
-                    cursorPosition = previous_pos - shift
-                }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+                text: "FINANCIAL DESK CALCULATOR"
+                font.family: root.uiFont
+                font.pixelSize: 9
+                font.letterSpacing: 1.4
+                color: "#77828b"
             }
         }
 
-        Label {
-            id: temp_result
-            text: ""
-            font.pixelSize: 12
-
-            // Создаем внутреннее свойство для отслеживания ошибок
-            property bool isError: false
-
-            // Декларативно привязываем цвет через формулу.
-            // Такая связь является реактивной и никогда не вызовет варнингов.
-            color: isError ? "red" : "black"
-        }
-
-        Label {
-            id: current_operation
-            text: ""
-            font.pixelSize: 12
-        }
-
-        Label {
-            id: memory
-            text: " Memory:"
-            font.pixelSize: 12
-        }
-
-        Pane {
+        // ЖК-дисплей в утопленном тёмном безеле.
+        Rectangle {
             Layout.fillWidth: true
-            padding: 6
-            implicitHeight: 50
-            background: Rectangle {
-                color: "transparent"
-                border.color: "green"
-                radius: 3
+            Layout.leftMargin: 10
+            Layout.rightMargin: 10
+            Layout.preferredHeight: 100
+            radius: 10
+            color: "#15181b"
+            border.width: 1
+            border.color: "#0b0d0f"
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 1
+                height: 2
+                radius: 2
+                color: "#ffffff"
+                opacity: 0.05
             }
-            GridLayout {
+
+            Rectangle {
+                id: lcd
                 anchors.fill: parent
-                columns: 8
-                columnSpacing: 4
-                rowSpacing: 4
-                Button {
-                    id: add
-                    text: "\u002b"
-                    font.pixelSize: 28
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                anchors.margins: 7
+                radius: 5
+                border.width: 1
+                border.color: "#6e7d63"
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: "#d3dfc8" }
+                    GradientStop { position: 0.55; color: "#c4d3b8" }
+                    GradientStop { position: 1.0; color: "#b6c7a9" }
+                }
 
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: add.down ? "#ff0000" : (add.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.ADD, input.text)
+                // Блик стекла.
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 2
+                    height: parent.height * 0.45
+                    radius: 4
+                    opacity: 0.18
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: "#ffffff" }
+                        GradientStop { position: 1.0; color: "transparent" }
                     }
                 }
 
-                Button {
-                    id: sub
-                    text: "\u2212"
-                    font.pixelSize: 28
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 0
 
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: sub.down ? "#ff0000" : (sub.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
+                    // Строка индикаторов: память, точность, текущая операция.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Rectangle {
+                            implicitWidth: 18
+                            implicitHeight: 14
+                            radius: 2
+                            color: root.memoryUsed ? "#26402a" : "transparent"
+                            border.width: 1
+                            border.color: "#7e8f76"
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "M"
+                                font.family: root.monoFont
+                                font.pixelSize: 9
+                                font.bold: true
+                                color: root.memoryUsed ? "#dcebd2" : "#8a9a82"
+                            }
+
+                            MouseArea {
+                                id: memoryMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.NoButton
+                            }
+
+                            ToolTip.visible: memoryMouse.containsMouse && root.memoryUsed
+                            ToolTip.text: qsTr("Память: ") + root.memoryValue
+                            ToolTip.delay: 400
+                        }
+
+                        Text {
+                            text: "DEC " + root.userWidth
+                            font.family: root.monoFont
+                            font.pixelSize: 10
+                            color: "#5f7059"
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Text {
+                            id: current_operation
+                            text: ""
+                            font.family: root.monoFont
+                            font.pixelSize: 12
+                            color: "#3d5539"
+                        }
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.SUB, input.text)
-                    }
-                }
+                    TextField {
+                        id: input
+                        text: ""
+                        font.family: root.lcdFont
+                        font.pixelSize: root.displayFontSize
+                        font.letterSpacing: 1
+                        color: "#1c3320"
+                        horizontalAlignment: TextInput.AlignRight
+                        verticalAlignment: TextInput.AlignVCenter
+                        selectByMouse: true
+                        selectionColor: "#7fa27a"
+                        selectedTextColor: "#10200f"
+                        placeholderText: "0"
+                        placeholderTextColor: "#7d917a"
+                        padding: 0
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        maximumLength: 80
+                        validator: RegularExpressionValidator { regularExpression: root.decimalRegEx }
 
-                Button {
-                    id: mul
-                    text: "\u00d7"
-                    font.pixelSize: 28
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                        focus: true
+                        visible: true
 
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: mul.down ? "#ff0000" : (mul.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
+                        background: Item {}
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.MULT, input.text)
-                    }
-                }
-                Button {
-                    id: div
-                    text: "\u00f7"
-                    font.pixelSize: 28
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                        property bool ctrlPressed: false
 
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: div.down ? "#ff0000" : (div.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.DIV, input.text)
-                    }
-                }
-                Button {
-                    id: pow
-                    text: "\u005e"
-                    font.pixelSize: 28
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Возведение в степень")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: pow.down ? "#ff0000" : (pow.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.POW, input.text)
-                    }
-                }
-                Button {
-                    id: ln
-                    text: "\u33d1"
-                    font.pixelSize: 28
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Натуральный логарифм")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: ln.down ? "#ff0000" : (ln.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.LN, input.text)
-                    }
-                }
-                Button {
-                    id: exp
-                    text: "\u212f\u02e3"
-                    font.pixelSize: 28
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Экспонента")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: exp.down ? "#ff0000" : (exp.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.EXP, input.text)
-                    }
-                }
-                Button {
-                    id: clear
-                    text: "C"
-                    font.pixelSize: 24
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Сброс / Остановка расчета")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: clear.down ? "#ff0000" : (clear.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.CLEAR_ALL);
-                    }
-                }
-            } // GridLayout
-        } // Pane
-
-        Pane {
-            Layout.fillWidth: true
-            padding: 6
-            implicitHeight: 50
-            background: Rectangle {
-                color: "transparent"
-                border.color: "green"
-                radius: 3
-            }
-            GridLayout {
-                anchors.fill: parent
-                columns: 8
-                columnSpacing: 4
-                rowSpacing: 4
-                Button {
-                    id: sqrt
-                    text: "\u221ax"
-                    font.pixelSize: 24
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Квадратный корень")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: sqrt.down ? "#ff0000" : (sqrt.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.SQRT, input.text);
-                    }
-                }
-                Button {
-                    id: sqr
-                    text: "x²"
-                    font.pixelSize: 24
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Квадрат числа")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: sqr.down ? "#ff0000" : (sqr.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.SQR, input.text);
-                    }
-                }
-                Button {
-                    id: reciprocal
-                    text: "1/x"
-                    font.pixelSize: 24
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Обратное число")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: reciprocal.down ? "#ff0000" : (reciprocal.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.RECIPROC, input.text);
-                    }
-                }
-                Button {
-                    id: round_btn
-                    text: "[x]"
-                    font.pixelSize: 20
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Округлить до ближайшего целого")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: round_btn.down ? "#ff0000" : (round_btn.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.ROUND, input.text);
-                    }
-                }
-                Button {
-                    id: fix_nines_btn
-                    text: ".99\u2192"  // .99→
-                    font.pixelSize: 20
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Схлопнуть машинный хвост девяток")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: fix_nines_btn.down ? "#ff0000" : (fix_nines_btn.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: AppCore.process(Operations.OperationEnums.FIX_NINES, input.text);
-                    }
-                }
-                Button {
-                    id: to_memory
-                    text: "MS"
-                    font.pixelSize: 24
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Положить в память")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: to_memory.down ? "#ff0000" : (to_memory.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: setToMemory(input.text)
-                    }
-                }
-                Button {
-                    id: from_memory
-                    text: "MR"
-                    font.pixelSize: 24
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Извлечь из памяти")
-
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       border.color: from_memory.down ? "#ff0000" : (from_memory.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: input.text = Global.memory_cell !== "" ? Global.memory_cell : input.text
-                    }
-                }
-                Button {
-                    id: more_btn
-                    text: "\u22ef"  // ⋯
-                    font.pixelSize: 24
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    checkable: true
-                    checked: root.rareOpsOpen
-                    ToolTip.visible: hovered
-                    ToolTip.text: root.rareOpsOpen ? qsTr("Скрыть редкие операции")
-                                                    : qsTr("Показать редкие операции")
-
-                    // Три точки рисуем сами: символ «⋯» в некоторых шрифтах
-                    // получается слишком мелким и плохо заметен.
-                    contentItem: Item {
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 3
-
-                            Repeater {
-                                model: 3
-
-                                Rectangle {
-                                    width: 4
-                                    height: 4
-                                    radius: 2
-                                    color: "black"
+                        Keys.onPressed: event => {
+                            if (event.key === Qt.Key_Control) {
+                                ctrlPressed = true
+                            }
+                            if (event.key === Qt.Key_Plus) {
+                                AppCore.process(Operations.OperationEnums.ADD, input.text);
+                                event.accepted = true;
+                            }
+                            if (event.key === Qt.Key_Minus) {
+                                AppCore.process(Operations.OperationEnums.SUB, input.text);
+                                event.accepted = true;
+                            }
+                            if (event.key === Qt.Key_Asterisk) {
+                                AppCore.process(Operations.OperationEnums.MULT, input.text);
+                                event.accepted = true;
+                            }
+                            if (event.key === Qt.Key_Slash) {
+                                AppCore.process(Operations.OperationEnums.DIV, input.text);
+                                event.accepted = true;
+                            }
+                            if (event.key === Qt.Key_AsciiCircum) {
+                                AppCore.process(Operations.OperationEnums.POW, input.text);
+                                event.accepted = true;
+                            }
+                            if (event.key === Qt.Key_Underscore) {
+                                if (input.text !== "") {
+                                    AppCore.process(Operations.OperationEnums.NEGATION, input.text);
+                                    event.accepted = true;
                                 }
+                            }
+                            if ((event.key === Qt.Key_Equal) || (event.key === Qt.Key_Return) || (event.key === Qt.Key_Enter)) {
+                                AppCore.process(Operations.OperationEnums.EQUAL, input.text);
+                                event.accepted = true;
+                            }
+                            if (event.key === Qt.Key_Escape) {
+                                AppCore.process(Operations.OperationEnums.CLEAR_ALL, input.text);
+                                event.accepted = true;
+                            }
+                            if (event.key === Qt.Key_S && ctrlPressed) {
+                                ctrlPressed = false
+                                dialog.open()
+                                event.accepted = true;
+                            }
+                        }
+                        Keys.onReleased: event => {
+                            var previous_pos = cursorPosition
+                            var previous_length = length
+                            // Сначала заменить '.' на ',' если есть.
+                            if (event.key === Qt.Key_Period) {
+                                if (input.text.indexOf(',') >= 0) {
+                                    event.accepted = false;
+                                }
+                                else {
+                                    input.text = input.text.replace(/\./g, ",");
+                                    event.accepted = true;
+                                }
+                            }
+                            if (event.key === Qt.Key_Control) {
+                                ctrlPressed = false
+                            }
+                            input.text = thousandSeparator(input.text)
+                            // Коррекция позиции курсора.
+                            if (cursorPosition === length && previous_pos !== previous_length) {
+                                var shift = previous_length - length
+                                cursorPosition = previous_pos - shift
                             }
                         }
                     }
 
-                    background: Rectangle {
-                       opacity: enabled ? 1 : 0.3
-                       color: more_btn.checked ? "#e8ffe8" : "transparent"
-                       border.color: more_btn.down ? "#ff0000" : (more_btn.hovered ? "#0000ff" : "#00ff00")
-                       border.width: 1
-                       radius: 5
+                    // Нижняя строка ЖК: вспомогательный результат и разрядность.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Text {
+                            id: temp_result
+                            text: ""
+                            font.family: root.monoFont
+                            font.pixelSize: 12
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+
+                            // Создаем внутреннее свойство для отслеживания ошибок
+                            property bool isError: false
+
+                            // Декларативно привязываем цвет через формулу.
+                            // Такая связь является реактивной и никогда не вызовет варнингов.
+                            color: isError ? "#8e2f22" : "#556b4f"
+                        }
+
+                        Text {
+                            text: "128-BIT"
+                            font.family: root.monoFont
+                            font.pixelSize: 9
+                            font.letterSpacing: 1
+                            color: "#6d7f66"
+                        }
+                    }
+                }
+            }
+        }
+
+        // Функциональные клавиши: два ряда мелких тёмных клавиш.
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: 10
+            Layout.rightMargin: 10
+            Layout.preferredHeight: 112
+            radius: 8
+            color: "#2a2f34"
+            border.width: 1
+            border.color: "#1a1e22"
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 1
+                height: 1
+                color: "#ffffff"
+                opacity: 0.06
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 6
+                spacing: 6
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    columns: 8
+                    columnSpacing: 5
+                    rowSpacing: 5
+
+                    Repeater {
+                        model: [
+                            { label: "\u002b", op: Operations.OperationEnums.ADD,
+                              hint: qsTr("Сложение") },
+                            { label: "\u2212", op: Operations.OperationEnums.SUB,
+                              hint: qsTr("Вычитание") },
+                            { label: "\u00d7", op: Operations.OperationEnums.MULT,
+                              hint: qsTr("Умножение") },
+                            { label: "\u00f7", op: Operations.OperationEnums.DIV,
+                              hint: qsTr("Деление") },
+                            { label: "\u005e", op: Operations.OperationEnums.POW,
+                              hint: qsTr("Возведение в степень") },
+                            { label: "\u33d1", op: Operations.OperationEnums.LN,
+                              hint: qsTr("Натуральный логарифм") },
+                            { label: "\u212f\u02e3", op: Operations.OperationEnums.EXP,
+                              hint: qsTr("Экспонента") },
+                            { label: "C", op: Operations.OperationEnums.CLEAR_ALL, role: "clear",
+                              hint: qsTr("Сброс / Остановка расчета") }
+                        ]
+
+                        delegate: CalcKey {
+                            text: modelData.label
+                            role: modelData.role || "operator"
+                            compact: true
+                            hint: modelData.hint
+                            onClicked: AppCore.process(modelData.op, input.text)
+                        }
+                    }
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    columns: 8
+                    columnSpacing: 5
+                    rowSpacing: 5
+
+                    Repeater {
+                        model: [
+                            { label: "\u221ax", op: Operations.OperationEnums.SQRT,
+                              hint: qsTr("Квадратный корень") },
+                            { label: "x\u00b2", op: Operations.OperationEnums.SQR,
+                              hint: qsTr("Квадрат числа") },
+                            { label: "1/x", op: Operations.OperationEnums.RECIPROC,
+                              hint: qsTr("Обратное число") },
+                            { label: "[x]", op: Operations.OperationEnums.ROUND,
+                              hint: qsTr("Округлить до ближайшего целого") },
+                            { label: ".99\u2192", op: Operations.OperationEnums.FIX_NINES,
+                              hint: qsTr("Схлопнуть машинный хвост девяток") },
+                            { label: "MS", action: "memoryStore", role: "memory",
+                              hint: qsTr("Положить в память") },
+                            { label: "MR", action: "memoryRecall", role: "memory",
+                              hint: qsTr("Извлечь из памяти") }
+                        ]
+
+                        delegate: CalcKey {
+                            text: modelData.label
+                            role: modelData.role || "function"
+                            compact: true
+                            hint: modelData.hint
+                            onClicked: {
+                                if (modelData.action === "memoryStore")
+                                    root.setToMemory(input.text)
+                                else if (modelData.action === "memoryRecall") {
+                                    if (root.memoryValue !== "")
+                                        root.setInputText(root.memoryValue,
+                                                          root.memoryValue.length)
+                                }
+                                else
+                                    AppCore.process(modelData.op, input.text)
+                            }
+                        }
                     }
 
-                    onCheckedChanged: root.rareOpsOpen = checked
+                    // Кнопка «⋯»: показывает и скрывает редкие операции.
+                    CalcKey {
+                        id: more_btn
+                        role: "function"
+                        compact: true
+                        checkable: true
+                        checked: root.rareOpsOpen
+                        hint: root.rareOpsOpen ? qsTr("Скрыть редкие операции")
+                                               : qsTr("Показать редкие операции")
+
+                        // Три точки рисуем сами: символ «⋯» в некоторых шрифтах
+                        // получается слишком мелким и плохо заметен.
+                        contentItem: Item {
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 4
+
+                                Repeater {
+                                    model: 3
+
+                                    Rectangle {
+                                        width: 4
+                                        height: 4
+                                        radius: 2
+                                        color: more_btn.checked ? "#ffd98a" : "#e8ecef"
+                                    }
+                                }
+                            }
+                        }
+
+                        onCheckedChanged: root.rareOpsOpen = checked
+                    }
                 }
-            } // GridLayout
-        } // Pane
+            }
+        }
 
         // Выдвижная панель редких операций: открывается кнопкой «⋯».
         Item {
@@ -810,110 +1001,45 @@ Window {
             visible: root.rareOpsReveal > 0
             clip: true
 
-            Pane {
+            Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
                 height: root.rareOpsHeight
-                padding: 6
-                background: Rectangle {
-                    color: "transparent"
-                    border.color: "green"
-                    radius: 3
-                }
+                radius: 8
+                color: "#2a2f34"
+                border.width: 1
+                border.color: "#1a1e22"
 
                 GridLayout {
                     anchors.fill: parent
+                    anchors.margins: 6
                     columns: 4
-                    columnSpacing: 4
-                    rowSpacing: 4
+                    columnSpacing: 5
+                    rowSpacing: 5
 
-                    Button {
-                        id: max_integer
-                        text: "M\u2081\u2082\u2088"  // M₁₂₈
-                        font.pixelSize: 24
-                        Layout.preferredWidth: 0
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        ToolTip.visible: hovered
-                        ToolTip.text: qsTr("Наибольшее целое число")
+                    Repeater {
+                        model: [
+                            { label: "M\u2081\u2082\u2088", op: Operations.OperationEnums.MAX_INT_VALUE,
+                              hint: qsTr("Наибольшее целое число") },
+                            { label: "\u03be\u2086\u2084", op: Operations.OperationEnums.RANDINT64,
+                              hint: qsTr("Случайное целое 64-битное число") },
+                            { label: "\u03be\u2081\u2082\u2088", op: Operations.OperationEnums.RANDINT,
+                              hint: qsTr("Случайное целое 128-битное число") },
+                            { label: "p\u00b7q", op: Operations.OperationEnums.FACTOR,
+                              needsFactor: true,
+                              hint: qsTr("Разложить на простые множители целую часть числа") }
+                        ]
 
-                        background: Rectangle {
-                           opacity: enabled ? 1 : 0.3
-                           border.color: max_integer.down ? "#ff0000" : (max_integer.hovered ? "#0000ff" : "#00ff00")
-                           border.width: 1
-                           radius: 5
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: AppCore.process(Operations.OperationEnums.MAX_INT_VALUE);
-                        }
-                    }
-                    Button {
-                        id: random_half_integer
-                        text: "\u03BE\u2086\u2084"  // ξ₆₄
-                        font.pixelSize: 24
-                        Layout.preferredWidth: 0
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        ToolTip.visible: hovered
-                        ToolTip.text: qsTr("Случайное целое 64-битное число")
-
-                        background: Rectangle {
-                           opacity: enabled ? 1 : 0.3
-                           border.color: random_half_integer.down ? "#ff0000" : (random_half_integer.hovered ? "#0000ff" : "#00ff00")
-                           border.width: 1
-                           radius: 5
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: AppCore.process(Operations.OperationEnums.RANDINT64);
-                        }
-                    }
-                    Button {
-                        id: random_integer
-                        text: "\u03BE\u2081\u2082\u2088"  // ξ₁₂₈
-                        font.pixelSize: 24
-                        Layout.preferredWidth: 0
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        ToolTip.visible: hovered
-                        ToolTip.text: qsTr("Случайное целое 128-битное число")
-
-                        background: Rectangle {
-                           opacity: enabled ? 1 : 0.3
-                           border.color: random_integer.down ? "#ff0000" : (random_integer.hovered ? "#0000ff" : "#00ff00")
-                           border.width: 1
-                           radius: 5
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: AppCore.process(Operations.OperationEnums.RANDINT);
-                        }
-                    }
-                    Button {
-                        id: factor
-                        text: "p\u00B7q"  // p·q
-                        font.pixelSize: 24
-                        Layout.preferredWidth: 0
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        ToolTip.visible: hovered
-                        ToolTip.text: qsTr("Разложить на простые множители целую часть числа")
-
-                        background: Rectangle {
-                           opacity: enabled ? 1 : 0.3
-                           border.color: factor.down ? "#ff0000" : (factor.hovered ? "#0000ff" : "#00ff00")
-                           border.width: 1
-                           radius: 5
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: AppCore.process(Operations.OperationEnums.FACTOR, input.text);
+                        delegate: CalcKey {
+                            text: modelData.label
+                            role: "function"
+                            compact: true
+                            hint: modelData.hint
+                            enabled: !modelData.needsFactor || root.factorAvailable
+                            onClicked: AppCore.process(modelData.op, input.text)
                         }
                     }
                 }
@@ -928,8 +1054,8 @@ Window {
         GridLayout {
             id: help
             Layout.fillWidth: true
-            Layout.leftMargin: 4
-            Layout.rightMargin: 156
+            Layout.leftMargin: 14
+            Layout.rightMargin: 158
             Layout.bottomMargin: 10
             columns: 3
             columnSpacing: 14
@@ -968,9 +1094,9 @@ Window {
             Label {
                 Layout.fillWidth: true
                 font.pixelSize: 12
-                color: "#666666"
+                color: "#aeb6bd"
                 textFormat: Text.RichText
-                text: "<a href=\"https://github.com/nawww83/calculator_qml_decimal\" style=\"color:#0066cc;text-decoration:none\">See github: nawww83</a>"
+                text: "<a href=\"https://github.com/nawww83/calculator_qml_decimal\" style=\"color:#7fb3e0;text-decoration:none\">See github: nawww83</a>"
                 onLinkActivated: link => Qt.openUrlExternally(link)
                 MouseArea {
                     anchors.fill: parent
@@ -981,7 +1107,7 @@ Window {
         }
     }
 
-    // Выдвижная экранная клавиатура: цифры, разделитель, Backspace и "=".
+    // Выдвижная экранная клавиатура: цифровой блок, операторы, Backspace и "=".
     Item {
         id: keypad
         anchors.left: parent.left
@@ -994,66 +1120,77 @@ Window {
 
         Rectangle {
             anchors.fill: parent
-            color: "transparent"
-            border.color: "green"
+            anchors.margins: 1
+            radius: 8
+            color: "#22262b"
             border.width: 1
-            radius: 3
+            border.color: "#0f1114"
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 1
+                height: 1
+                color: "#ffffff"
+                opacity: 0.06
+            }
         }
 
         GridLayout {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: 6
-            height: root.keypadHeight - 12
-            columns: 4
-            columnSpacing: 4
-            rowSpacing: 4
+            anchors.margins: 8
+            height: root.keypadHeight - 16
+            columns: 5
+            columnSpacing: 5
+            rowSpacing: 5
 
             Repeater {
                 model: [
                     { label: "7", action: "digit", row: 0, column: 0 },
                     { label: "8", action: "digit", row: 0, column: 1 },
                     { label: "9", action: "digit", row: 0, column: 2 },
-                    { label: "\u2190", action: "backspace", row: 0, column: 3, rowSpan: 2,
-                      tooltip: qsTr("Удалить символ слева от курсора") },
+                    { label: "\u00f7", action: "div", row: 0, column: 3, role: "operator",
+                      hint: qsTr("Деление") },
+                    { label: "\u2190", action: "backspace", row: 0, column: 4, role: "operator",
+                      hint: qsTr("Удалить символ слева от курсора") },
+
                     { label: "4", action: "digit", row: 1, column: 0 },
                     { label: "5", action: "digit", row: 1, column: 1 },
                     { label: "6", action: "digit", row: 1, column: 2 },
+                    { label: "\u00d7", action: "mul", row: 1, column: 3, role: "operator",
+                      hint: qsTr("Умножение") },
+                    { label: "C", action: "clear", row: 1, column: 4, role: "clear",
+                      hint: qsTr("Сброс / Остановка расчета") },
+
                     { label: "1", action: "digit", row: 2, column: 0 },
                     { label: "2", action: "digit", row: 2, column: 1 },
                     { label: "3", action: "digit", row: 2, column: 2 },
-                    { label: "=", action: "equal", row: 2, column: 3, rowSpan: 2,
-                      tooltip: qsTr("Равно") },
-                    { label: ",", action: "separator", row: 3, column: 0,
-                      tooltip: qsTr("Десятичный разделитель") },
-                    { label: "0", action: "digit", row: 3, column: 1, columnSpan: 2 }
+                    { label: "\u2212", action: "sub", row: 2, column: 3, role: "operator",
+                      hint: qsTr("Вычитание") },
+                    { label: "=", action: "equal", row: 2, column: 4, rowSpan: 2,
+                      role: "equal", hint: qsTr("Равно") },
+
+                    { label: "0", action: "digit", row: 3, column: 0 },
+                    { label: "00", action: "doubleZero", row: 3, column: 1, role: "digitAlt",
+                      hint: qsTr("Два нуля") },
+                    { label: ",", action: "separator", row: 3, column: 2, role: "digitAlt",
+                      hint: qsTr("Десятичный разделитель") },
+                    { label: "\u002b", action: "add", row: 3, column: 3, role: "operator",
+                      hint: qsTr("Сложение") }
                 ]
 
-                delegate: Button {
+                delegate: CalcKey {
                     id: keypadButton
                     text: modelData.label
-                    font.pixelSize: 24
-                    padding: 0
+                    role: modelData.role || "digit"
+                    hint: modelData.hint || ""
                     Layout.row: modelData.row
                     Layout.column: modelData.column
                     Layout.rowSpan: modelData.rowSpan || 1
                     Layout.columnSpan: modelData.columnSpan || 1
-                    Layout.preferredWidth: 0
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    focusPolicy: Qt.NoFocus
-
-                    ToolTip.visible: hovered && !!modelData.tooltip
-                    ToolTip.text: modelData.tooltip || ""
-
-                    background: Rectangle {
-                        opacity: enabled ? 1 : 0.3
-                        border.color: keypadButton.down ? "#ff0000"
-                                    : (keypadButton.hovered ? "#0000ff" : "#00ff00")
-                        border.width: 1
-                        radius: 5
-                    }
 
                     onClicked: {
                         switch (modelData.action) {
@@ -1063,8 +1200,26 @@ Window {
                         case "separator":
                             root.appendDecimalSeparator()
                             break
+                        case "doubleZero":
+                            root.appendDoubleZero()
+                            break
                         case "equal":
                             AppCore.process(Operations.OperationEnums.EQUAL, input.text)
+                            break
+                        case "clear":
+                            AppCore.process(Operations.OperationEnums.CLEAR_ALL)
+                            break
+                        case "add":
+                            AppCore.process(Operations.OperationEnums.ADD, input.text)
+                            break
+                        case "sub":
+                            AppCore.process(Operations.OperationEnums.SUB, input.text)
+                            break
+                        case "mul":
+                            AppCore.process(Operations.OperationEnums.MULT, input.text)
+                            break
+                        case "div":
+                            AppCore.process(Operations.OperationEnums.DIV, input.text)
                             break
                         default:
                             root.appendCharacter(modelData.label)
@@ -1076,7 +1231,7 @@ Window {
         }
     } // keypad
 
-    // Выдвижная панель истории операций (перенесена из консоли в QML).
+    // Выдвижная панель истории операций в виде бумажного журнала.
     Item {
         id: historyPanel
         anchors.left: parent.left
@@ -1089,26 +1244,30 @@ Window {
 
         Rectangle {
             anchors.fill: parent
-            color: "transparent"
-            border.color: "green"
+            anchors.margins: 1
+            radius: 8
+            color: "#f7f2e4"
             border.width: 1
-            radius: 3
+            border.color: "#a39a83"
         }
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 6
-            spacing: 4
+            anchors.margins: 10
+            spacing: 6
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 6
+                spacing: 8
 
                 Label {
-                    text: qsTr("История операций")
-                          + (historyView.count > 0 ? " (" + historyView.count + ")" : "")
+                    text: qsTr("ЖУРНАЛ ОПЕРАЦИЙ")
+                          + (historyView.count > 0 ? "  (" + historyView.count + ")" : "")
+                    font.family: root.monoFont
                     font.pixelSize: 12
                     font.bold: true
+                    font.letterSpacing: 1
+                    color: "#4a4438"
                     Layout.fillWidth: true
                 }
 
@@ -1117,22 +1276,36 @@ Window {
                     text: qsTr("Очистить")
                     font.pixelSize: 11
                     padding: 4
-                    implicitWidth: 72
-                    implicitHeight: 22
+                    implicitWidth: 76
+                    implicitHeight: 24
                     focusPolicy: Qt.NoFocus
                     ToolTip.visible: hovered
                     ToolTip.text: qsTr("Очистить историю операций")
 
+                    contentItem: Text {
+                        text: clearHistoryButton.text
+                        font: clearHistoryButton.font
+                        color: "#4a4438"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
                     background: Rectangle {
-                        opacity: enabled ? 1 : 0.3
-                        border.color: clearHistoryButton.down ? "#ff0000"
-                                    : (clearHistoryButton.hovered ? "#0000ff" : "#00ff00")
+                        radius: 4
+                        color: clearHistoryButton.down ? "#e4dbc4"
+                               : (clearHistoryButton.hovered ? "#efe8d6" : "transparent")
                         border.width: 1
-                        radius: 5
+                        border.color: "#b9b09a"
                     }
 
                     onClicked: AppCore.clearHistory()
                 }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: "#c9c0a9"
             }
 
             ListView {
@@ -1140,7 +1313,7 @@ Window {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                spacing: 3
+                spacing: 4
                 boundsBehavior: Flickable.StopAtBounds
                 model: AppCore.history
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
@@ -1163,20 +1336,23 @@ Window {
 
                             Label {
                                 text: modelData.time
-                                font.pixelSize: 11
-                                color: "#909090"
+                                font.family: root.monoFont
+                                font.pixelSize: 10
+                                color: "#8b8474"
                             }
 
                             Label {
                                 visible: modelData.id >= 0
                                 text: "[ID: " + modelData.id + "]"
-                                font.pixelSize: 11
-                                color: "#909090"
+                                font.family: root.monoFont
+                                font.pixelSize: 10
+                                color: "#8b8474"
                             }
 
                             Label {
                                 text: modelData.headline
-                                font.pixelSize: 12
+                                font.family: root.monoFont
+                                font.pixelSize: 11
                                 color: root.historyColor(modelData.kind)
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
@@ -1186,8 +1362,9 @@ Window {
                         Label {
                             visible: modelData.detail !== ""
                             text: modelData.detail
-                            font.pixelSize: 11
-                            color: "#555555"
+                            font.family: root.monoFont
+                            font.pixelSize: 10
+                            color: "#5c5546"
                             wrapMode: Text.WrapAnywhere
                             Layout.fillWidth: true
                         }
@@ -1198,98 +1375,111 @@ Window {
                     anchors.centerIn: parent
                     visible: historyView.count === 0
                     text: qsTr("История пуста")
+                    font.family: root.monoFont
                     font.pixelSize: 12
-                    color: "#909090"
+                    color: "#8b8474"
                 }
             }
         }
     } // historyPanel
 
-    // Кнопка-«ручка» для выдвижения и скрытия клавиатуры.
-    Button {
-        id: keypadToggle
-        text: "123"
-        font.pixelSize: 13
-        padding: 0
-        width: 46
-        height: 26
+    // Кнопки-«ручки» для выдвижения клавиатуры и журнала операций.
+    Row {
         anchors.right: parent.right
-        anchors.rightMargin: 6
+        anchors.rightMargin: 10
         anchors.bottom: parent.bottom
         anchors.bottomMargin: root.keypadReveal + root.historyReveal + 6
-        checkable: true
-        checked: root.keypadOpen
-        focusPolicy: Qt.NoFocus
+        spacing: 6
 
-        ToolTip.visible: hovered
-        ToolTip.text: root.keypadOpen ? qsTr("Скрыть экранную клавиатуру")
-                                      : qsTr("Показать экранную клавиатуру")
+        Button {
+            id: historyToggle
+            text: qsTr("История")
+            font.pixelSize: 12
+            padding: 0
+            width: 78
+            height: 28
+            checkable: true
+            checked: root.historyOpen
+            focusPolicy: Qt.NoFocus
 
-        // Текст задаём явно: в нажатом состоянии стиль делает его светлым,
-        // и на светло-зелёном фоне «123» пропадает.
-        contentItem: Item {
-            Text {
-                anchors.centerIn: parent
-                text: keypadToggle.text
-                font: keypadToggle.font
-                color: "black"
-            }
-        }
+            ToolTip.visible: hovered
+            ToolTip.text: root.historyOpen ? qsTr("Скрыть историю операций")
+                                           : qsTr("Показать историю операций")
 
-        background: Rectangle {
-            opacity: enabled ? 1 : 0.3
-            color: keypadToggle.checked ? "#e8ffe8" : "transparent"
-            border.color: keypadToggle.down ? "#ff0000"
-                        : (keypadToggle.hovered ? "#0000ff" : "#00ff00")
-            border.width: 1
-            radius: 5
-        }
-
-        onCheckedChanged: root.keypadOpen = checked
-    }
-
-    // Кнопка-«ручка» для выдвижения и скрытия истории операций.
-    Button {
-        id: historyToggle
-        text: qsTr("История")
-        font.pixelSize: 12
-        padding: 0
-        width: 74
-        height: 26
-        anchors.right: keypadToggle.left
-        anchors.rightMargin: 6
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: root.keypadReveal + root.historyReveal + 6
-        checkable: true
-        checked: root.historyOpen
-        focusPolicy: Qt.NoFocus
-
-        ToolTip.visible: hovered
-        ToolTip.text: root.historyOpen ? qsTr("Скрыть историю операций")
-                                       : qsTr("Показать историю операций")
-
-        contentItem: Item {
-            Text {
-                anchors.centerIn: parent
+            contentItem: Text {
                 text: historyToggle.text
                 font: historyToggle.font
-                color: "black"
+                color: historyToggle.checked ? "#1e2a1a" : "#dfe5ea"
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            background: Rectangle {
+                radius: 5
+                border.width: 1
+                border.color: historyToggle.checked ? "#5d6f4f" : "#262b30"
+                gradient: Gradient {
+                    GradientStop {
+                        position: 0.0
+                        color: historyToggle.checked ? "#c3d3b4" : "#4e565e"
+                    }
+                    GradientStop {
+                        position: 1.0
+                        color: historyToggle.checked ? "#9db28c" : "#3b4249"
+                    }
+                }
+            }
+
+            onCheckedChanged: {
+                root.historyOpen = checked
+                if (checked)
+                    historyView.positionViewAtEnd()
             }
         }
 
-        background: Rectangle {
-            opacity: enabled ? 1 : 0.3
-            color: historyToggle.checked ? "#e8ffe8" : "transparent"
-            border.color: historyToggle.down ? "#ff0000"
-                        : (historyToggle.hovered ? "#0000ff" : "#00ff00")
-            border.width: 1
-            radius: 5
-        }
+        Button {
+            id: keypadToggle
+            text: "123"
+            font.pixelSize: 13
+            font.bold: true
+            padding: 0
+            width: 48
+            height: 28
+            checkable: true
+            checked: root.keypadOpen
+            focusPolicy: Qt.NoFocus
 
-        onCheckedChanged: {
-            root.historyOpen = checked
-            if (checked)
-                historyView.positionViewAtEnd()
+            ToolTip.visible: hovered
+            ToolTip.text: root.keypadOpen ? qsTr("Скрыть экранную клавиатуру")
+                                          : qsTr("Показать экранную клавиатуру")
+
+            // Текст задаём явно: в нажатом состоянии стиль делает его светлым,
+            // и на светло-зелёном фоне «123» пропадает.
+            contentItem: Text {
+                text: keypadToggle.text
+                font: keypadToggle.font
+                color: keypadToggle.checked ? "#1e2a1a" : "#dfe5ea"
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            background: Rectangle {
+                radius: 5
+                border.width: 1
+                border.color: keypadToggle.checked ? "#5d6f4f" : "#262b30"
+                gradient: Gradient {
+                    GradientStop {
+                        position: 0.0
+                        color: keypadToggle.checked ? "#c3d3b4" : "#4e565e"
+                    }
+                    GradientStop {
+                        position: 1.0
+                        color: keypadToggle.checked ? "#9db28c" : "#3b4249"
+                    }
+                }
+            }
+
+            onCheckedChanged: root.keypadOpen = checked
         }
     }
 }
