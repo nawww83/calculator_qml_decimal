@@ -535,6 +535,12 @@ void AppCore::change_decimal_width(int width, bool quiet)
     // Всегда уведомляем UI
     emit changeDecimalWidth(m_userDisplayWidth);
 
+    // Показ памяти зависит от текущей точности дисплея.
+    if (m_memoryUsed) {
+        m_memoryText = QString::fromStdString(mMemoryValue.ToFormattedString(m_userDisplayWidth));
+        emit memoryChanged();
+    }
+
     if (is_changed) {
         Reset();
         emit clearTempResult();
@@ -571,4 +577,45 @@ void AppCore::clearHistory()
 
     m_history.clear();
     emit historyChanged();
+}
+
+void AppCore::memoryStore(const QString &input_value)
+{
+    // Разделители триад могут быть любыми пробельными символами Unicode.
+    static auto space_regex = QRegularExpression{
+        "\\s", QRegularExpression::UseUnicodePropertiesOption};
+
+    QString text = input_value;
+    text.remove(space_regex);
+    if (text.isEmpty())
+        return;
+
+    dec_n::Decimal value;
+    value.SetStringRepresentation(text.toStdString());
+    if (value.IsNotANumber() || value.IsOverflowed())
+        return;
+
+    // Пока дисплей не редактировался после результата, в поле ввода лежит
+    // округленный текст, а полное значение хранится в mDisplayValue.
+    if (!mLastShownInput.isEmpty() && text == mLastShownInput
+        && !mDisplayValue.IsNotANumber() && !mDisplayValue.IsOverflowed()) {
+        value = mDisplayValue;
+    }
+
+    mMemoryValue = value;
+    m_memoryUsed = true;
+    m_memoryText = QString::fromStdString(value.ToFormattedString(m_userDisplayWidth));
+    emit memoryChanged();
+}
+
+void AppCore::memoryRecall()
+{
+    if (!m_memoryUsed)
+        return;
+
+    // Кладем на дисплей округленный текст, но запоминаем полное значение:
+    // следующая операция возьмет его, а не показанные знаки.
+    mDisplayValue = mMemoryValue;
+    mLastShownInput = m_memoryText;
+    emit setInput(m_memoryText);
 }

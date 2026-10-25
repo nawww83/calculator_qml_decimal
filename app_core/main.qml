@@ -65,9 +65,10 @@ Window {
     readonly property string lcdFont: Qt.platform.os === "windows" ? "Lucida Console"
                                                                     : "DejaVu Sans Mono"
 
-    // Индикатор памяти в дисплее.
-    property bool memoryUsed: false
-    property string memoryValue: ""
+    // Индикатор памяти в дисплее. Само число хранит AppCore — с полной
+    // точностью, а не в виде округленного текста на экране.
+    readonly property bool memoryUsed: AppCore.memoryUsed
+    readonly property string memoryValue: AppCore.memoryText
     // Доступность кнопки факторизации (управляется из AppCore).
     property bool factorAvailable: true
     // Признак того, что текст поля ввода меняет само приложение, а не пользователь.
@@ -157,12 +158,7 @@ Window {
     }
 
     function setToMemory(val){
-        if (val === "")
-            return
-
-        Global.memory_cell = val.replace(/\s/g, "")
-        root.memoryValue = Global.memory_cell
-        root.memoryUsed = true
+        AppCore.memoryStore(val)
     }
 
     // Цвет строки истории операций по её типу.
@@ -977,11 +973,8 @@ Window {
                             onClicked: {
                                 if (modelData.action === "memoryStore")
                                     root.setToMemory(input.text)
-                                else if (modelData.action === "memoryRecall") {
-                                    if (root.memoryValue !== "")
-                                        root.setInputText(root.memoryValue,
-                                                          root.memoryValue.length)
-                                }
+                                else if (modelData.action === "memoryRecall")
+                                    AppCore.memoryRecall()
                                 else
                                     AppCore.process(modelData.op, input.text)
                             }
@@ -1107,7 +1100,7 @@ Window {
             Hint {
                 Layout.fillWidth: true
                 key: "Ctrl+S"
-                description: qsTr("точность")
+                description: qsTr("точность отображения")
             }
 
             Hint {

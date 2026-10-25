@@ -73,6 +73,8 @@ class AppCore : public QObject
     Q_OBJECT
     Q_PROPERTY(int userDisplayWidth READ userDisplayWidth NOTIFY changeDecimalWidth)
     Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
+    Q_PROPERTY(bool memoryUsed READ memoryUsed NOTIFY memoryChanged)
+    Q_PROPERTY(QString memoryText READ memoryText NOTIFY memoryChanged)
 
 public:
     /**
@@ -95,6 +97,17 @@ public:
      * Каждая запись — QVariantMap с полями time, id, kind, headline, detail.
      */
     QVariantList history() const { return m_history; }
+
+    /**
+     * @brief Признак того, что в памяти калькулятора есть число.
+     */
+    bool memoryUsed() const { return m_memoryUsed; }
+
+    /**
+     * @brief Число из памяти в виде, пригодном для показа (округлено до
+     * текущей точности дисплея). Внутри хранится полное значение.
+     */
+    QString memoryText() const { return m_memoryText; }
 
 signals:
 
@@ -155,6 +168,11 @@ signals:
      */
     void historyChanged();
 
+    /**
+     * @brief Содержимое памяти калькулятора изменилось.
+     */
+    void memoryChanged();
+
 public slots:
 
     /**
@@ -187,6 +205,20 @@ public slots:
      */
     Q_INVOKABLE void clearHistory();
 
+    /**
+     * @brief Положить число с дисплея в память калькулятора.
+     *
+     * Если дисплей не редактировался после результата, в память попадает
+     * полное внутреннее значение (18 знаков), а не округленный текст.
+     * @param input_value Текст поля ввода.
+     */
+    Q_INVOKABLE void memoryStore(const QString &input_value);
+
+    /**
+     * @brief Извлечь число из памяти на дисплей (с полной точностью).
+     */
+    Q_INVOKABLE void memoryRecall();
+
 protected:
 
     /**
@@ -214,6 +246,21 @@ protected:
      * Актуально, пока mLastShownInput совпадает с содержимым поля ввода.
      */
     dec_n::Decimal mDisplayValue;
+
+    /**
+     * @brief Число в памяти калькулятора — всегда с полной точностью.
+     */
+    dec_n::Decimal mMemoryValue;
+
+    /**
+     * @brief Признак того, что в памяти есть число.
+     */
+    bool m_memoryUsed = false;
+
+    /**
+     * @brief Показ числа из памяти с текущей точностью дисплея.
+     */
+    QString m_memoryText;
 
     /**
      * @brief Текущая запрашиваемая операция.
