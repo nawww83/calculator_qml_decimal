@@ -102,6 +102,8 @@ void AppCore::Reset() {
     mRegister[0] = dec_n::Decimal{};
     mRegister[1] = dec_n::Decimal{};
     mPreviousValue = dec_n::Decimal{};
+    mLastShownInput.clear();
+    mDisplayValue = dec_n::Decimal{};
     mCurrentOperation = OperationEnums::CLEAR_ALL;
     mState = StateEnums::RESETTED;
 }
@@ -172,8 +174,23 @@ void AppCore::process(int requested_operation, QString input_value)
         return QString::fromStdString(v.ToFormattedString(m_userDisplayWidth));
     };
 
-    auto updateUIWithError = [this](int err) {
+    // Показать результат в поле ввода и запомнить показанный текст:
+    // пока он не изменен, следующие операции используют полное внутреннее значение.
+    auto showResult = [this, &getStr](const dec_n::Decimal& v) {
+        mDisplayValue = v;
+        mLastShownInput = getStr(v);
+        emit setInput(mLastShownInput);
+    };
+
+    // Очистить поле ввода вместе со сведениями о показанном результате.
+    auto clearInput = [this]() {
+        mLastShownInput.clear();
+        mDisplayValue = dec_n::Decimal{};
         emit clearInputField();
+    };
+
+    auto updateUIWithError = [this, &clearInput](int err) {
+        clearInput();
         emit clearCurrentOperation();
         emit showTempResult(err_description(err), false);
         Reset();
@@ -185,7 +202,7 @@ void AppCore::process(int requested_operation, QString input_value)
     if (requested_operation == OperationEnums::CLEAR_ALL) {
         emit clearTempResult();
         emit clearCurrentOperation();
-        if (mCurrentOperation != OperationEnums::FACTOR) emit clearInputField();
+        if (mCurrentOperation != OperationEnums::FACTOR) clearInput();
         emit m_controller.stop_calculation();
         Reset();
         return;
@@ -195,6 +212,8 @@ void AppCore::process(int requested_operation, QString input_value)
         if (requested_operation == OperationEnums::MAX_INT_VALUE) {
             if (mState == StateEnums::RESETTED) emit clearTempResult();
             auto value = bignum::u128::U128::max();
+            mLastShownInput.clear();
+            mDisplayValue = dec_n::Decimal{};
             emit setInput(QString::fromStdString(value.toString()));
             return;
         }
@@ -256,13 +275,26 @@ void AppCore::process(int requested_operation, QString input_value)
     }
 
     // --- Унарные операции ---
+    // Если поле ввода не редактировалось после показа результата, работаем
+    // с полным внутренним значением (18 знаков), а не с округленным текстом
+    // дисплея. Иначе накапливалась бы погрешность, например:
+    // 1/7 = 0,1429 -> 1/0,1429 = 6,9979 вместо 7.
+    const bool input_is_untouched_result =
+        !mLastShownInput.isEmpty() &&
+        input_value == mLastShownInput &&
+        !mDisplayValue.IsNotANumber() &&
+        !mDisplayValue.IsOverflowed();
+    if (input_is_untouched_result) {
+        val = mDisplayValue;
+    }
+
     const bool current_val_is_the_same = (val == mPreviousValue);
     mPreviousValue = val;
     const bool is_immediate_state = (mState == StateEnums::EQUAL_TO_OP || mState == StateEnums::OP_LOOP);
 
     if (requested_operation == OperationEnums::NEGATION) {
         val = -val;
-        emit setInput(getStr(val));
+        showResult(val);
         return;
     }
 
@@ -307,7 +339,9 @@ void AppCore::process(int requested_operation, QString input_value)
                 updateUIWithError(Errors::NOT_A_NUMBER);
                 return;
             }
-            emit setInput(getStr(val));
+            // Результат унарной операции становится текущим значением дисплея:
+            // следующая операция должна видеть все 18 знаков.
+            showResult(val);
             return;
         } else {
             mCurrentOperation = requested_operation;
@@ -319,7 +353,7 @@ void AppCore::process(int requested_operation, QString input_value)
         if (mCurrentOperation == OperationEnums::FACTOR) return;
         if (mCurrentOperation < 0 && !current_val_is_the_same) {
             emit clearTempResult();
-            emit setInput(getStr(val));
+            showResult(val);
             mCurrentOperation = requested_operation;
             return;
         }
@@ -334,7 +368,7 @@ void AppCore::process(int requested_operation, QString input_value)
     if (is_binary && is_immediate_state) {
         emit showCurrentOperation(description(requested_operation)); // Визуализация новой операции
         mState = StateEnums::OP_LOOP;
-        emit clearInputField();
+        clearInput();
         emit showTempResult(getStr(val), true);
         DoWork(val, mCurrentOperation); // Выполняем накопленную операцию
         mCurrentOperation = requested_operation;
@@ -358,7 +392,7 @@ void AppCore::process(int requested_operation, QString input_value)
             mState = StateEnums::EQUAL_TO_OP;
         }
         mCurrentOperation = requested_operation;
-        emit clearInputField();
+        clearInput();
         emit showTempResult(getStr(val), true);
     }
 
@@ -440,10 +474,16 @@ void AppCore::handle_results_queue(int err, int operation, QVector<dec_n::Decima
             if (pos != -1) {
                 res_qs.truncate(pos); // Убираем состоящую из нулей дробную часть.
             }
+            // Случайное число не обновляет mRegister[1], но mDisplayValue
+            // хранит его точно, поэтому запоминаем показанный результат.
+            mDisplayValue = res[0];
+            mLastShownInput = res_qs;
             emit setInput(res_qs);
         }
         else {
             if (state_is_the_equal || mState == StateEnums::RESETTED) {
+                mDisplayValue = res[0];
+                mLastShownInput = res_qs;
                 emit setInput(res_qs);
                 emit clearTempResult();
             } else {

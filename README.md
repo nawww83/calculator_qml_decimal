@@ -1,7 +1,7 @@
 # Калькулятор Decimal 128-бит
 
 <p align="center">
-  <img alt="Version 2.01" src="https://img.shields.io/badge/version-2.01-blue" />
+  <img alt="Version 2.02" src="https://img.shields.io/badge/version-2.02-blue" />
   <img alt="Windows 11" src="https://img.shields.io/badge/platform-Windows%2011-0078D4" />
   <img alt="Qt/QML" src="https://img.shields.io/badge/tech-QML-41CD52" />
 </p>
@@ -54,6 +54,12 @@
 [📦 Скачать последнюю версию для Windows](https://disk.yandex.ru/d/FcqdjAe5ofcNHQ)
 
 ## 📝 История версий
+
+### Версия 2.02, 25.10.2026
+
+- Исправлена точность цепочек операций: результат больше не перечитывается с округлённого дисплея, а используется с полными 18 внутренними знаками
+- `1/7`, затем `1/x` снова даёт `7`, а не `6,9979`; `ln`/`exp` и другие унарные операции работают так же
+- Если число отредактировано на дисплее вручную, вычисления выполняются по отредактированному значению
 
 ### Версия 2.01, 25.10.2026
 
