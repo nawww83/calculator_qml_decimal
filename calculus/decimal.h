@@ -1389,7 +1389,7 @@ inline Decimal ln_inner(Decimal x) {
     if (k >= 0) {
         k_dec.SetDecimal(k, 0);
     } else {
-        k_dec.SetDecimal(I128{-k, true}, 0);
+        k_dec.SetDecimal(I128{static_cast<bignum::u128::u64>(-k), true}, 0);
     }
 
     if (invert_sub_sum) {
