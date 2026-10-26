@@ -130,18 +130,21 @@ public:
             mSt ^= gp4.get_state();
             const auto high_bits = mSt / 16;
             mSt %= 16;
+            // Старшие биты ячеек подаются в бит 3 полубайта: именно там у ячеек
+            // (равномерных в [0, 23) и [0, 19)) смещена вероятность единицы
+            // (8 значений из 23 и из 19), и XOR в бит 0 этот перекос не убирает.
             x <<= 4;
             x |= mSt[0];
-            x ^= high_bits[1];
+            x ^= high_bits[1] << 3;
             x <<= 4;
             x |= mSt[2];
-            x ^= high_bits[0];
+            x ^= high_bits[0] << 3;
             x <<= 4;
             x |= mSt[3];
-            x ^= high_bits[2];
+            x ^= high_bits[2] << 3;
             x <<= 4;
             x |= mSt[1];
-            x ^= high_bits[3];
+            x ^= high_bits[3] << 3;
         }
         return x;
     }
