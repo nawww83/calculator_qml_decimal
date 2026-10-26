@@ -1324,49 +1324,34 @@ inline Decimal Sqrt(Decimal x) {
         return result;
 }
 
-inline Decimal ln_inner(Decimal x)
-{
-    if (x.IsNotANumber() || x.IsOverflowed())
-        return x;
-
-    // 1. ln(0) = inf (бесконечность в Decimal беззнаковая)
+inline Decimal ln_inner(Decimal x) {
+    if (x.IsNotANumber() || x.IsOverflowed()) return x;
     if (x.IsZero()) {
-        Decimal inf;
-        inf.SetInfinity();
+        Decimal inf; inf.SetInfinity();
         return inf;
     }
 
-    // 2. ln(x < 0) = NaN
+    // Логарифм отрицательного числа не определен (NaN)
     if (x.IsNegative()) {
-        Decimal nan;
-        nan.SetNotANumber();
+        Decimal nan; nan.SetNotANumber();
         return nan;
     }
 
-    Decimal one;
-    one.SetDecimal(1, 0);
-    Decimal zero;
-    zero.SetDecimal(0, 0);
+    Decimal one; one.SetDecimal(1, 0);
+    Decimal zero; zero.SetDecimal(0, 0);
 
-    if ((x - one).IsZero())
-        return zero;
+    if ((x - one).IsZero()) return zero;
 
-    Decimal two;
-    two.SetDecimal(2, 0);
+    Decimal LN2; LN2.SetStringRepresentation("0.693147180559945309");
+    Decimal two; two.SetDecimal(2, 0);
 
-    // Константа ln(2) с точностью с запасом под 18 знаков
-    Decimal LN2;
-    LN2.SetStringRepresentation("0.693147180559945309");
-
-    // Границы [1/sqrt(2), sqrt(2)]
-    Decimal upper_bound;
-    upper_bound.SetStringRepresentation("1.414213562373095049");
-    Decimal lower_bound;
-    lower_bound.SetStringRepresentation("0.707106781186547524");
+    // Правильные границы приведения
+    Decimal upper_bound; upper_bound.SetStringRepresentation("1.414213562373095049"); // Sqrt(2)
+    Decimal lower_bound; lower_bound.SetStringRepresentation("0.707106781186547524"); // 1/Sqrt(2)
 
     int k = 0;
 
-    // Шаг 1: Быстрая редукция x * 2^k к диапазону [1/sqrt(2), sqrt(2)]
+    // Шаг 1: Грубое приведение к диапазону [1/sqrt(2), sqrt(2)]
     while (!(x - upper_bound).IsNegative()) {
         x = x / two;
         k++;
@@ -1376,40 +1361,42 @@ inline Decimal ln_inner(Decimal x)
         k--;
     }
 
-    // Шаг 2: z = (x - 1) / (x + 1)
-    Decimal z = (x - one) / (x + one);
-    Decimal z2 = z * z;
-
-    // Ряд Тейлора: sum = z + z^3/3 + z^5/5 + ...
-    Decimal term = z;
-    Decimal sum = z;
-
-    // Для точности 18 знаков при z^2 < 0.03 достаточно 12 итераций:
-    // (0.03)^12 < 5 * 10^-19
-    for (int n = 3; n <= 25; n += 2) {
-        term = term * z2;
-        Decimal divisor;
-        divisor.SetDecimal(n, 0);
-        Decimal current_term = term / divisor;
-
-        if (current_term.IsZero()) {
-            break;
-        }
-
-        sum = sum + current_term;
+    // --- ТРЮК ДЛЯ ИТЕРАЦИИ ЧИСЕЛ МЕНЬШЕ 1 ---
+    bool invert_sub_sum = false;
+    if ((x - one).IsNegative()) {
+        x = one / x;
+        invert_sub_sum = true;
     }
 
-    Decimal ln_reduced = sum * two; // 2 * sum
+    // Шаг 2: ИТЕРАЦИОННЫЙ ПРОЦЕСС БРЕЙДИ
+    Decimal a = Sqrt(two);
+    Decimal w = LN2 / two;
+    Decimal sum; sum.SetDecimal(0, 0);
 
-    // Шаг 3: Сборка результата ln(x) = ln_reduced + k * ln(2)
+    // Условие !w.IsZero() зависит от точности вашего Decimal.
+    // Если разрядов много, лучше итерировать фиксированное число раз (например, 60-100 итераций)
+    while (!w.IsZero()) {
+        if (!(x - a).IsNegative()) {
+            x = x / a;
+            sum = sum + w;
+        }
+        a = Sqrt(a);
+        w = w / two;
+    }
+
+    // Шаг 3: Финальная сборка
     Decimal k_dec;
     if (k >= 0) {
         k_dec.SetDecimal(k, 0);
     } else {
-        k_dec.SetDecimal(I128{static_cast<bignum::u128::u64>(-k), true}, 0);
+        k_dec.SetDecimal(I128{-k, true}, 0);
     }
 
-    return ln_reduced + (k_dec * LN2);
+    if (invert_sub_sum) {
+        return (k_dec * LN2) - sum;
+    }
+
+    return sum + (k_dec * LN2);
 }
 
 inline Decimal Ln(Decimal x) {
