@@ -1,2 +1,2 @@
 .pragma library
-var APP_VERSION = "2.04";
+var APP_VERSION = "2.05";
