@@ -1351,7 +1351,7 @@ Window {
 
                     ColumnLayout {
                         id: entryLayout
-                        width: parent.width
+                        anchors.fill: parent
                         spacing: 1
 
                         RowLayout {
