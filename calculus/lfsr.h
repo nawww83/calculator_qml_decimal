@@ -8,19 +8,22 @@
  *  - Генератор общего назначения:
  *     - p = [2, 256) для m = [5, 8],
  *     - p = [2, 256*256) для m = [1, 4].
- *  - Сдвоенный генератор с фиксированным m = 4, p = [2, 256). Фактически, это два независимых генератора.
+ * Сдвоенный (счетверенный) генератор с фиксированным m = 4, p = [2, 256) находится в random_gen.h.
  */
 
 #include <cstdint>
 #include <cassert>
 #include <array>
 #include <type_traits>
-#include <cmath>
+#include <utility>
 #include <concepts>
 #include <limits>
+#include <bit>
 
-#if defined(__x86_64__) || defined(_M_X64)
+#if (defined(__x86_64__) || defined(_M_X64)) && !defined(USE_NO_SSE)
+#ifndef USE_SSE
 #define USE_SSE
+#endif
 #endif
 
 #ifdef USE_SSE
@@ -52,6 +55,12 @@ inline void modulo_p(typename lfsr8::MType<m>::STATE &state)
     {
         state[i] %= (u32)p;
     }
+    // Векторный путь обрабатывает все ячейки STATE, в том числе неиспользуемые (>= m).
+    // Обнуляем их, чтобы get_state() и сравнение состояний не возвращали мусор.
+    for (std::size_t i = (std::size_t)m; i < state.size(); i++)
+    {
+        state[i] = 0;
+    }
 }
 
 // Вспомогательная функция для скалярного next()
@@ -72,7 +81,8 @@ template <int p, int m>
 inline void scalar_back(typename lfsr8::MType<m>::STATE &state, const typename lfsr8::MType<m>::STATE &K, const typename lfsr8::MType<m>::STATE &K_inv, typename lfsr8::MType<m>::SAMPLE input)
 {
     using SAMPLE = typename lfsr8::MType<m>::SAMPLE;
-    const u32 diff = (state[0] >= input ? state[0] - (u32)input : state[0] - input + (u32)p) % (u32)p;
+    // (state[0] - input) mod p без знаковых и переполняющихся промежуточных значений.
+    const u32 diff = ((u32)state[0] + (u32)p - (u32)input) % (u32)p;
     const u32 m_v = ((u32)K_inv[0] * diff) % (u32)p;
     for (int i = 0; i < m - 1; i++)
     {
@@ -113,6 +123,11 @@ constexpr T safe_ipow(int base, int exp)
 template <int p, int m>
 class LFSR
 {
+    static_assert(m > 0 && m <= 8, "Ошибка: длина регистра m должна быть в интервале [1, 8]!");
+    static_assert(p > 1, "Ошибка: модуль p должен быть больше 1!");
+    static_assert((m > 4) ? (p < 256) : (p < 256 * 256),
+                  "Ошибка: модуль p вне допустимого интервала для заданной длины регистра!");
+
     using STATE = typename MType<m>::STATE;
     using SAMPLE = typename MType<m>::SAMPLE;
 
@@ -121,38 +136,50 @@ public:
          * @brief Конструктор с параметром.
          * @param K Коэффициенты (-g[0], ..., -g[m-1]) порождающего полинома g(x) степени m в поле GF(p).
          * @details Коэффициент при x^m равен 1 и не используется в явном виде.
+         * K[0] должен быть ненулевым по модулю p (иначе обратного по умножению коэффициента не существует).
          */
     constexpr LFSR(STATE K) : m_K(K)
     {
-        static_assert(m <= 8);
-        static_assert(m > 0);
-        if constexpr (m > 4)
-        {
-            static_assert(p < 256);
-        }
-        else
-        {
-            static_assert(p < 256 * 256);
-        }
-        static_assert(p > 1);
         m_calculate_inverse_of_K();
     };
 
     /**
-         * @brief Максимальный период генератора.
+         * @brief Максимальный период генератора (достигается для примитивного g(x)).
+         * @details Для неприводимого, но не примитивного g(x) период делит T_MAX.
+         * Для приводимого g(x) период может не делить T_MAX: например, при
+         * g(x) = (x - a) * h(x), где h неприводим и примитивен, период равен p^(m-1) - 1,
+         * а T_MAX = p^m - 1 = p*(p^(m-1) - 1) + (p - 1), то есть T_MAX % T = p - 1 != 0.
+         * Поэтому в таком случае x^T_MAX != 1, и показатель T_MAX - 1 не является
+         * обратным (см. inverse_of).
          */
-    static constexpr auto T_MAX = safe_ipow<u64>(p, m) - 1;
+    static constexpr u64 P_POW_M = safe_ipow<u64>(p, m);
 
     // Проверяем, что переполнения не случилось (P_POW_M не стал 0)
-    static_assert(T_MAX != 0,
+    static_assert(P_POW_M != 0,
                   "Ошибка: Период превышает возможности 64-битного целого числа!");
+
+    static constexpr u64 T_MAX = P_POW_M - 1;
 
     /**
          * @brief Установить состояние.
          * @param state Состояние.
+         * @details Каждая ячейка приводится по модулю p, поэтому в качестве состояния можно
+         * передавать произвольные значения (например, сырой сид генератора). Ячейки с индексом
+         * >= m обнуляются, чтобы get_state() не возвращал мусор.
          */
     void set_state(STATE state)
     {
+        for (int i = 0; i < m; ++i)
+        {
+            if ((u32)state[i] >= (u32)p)
+            {
+                state[i] = (SAMPLE)((u32)state[i] % (u32)p);
+            }
+        }
+        for (std::size_t i = (std::size_t)m; i < state.size(); ++i)
+        {
+            state[i] = 0;
+        }
         m_state = std::move(state);
     }
 
@@ -219,35 +246,20 @@ public:
          */
     void square()
     {
-        mult_by(m_state);
+        m_state = m_mult(m_state, m_state, m_K);
     }
 
     /**
          * @brief Умножить текущее состояние x^s на некоторое другое состояние x^t.
          * Итоговое состояние генератора становится равным x^(s+t).
          * @param other Другое состояние x^t.
+         * @details Реализуется через m_mult(): свёртка двух многочленов степени m-1 и
+         * приведение результата по g(x), см. описание m_mult(). Алиасинг other == m_state
+         * безопасен, так как m_mult() не изменяет аргументы до возврата результата.
          */
     void mult_by(const STATE &other)
     {
-        STATE old_state = m_state;
-        // Если не делать условную ссылку, то mult_by(m_state) даст неправильный результат, потому что
-        // next(v) меняет m_state.
-        const STATE &other_ref = other == m_state ? old_state : other;
-        m_state.fill(0);
-        for (int power = 2 * m - 2; power >= 0; --power)
-        {
-            u32 v = 0;
-            for (int i = 0; i < power + 1; ++i)
-            {
-                const int j = power - i;
-                if ((j >= m) || (j < 0))
-                    continue;
-                if ((i >= m) || (i < 0))
-                    continue;
-                v += ((u32)old_state[i] * other_ref[j]) % (u32)p;
-            }
-            next(v % (u32)p);
-        }
+        m_state = m_mult(m_state, other, m_K);
     }
 
     /**
@@ -256,17 +268,7 @@ public:
          */
     void power_by(u64 q)
     {
-        auto x = q;
-        LFSR<p, m> lfsr{m_K};
-        lfsr.set_unit_state();
-        for (; x != 0;)
-        {
-            if ((x & 1) == 1)
-                lfsr.mult_by(get_state());
-            square();
-            x /= 2;
-        }
-        set_state(lfsr.get_state());
+        m_state = m_pow(m_state, m_K, q);
     }
 
     /**
@@ -276,23 +278,29 @@ public:
          * @param q Показатель степени.
          * @return Состояние x^(qt).
          */
-    static STATE power_by(const STATE &state, const STATE &K, u64 q)
+    static constexpr STATE power_by(const STATE &state, const STATE &K, u64 q)
     {
-        LFSR<p, m> lfsr{K};
-        lfsr.set_state(state);
-        lfsr.power_by(q);
-        return lfsr.get_state();
+        return m_pow(state, K, q);
     }
 
     /**
          * @brief Вычислить обратное состояние.
-         * @param state Состояние x^t.
+         * @param state Состояние x^t (элемент цикла генератора).
          * @param K Коэффициенты порождающего полинома g(x).
+         * @param T Период генератора, то есть порядок x в кольце GF(p)[x]/(g(x)) (x^T = 1).
          * @return Состояние, 1/x^t.
+         * @details Так как x^T = 1, для любого состояния цикла s = x^t имеем
+         * s^(T-1) = x^(tT-t) = (x^T)^t * x^(-t) = x^(-t) = 1/s. Поэтому показатель T-1
+         * корректен при любом (в том числе приводимом) g(x), лишь бы K[0] != 0
+         * (иначе x необратим и обратного состояния не существует).
+         * Подходит любое кратное порядка x. Для неприводимого g(x) можно передавать
+         * T = T_MAX = p^m - 1 (примитивность не требуется). Периоды реальных
+         * генераторов см. в random_gen.h; для приводимых g(x) T_MAX не подходит.
          */
-    static STATE inverse_of(const STATE &state, const STATE &K)
+    static constexpr STATE inverse_of(const STATE &state, const STATE &K, u64 T)
     {
-        return power_by(state, K, T_MAX - 1);
+        assert(T > 0);
+        return power_by(state, K, (T > 0) ? (T - 1) : 0);
     }
 
     /**
@@ -331,6 +339,10 @@ public:
         return m_K;
     }
 
+    /**
+         * @brief Коэффициенты для шага назад.
+         * @details Значим только элемент [0] (обратный по умножению K[0]), остальные элементы нулевые.
+         */
     STATE get_inverse_of_coeffs() const
     {
         return m_inv_K;
@@ -343,10 +355,90 @@ public:
 
     SAMPLE get_cell(int idx) const
     {
+        assert((idx >= 0) && (idx < m));
         return m_state[idx];
     }
 
 private:
+    /**
+         * @brief Умножение двух состояний: результат = lhs * rhs по модулю g(x).
+         * @details Свёртка двух многочленов степени m-1 и приведение результата по
+         * g(x) = x^m + g[0] + g[1]x + ... + g[m-1]x^(m-1), то есть по правилу
+         * x^m = K[0] + K[1]x + ... + K[m-1]x^(m-1), где K[i] = -g[i].
+         * Приведение выполняется от старших степеней к младшим (схема Горнера), поэтому
+         * достаточно (m-1)*m умножений без вызовов next(). Все промежуточные суммы
+         * накапливаются в u64 и берутся по модулю p только для коэффициента-делителя
+         * и в конце: максимальное значение ячейки не превышает (2m-1)*(p-1)^2, что
+         * для разрешенных p и m заведомо меньше 2^64.
+         * @param lhs Первый сомножитель.
+         * @param rhs Второй сомножитель.
+         * @param K Коэффициенты порождающего полинома g(x).
+         * @return Произведение состояний.
+         */
+    static constexpr STATE m_mult(const STATE &lhs, const STATE &rhs, const STATE &K)
+    {
+        // Коэффициенты произведения (степени 0 .. 2m-2).
+        std::array<u64, 2 * m - 1> coeffs{};
+        for (int i = 0; i < m; ++i)
+        {
+            const u64 a = lhs[i];
+            if (a == 0)
+                continue;
+            for (int j = 0; j < m; ++j)
+            {
+                coeffs[i + j] += a * (u64)rhs[j];
+            }
+        }
+
+        // Приведение по модулю g(x): x^power = x^(power-m) * x^m.
+        for (int power = 2 * m - 2; power >= m; --power)
+        {
+            const u64 t = coeffs[power] % (u64)p;
+            if (t == 0)
+                continue;
+            for (int i = 0; i < m; ++i)
+            {
+                coeffs[power - m + i] += t * (u64)K[i];
+            }
+        }
+
+        STATE res{};
+        for (int i = 0; i < m; ++i)
+        {
+            res[i] = (SAMPLE)(coeffs[i] % (u64)p);
+        }
+        return res;
+    }
+
+    /**
+         * @brief Возведение состояния в степень (схема «слева направо»).
+         * @details Не требует временного генератора и не копирует состояние на каждом шаге:
+         * не более log2(q) возведений в квадрат и (popcount(q)-1) умножений.
+         * @param x Состояние x^t.
+         * @param K Коэффициенты порождающего полинома g(x).
+         * @param q Показатель степени.
+         * @return Состояние x^(qt).
+         */
+    static constexpr STATE m_pow(const STATE &x, const STATE &K, u64 q)
+    {
+        // x^0 = 1.
+        STATE acc{};
+        acc[0] = 1;
+        if (q == 0)
+            return acc;
+        // Старший установленный бит обрабатывается без умножения на 1.
+        acc = x;
+        for (int bit = (int)std::bit_width(q) - 2; bit >= 0; --bit)
+        {
+            acc = m_mult(acc, acc, K);
+            if (((q >> bit) & 1u) != 0u)
+            {
+                acc = m_mult(acc, x, K);
+            }
+        }
+        return acc;
+    }
+
     /**
          * @brief Состояние генератора.
          */
@@ -364,20 +456,34 @@ private:
 
     /**
          * @brief Вычисляется обратный (по умножению) коэффициент K[0].
+         * @details Расширенный алгоритм Евклида. Если обратного не существует (K[0] == 0 по модулю p
+         * или p не простое), m_inv_K[0] остается нулевым, а back() для такого генератора не работает.
          */
-    void m_calculate_inverse_of_K()
+    constexpr void m_calculate_inverse_of_K()
     {
-        const auto g0 = m_K[0];
+        m_inv_K[0] = 0;
+        const int64_t modulo = p;
+        const int64_t g0 = (int64_t)((u32)m_K[0] % (u32)p);
         assert(g0 != 0);
-        SAMPLE inverse = 1;
-        const SAMPLE modulo = p;
-        for (;; inverse++)
+        int64_t r0 = modulo;
+        int64_t r1 = g0;
+        int64_t t0 = 0;
+        int64_t t1 = 1;
+        while (r1 != 0)
         {
-            const auto product = (g0 * inverse) % modulo;
-            if (product == 1)
-                break;
+            const int64_t q = r0 / r1;
+            const int64_t r2 = r0 - q * r1;
+            r0 = r1;
+            r1 = r2;
+            const int64_t t2 = t0 - q * t1;
+            t0 = t1;
+            t1 = t2;
         }
-        m_inv_K[0] = inverse;
+        if (r0 != 1)
+        {
+            return; // Обратного по умножению нет.
+        }
+        m_inv_K[0] = (SAMPLE)(((t0 % modulo) + modulo) % modulo);
     }
 };
 
