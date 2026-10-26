@@ -376,8 +376,8 @@ static PreprocessResult factor_preprocess(U128 x)
 
 // Полное разложение "тяжёлого" составного остатка. Выделение степени и
 // пробное деление уже выполнены в factor_preprocess, поэтому здесь остаётся
-// только составное число без малых делителей. Порядок методов (как в factorizer):
-// Поллард p-1 -> Поллард-Брент rho -> SIQS -> ECM (кривые Монтгомери) -> метод Ферма.
+// только составное число без малых делителей. Порядок методов:
+// Поллард p-1 -> Поллард-Брент rho -> лёгкий ECM -> SIQS -> тяжёлый ECM -> Ферма.
 static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
 {
     std::map<bignum::u128::U128, int> result;
@@ -385,8 +385,11 @@ static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
     std::function<void(bignum::u128::U128)> split = [&](bignum::u128::U128 n) {
         if (n <= 1)
             return;
-        if (Globals::LoadStop())
+        if (Globals::LoadStop()) {
+            // Фиксируем остаток как есть, чтобы произведение множителей не теряло n.
+            result[n] += 1;
             return;
+        }
         if (is_prime(n, 64)) {
             result[n] += 1;
             return;
@@ -412,7 +415,18 @@ static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
             }
         }
 
-        // 3) Квадратичное решето (SIQS) — основной метод для 128-битных чисел.
+        // 3) Лёгкий ECM — быстро ловит малые/средние делители (25–40 бит),
+        //    поэтому стоит до тяжёлого SIQS.
+        if (!Globals::LoadStop()) {
+            const auto f = u128::ecm::factorize_light(n);
+            if (f.has_value() && f.value() > 1 && f.value() < n) {
+                split(f.value());
+                split(n / f.value());
+                return;
+            }
+        }
+
+        // 4) Квадратичное решето (SIQS) — основной метод для 128-битных чисел.
         if (!Globals::LoadStop()) {
             const auto f = u128::siqs::quadratic_sieve<bignum::u128::U128>(n);
             if (f.has_value() && f.value() > 1 && f.value() < n) {
@@ -428,9 +442,10 @@ static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
             return;
         }
 
-        // 4) Запасной путь: ECM (кривые Монтгомери, портирован из factorizer).
-        {
-            const auto f = u128::ecm::factorize(n);
+        // 5) Тяжёлый ECM: остальные ступени плана после SIQS.
+        //    Первая (лёгкая) ступень уже отработала на шаге 3.
+        if (!Globals::LoadStop()) {
+            const auto f = u128::ecm::factorize(n, 1);
             if (f.has_value() && f.value() > 1 && f.value() < n) {
                 split(f.value());
                 split(n / f.value());
@@ -438,7 +453,7 @@ static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
             }
         }
 
-        // 5) Последний шанс: метод Ферма (работает для близких множителей).
+        // 6) Последний шанс: метод Ферма (работает для близких множителей).
         if (!Globals::LoadStop()) {
             const auto &[a, b] = ferma_method(n);
             if (a > 1 && a < n) {
@@ -459,6 +474,10 @@ static std::map<bignum::u128::U128, int> factor_hard(bignum::u128::U128 x)
 // Тест: 172694645192493905907229620525860152663.
 std::map<bignum::u128::U128, int> factor_parallel(bignum::u128::U128 x)
 {
+    // Сбрасываем флаг остановки от предыдущей операции до начала препроцессинга.
+    // Иначе «Стоп», нажатый во время factor_preprocess, будет затёрт ниже.
+    Globals::SetStop(false);
+
     // Запускаем детерминированную предобработку в вызывающем потоке
     PreprocessResult prep = factor_preprocess(x);
 
@@ -468,9 +487,14 @@ std::map<bignum::u128::U128, int> factor_parallel(bignum::u128::U128 x)
         return prep.factors;
     }
 
-    Globals::SetStop(false);
+    // Остановка во время препроцессинга: не запускаем тяжелый пайплайн.
+    if (Globals::LoadStop()) {
+        prep.factors[prep.composite_remainder] += prep.global_power;
+        return prep.factors;
+    }
 
-    // Разложение тяжелого остатка: сначала SIQS, при неудаче — ECM (Ленстры) + Ферма.
+    // Разложение тяжелого остатка: дешёвые методы и лёгкий ECM до SIQS,
+    // тяжёлый ECM и метод Ферма — после него.
     const std::map<bignum::u128::U128, int> hard = factor_hard(prep.composite_remainder);
 
     // Итоговое слияние: ко всем найденным факторам честно применяем

@@ -20,10 +20,14 @@
 #include <cassert>
 #include <cstdint>
 #include <functional>
+#include <iterator>
+#include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace u128::ecm
@@ -258,22 +262,52 @@ inline MontgomeryPoint<T> montgomery_add(const MontgomeryPoint<T> &P,
 
 inline std::vector<uint8_t> make_prime_sieve(uint32_t max_val)
 {
-    std::vector<uint8_t> is_prime(max_val + 1, 1);
-    if (max_val >= 0)
-        is_prime[0] = 0;
+    std::vector<uint8_t> is_prime(static_cast<size_t>(max_val) + 1, 1);
+    is_prime[0] = 0;
     if (max_val >= 1)
         is_prime[1] = 0;
     for (uint32_t p = 2; 1ULL * p * p <= max_val; ++p)
     {
         if (is_prime[p])
         {
-            for (uint32_t i = p * p; i <= max_val; i += p)
+            // 64-битный индекс исключает переполнение i += p у верхней границы диапазона.
+            for (uint64_t i = 1ULL * p * p; i <= max_val; i += p)
             {
-                is_prime[i] = 0;
+                is_prime[static_cast<size_t>(i)] = 0;
             }
         }
     }
     return is_prime;
+}
+
+// --- Кэш таблиц простых чисел для ступеней ECM ---
+// Ступени плана фиксированы, поэтому решето Stage 2 (до нескольких МБ)
+// и список простых Stage 1 строятся один раз и переиспользуются.
+
+struct EcmPrimeTables
+{
+    std::vector<unsigned> stage1_primes;
+    std::vector<uint8_t> stage2_sieve;
+};
+
+inline std::shared_ptr<const EcmPrimeTables> get_prime_tables(uint32_t B1, uint32_t B2)
+{
+    static std::mutex cache_mutex;
+    static std::map<std::pair<uint32_t, uint32_t>, std::shared_ptr<const EcmPrimeTables>> cache;
+
+    std::lock_guard<std::mutex> lock(cache_mutex);
+
+    const auto key = std::make_pair(B1, B2);
+    auto it = cache.find(key);
+    if (it != cache.end())
+        return it->second;
+
+    auto tables = std::make_shared<EcmPrimeTables>();
+    tables->stage1_primes = u128::utils::primes(B1);
+    tables->stage2_sieve = make_prime_sieve(B2);
+
+    cache.emplace(key, tables);
+    return tables;
 }
 
 // --- Умножение точки на скаляр через лестницу Монтгомери ---
@@ -553,17 +587,25 @@ std::optional<T> ecm_parallel(const T &n,
                               uint32_t B2,
                               std::function<void(const std::string &)> status_cb)
 {
-    auto primes = u128::utils::primes(B1);
-    auto is_prime_table = make_prime_sieve(B2);
+    // Таблицы простых кэшируются: при переходе к следующей ступени плана
+    // повторных аллокаций и просеивания не происходит.
+    auto tables = get_prime_tables(B1, B2);
+    const auto &primes = tables->stage1_primes;
+    const auto &is_prime_table = tables->stage2_sieve;
 
     // Только P-ядра: E-ядра на гибридных процессорах заметно медленнее.
     // Потоки дополнительно закрепляются за P-ядрами (см. pin_current_thread).
     unsigned num_threads = u128::cpu::worker_thread_count();
 
-    std::atomic<bool> found{false};
-    std::atomic<uint32_t> curve_counter{0};
+    // found и curve_counter разнесены по разным кэш-линиям (false sharing):
+    // оба атомика активно читаются/пишутся из разных ядер.
+    alignas(64) std::atomic<bool> found{false};
+    alignas(64) std::atomic<uint32_t> curve_counter{0};
     std::mutex res_mutex;
     std::optional<T> result = std::nullopt;
+
+    // UI-колбэк может быть не потокобезопасным, поэтому вызываем его под мьютексом.
+    std::mutex status_mutex;
 
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
@@ -575,12 +617,13 @@ std::optional<T> ecm_parallel(const T &n,
             while (!found.load(std::memory_order_relaxed) &&
                    !u128::Globals::LoadStop())
             {
-                uint32_t c_idx = curve_counter.fetch_add(1);
+                uint32_t c_idx = curve_counter.fetch_add(1, std::memory_order_relaxed);
                 if (c_idx >= max_curves)
                     break;
 
                 if (status_cb && c_idx % 4 == 0)
                 {
+                    std::lock_guard<std::mutex> status_lock(status_mutex);
                     status_cb("ECM: Тестирование кривых (" + std::to_string(c_idx) +
                               " / " + std::to_string(max_curves) + "), B1=" + std::to_string(B1) +
                               ", B2=" + std::to_string(B2));
@@ -630,16 +673,37 @@ inline const EcmStage ECM_PLAN[] = {
 };
 
 /**
- * @brief Пытается найти нетривиальный делитель числа n методом ECM.
+ * @brief Лёгкая ступень ECM для поиска малых и средних делителей до SIQS.
+ * @details Ограничена первой (самой дешёвой) ступенью плана.
  * @return Делитель d (1 < d < n) или std::nullopt, если не удалось.
  */
-inline std::optional<U128> factorize(const U128 &n)
+inline std::optional<U128> factorize_light(const U128 &n)
 {
-    for (const EcmStage &stage : ECM_PLAN)
+    if (u128::Globals::LoadStop())
+        return std::nullopt;
+
+    const EcmStage &stage = ECM_PLAN[0];
+    auto f = ecm_parallel(n, stage.curves, stage.B1, stage.B2, nullptr);
+    if (f.has_value() && f.value() > 1 && f.value() < n)
+        return f;
+
+    return std::nullopt;
+}
+
+/**
+ * @brief Пытается найти нетривиальный делитель числа n методом ECM.
+ * @param first_stage Индекс первой ступени плана (позволяет пропустить уже
+ *                    выполненную лёгкую ступень).
+ * @return Делитель d (1 < d < n) или std::nullopt, если не удалось.
+ */
+inline std::optional<U128> factorize(const U128 &n, size_t first_stage = 0)
+{
+    for (size_t i = first_stage; i < std::size(ECM_PLAN); ++i)
     {
         if (u128::Globals::LoadStop())
             break;
 
+        const EcmStage &stage = ECM_PLAN[i];
         auto f = ecm_parallel(n, stage.curves, stage.B1, stage.B2, nullptr);
         if (f.has_value() && f.value() > 1 && f.value() < n)
         {
